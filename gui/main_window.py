@@ -1,0 +1,34 @@
+# gui/main_window.py
+
+import customtkinter as ctk
+
+
+class MainWindow(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+
+        # Configure window
+        self.title("Image ELO Ranker")
+        self.geometry("1024x768")
+
+        # Configure grid layout (1x1)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Create tabview
+        self.tabview = ctk.CTkTabview(self)
+        self.tabview.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+
+        # Create tabs
+        self.tab_voting = self.tabview.add("Voting")
+        self.tab_upload = self.tabview.add("Upload")
+        self.tab_ranking = self.tabview.add("Ranking")
+
+        # Configure grid layout for each tab
+        for tab in [self.tab_voting, self.tab_upload, self.tab_ranking]:
+            tab.grid_rowconfigure(0, weight=1)
+            tab.grid_columnconfigure(0, weight=1)
+
+    def start(self):
+        """Start the application main loop"""
+        self.mainloop()
