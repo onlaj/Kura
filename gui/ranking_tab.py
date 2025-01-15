@@ -25,7 +25,7 @@ class RankingTab(ctk.CTkFrame):
         self.thumbnail_size = (150, 150)
         self.photo_references = []
         self.current_page = 1
-        self.per_page = 50
+        self.per_page = 10
         self.total_images = 0
 
         # Configure grid layout
