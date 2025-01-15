@@ -27,6 +27,7 @@ class VotingTab(ctk.CTkFrame):
         self.current_left = None
         self.current_right = None
         self.photo_references = []
+        self.images_loaded = False  # Track if images have been loaded
 
         # Voting cooldown
         self.last_vote_time = 0
@@ -38,6 +39,7 @@ class VotingTab(ctk.CTkFrame):
 
         self.setup_ui()
         self.load_new_pair()
+
 
     def setup_ui(self):
         """Setup all UI elements"""
@@ -97,9 +99,11 @@ class VotingTab(ctk.CTkFrame):
         if not image_pair or None in image_pair:
             self.show_error("Not enough images in database")
             self.disable_voting()
+            self.images_loaded = False  # Reset loaded state if no images available
             return
 
         self.current_left, self.current_right = image_pair
+        self.images_loaded = True  # Mark as loaded
 
         # Load and display left image
         left_photo = self.image_handler.load_image(self.current_left[1])
@@ -116,6 +120,11 @@ class VotingTab(ctk.CTkFrame):
         # Enable voting and clear status
         self.enable_voting()
         self.status_label.configure(text="")
+
+    def ensure_images_loaded(self):
+        """Load images if they haven't been loaded yet"""
+        if not self.images_loaded:
+            self.load_new_pair()
 
     def handle_vote(self, vote: str):
         """

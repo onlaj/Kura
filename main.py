@@ -1,6 +1,7 @@
 # main.py
 
 import os
+import time
 from pathlib import Path
 import customtkinter as ctk
 from db.database import Database
@@ -26,11 +27,27 @@ class Application:
 
         # Create main window
         self.main_window = MainWindow()
+        self.main_window.set_tab_change_callback(self.handle_tab_change)
+
+        # Track last vote timestamp for ranking refresh
+        self.last_vote_time = time.time()
+        self.last_ranking_refresh = time.time()
 
         # Initialize tabs
         self.init_upload_tab()
         self.init_ranking_tab()
         self.init_voting_tab()
+
+    def handle_tab_change(self, tab_name):
+        """Handle tab changes"""
+        if tab_name == "Voting":
+            # Load voting images only if not already loaded
+            self.voting_tab.ensure_images_loaded()
+        elif tab_name == "Ranking":
+            # Refresh rankings if there were new votes
+            if self.last_vote_time > self.last_ranking_refresh:
+                self.ranking_tab.refresh_rankings()
+                self.last_ranking_refresh = time.time()
 
     def init_upload_tab(self):
         """Initialize the upload tab."""
@@ -128,6 +145,7 @@ class Application:
         """
         self.db.update_ratings(winner_id, loser_id,
                                new_winner_rating, new_loser_rating)
+        self.last_vote_time = time.time()  # Update last vote timestamp
 
     def run(self):
         """Start the application."""
