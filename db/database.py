@@ -30,15 +30,7 @@ class Database:
         self.conn.commit()
 
     def add_image(self, image_path: str) -> bool:
-        """
-        Add a new image to the database.
-
-        Args:
-            image_path: Path to the image file
-
-        Returns:
-            True if successful, False if image already exists
-        """
+        """Add a new image to the database."""
         try:
             self.cursor.execute(
                 "INSERT INTO images (path) VALUES (?)",
@@ -49,14 +41,36 @@ class Database:
         except sqlite3.IntegrityError:
             return False
 
-    def get_pair_for_voting(self) -> Tuple[Optional[tuple], Optional[tuple]]:
+    def get_rankings_page(self, page: int, per_page: int = 50) -> Tuple[List[tuple], int]:
         """
-        Get two images for voting: one least voted and one random.
+        Get a page of ranked images.
+
+        Args:
+            page: Page number (1-based)
+            per_page: Number of items per page
 
         Returns:
-            Tuple of two image records (id, path, rating, votes)
+            Tuple of (list of image records, total number of images)
         """
-        # Get least voted image
+        # Get total count
+        self.cursor.execute("SELECT COUNT(*) FROM images")
+        total_images = self.cursor.fetchone()[0]
+
+        # Calculate offset
+        offset = (page - 1) * per_page
+
+        # Get page of images
+        self.cursor.execute("""
+            SELECT id, path, rating, votes 
+            FROM images 
+            ORDER BY rating DESC
+            LIMIT ? OFFSET ?
+        """, (per_page, offset))
+
+        return self.cursor.fetchall(), total_images
+
+    def get_pair_for_voting(self) -> Tuple[Optional[tuple], Optional[tuple]]:
+        """Get two images for voting: one least voted and one random."""
         self.cursor.execute("""
             SELECT id, path, rating, votes 
             FROM images 
@@ -68,7 +82,6 @@ class Database:
         if not least_voted:
             return None, None
 
-        # Get random image different from the least voted one
         self.cursor.execute("""
             SELECT id, path, rating, votes 
             FROM images 
@@ -82,15 +95,7 @@ class Database:
 
     def update_ratings(self, winner_id: int, loser_id: int,
                        new_winner_rating: float, new_loser_rating: float):
-        """
-        Update ratings after a vote.
-
-        Args:
-            winner_id: ID of the winning image
-            loser_id: ID of the losing image
-            new_winner_rating: New ELO rating for winner
-            new_loser_rating: New ELO rating for loser
-        """
+        """Update ratings after a vote."""
         self.cursor.execute("""
             UPDATE images 
             SET rating = ?, votes = votes + 1 
@@ -105,26 +110,6 @@ class Database:
 
         self.conn.commit()
 
-    def get_rankings(self) -> List[tuple]:
-        """
-        Get all images sorted by rating.
-
-        Returns:
-            List of (id, path, rating, votes) tuples
-        """
-        self.cursor.execute("""
-            SELECT id, path, rating, votes 
-            FROM images 
-            ORDER BY rating DESC
-        """)
-        return self.cursor.fetchall()
-
     def close(self):
         """Close the database connection."""
         self.conn.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()

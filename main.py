@@ -73,14 +73,18 @@ class Application:
             return self.db.add_image(image_path)
         return False
 
-    def get_rankings(self):
+    def get_rankings(self, page: int = 1, per_page: int = 50):
         """
-        Get current rankings from database.
+        Get current rankings from database with pagination.
+
+        Args:
+            page: Page number (1-based)
+            per_page: Number of items per page
 
         Returns:
-            List of (id, path, rating, votes) tuples
+            Tuple of (list of image records, total number of images)
         """
-        return self.db.get_rankings()
+        return self.db.get_rankings_page(page, per_page)
 
     def get_pair_for_voting(self):
         """
