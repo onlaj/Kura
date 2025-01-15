@@ -178,10 +178,27 @@ class Database:
                 VALUES (?, ?)
             """, (winner_id, loser_id))
 
+            # Get the ID of the inserted vote
+            vote_id = self.cursor.lastrowid
+
+            # Verify the vote was recorded
+            self.cursor.execute("""
+                SELECT * FROM votes WHERE id = ?
+            """, (vote_id,))
+            vote_record = self.cursor.fetchone()
+            print(
+                f"Recorded vote: ID={vote_record[0]}, Winner={vote_record[1]}, Loser={vote_record[2]}, Time={vote_record[3]}")
+
+            # Get total vote count
+            self.cursor.execute("SELECT COUNT(*) FROM votes")
+            total_votes = self.cursor.fetchone()[0]
+            print(f"Total votes in database: {total_votes}")
+
             self.conn.commit()
 
         except Exception as e:
             self.conn.rollback()
+            print(f"Error recording vote: {e}")
             raise e
 
     def get_rankings_page(self, page: int, per_page: int = 50) -> Tuple[List[tuple], int]:
@@ -236,22 +253,7 @@ class Database:
 
         return least_voted, random_image
 
-    def update_ratings(self, winner_id: int, loser_id: int,
-                       new_winner_rating: float, new_loser_rating: float):
-        """Update ratings after a vote."""
-        self.cursor.execute("""
-            UPDATE images 
-            SET rating = ?, votes = votes + 1 
-            WHERE id = ?
-        """, (new_winner_rating, winner_id))
 
-        self.cursor.execute("""
-            UPDATE images 
-            SET rating = ?, votes = votes + 1 
-            WHERE id = ?
-        """, (new_loser_rating, loser_id))
-
-        self.conn.commit()
 
     def close(self):
         """Close the database connection."""
