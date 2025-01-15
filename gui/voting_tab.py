@@ -9,60 +9,49 @@ from typing import Optional, Tuple
 
 class VotingTab(ctk.CTkFrame):
     def __init__(self, parent, get_pair_callback, update_ratings_callback, image_handler):
-        """
-        Initialize the voting tab.
-
-        Args:
-            parent: Parent widget
-            get_pair_callback: Callback to get image pair for voting
-            update_ratings_callback: Callback to update ratings after vote
-            image_handler: ImageHandler instance for loading images
-        """
         super().__init__(parent)
+        self.parent = parent
         self.get_pair_callback = get_pair_callback
         self.update_ratings_callback = update_ratings_callback
         self.image_handler = image_handler
 
-        # Current images data
         self.current_left = None
         self.current_right = None
         self.photo_references = []
-        self.images_loaded = False  # Track if images have been loaded
+        self.images_loaded = False
 
-        # Voting cooldown
         self.last_vote_time = 0
         self.vote_cooldown = 1.0  # seconds
 
-        # Configure grid layout
         self.grid_columnconfigure((0, 1), weight=1)
         self.grid_rowconfigure(0, weight=1)
+
+        self.preview_mode = False  # Track if in preview mode
+        self.preview_label = None  # Placeholder for preview label
 
         self.setup_ui()
         self.load_new_pair()
 
 
     def setup_ui(self):
-        """Setup all UI elements"""
-        # Left frame
         self.left_frame = ctk.CTkFrame(self)
         self.left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         self.left_frame.grid_rowconfigure(0, weight=1)
         self.left_frame.grid_columnconfigure(0, weight=1)
 
-        # Right frame
         self.right_frame = ctk.CTkFrame(self)
         self.right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         self.right_frame.grid_rowconfigure(0, weight=1)
         self.right_frame.grid_columnconfigure(0, weight=1)
 
-        # Image labels
         self.left_image_label = ctk.CTkLabel(self.left_frame, text="")
         self.left_image_label.grid(row=0, column=0, padx=10, pady=10)
+        self.left_image_label.bind("<Button-1>", lambda e: self.show_preview(self.current_left[1]))
 
         self.right_image_label = ctk.CTkLabel(self.right_frame, text="")
         self.right_image_label.grid(row=0, column=0, padx=10, pady=10)
+        self.right_image_label.bind("<Button-1>", lambda e: self.show_preview(self.current_right[1]))
 
-        # Vote buttons
         self.left_button = ctk.CTkButton(
             self.left_frame,
             text="Vote Left",
@@ -77,7 +66,6 @@ class VotingTab(ctk.CTkFrame):
         )
         self.right_button.grid(row=1, column=0, padx=10, pady=10)
 
-        # Skip button
         self.skip_button = ctk.CTkButton(
             self,
             text="Skip Pair",
@@ -85,9 +73,42 @@ class VotingTab(ctk.CTkFrame):
         )
         self.skip_button.grid(row=1, column=0, columnspan=2, padx=10, pady=10)
 
-        # Status label
         self.status_label = ctk.CTkLabel(self, text="")
         self.status_label.grid(row=2, column=0, columnspan=2, padx=10, pady=5)
+
+    def show_preview(self, image_path: str):
+        """Show a full-size preview of the image without altering the current UI."""
+        if self.preview_mode:
+            return
+
+        self.preview_mode = True
+
+        # Create an overlay frame to act as the preview container
+        self.preview_frame = ctk.CTkFrame(self, fg_color="black")
+        self.preview_frame.grid(row=0, column=0, rowspan=3, columnspan=2, sticky="nsew")
+        self.preview_frame.grid_columnconfigure(0, weight=1)
+        self.preview_frame.grid_rowconfigure(0, weight=1)
+
+        # Load and display the preview image
+        preview_image = self.image_handler.load_image(image_path)  # Load full-size image
+        self.preview_label = ctk.CTkLabel(self.preview_frame, image=preview_image, text="")
+        self.preview_label.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.photo_references.append(preview_image)
+
+        # Add a click event to exit the preview
+        self.preview_label.bind("<Button-1>", self.exit_preview)
+
+    def exit_preview(self, event=None):
+        """Exit the preview mode and remove the overlay without altering the current UI."""
+        if not self.preview_mode:
+            return
+
+        self.preview_mode = False
+
+        # Remove the preview overlay frame
+        if self.preview_frame:
+            self.preview_frame.destroy()
+            self.preview_frame = None
 
     def load_new_pair(self):
         """Load a new pair of images for voting"""
