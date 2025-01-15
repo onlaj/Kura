@@ -45,7 +45,8 @@ class Application:
         self.ranking_tab = RankingTab(
             self.main_window.tab_ranking,
             self.get_rankings,
-            self.image_handler
+            self.image_handler,
+            self.delete_image  # Add delete callback
         )
         self.ranking_tab.grid(row=0, column=0, sticky="nsew")
 
@@ -72,6 +73,25 @@ class Application:
         if self.image_handler.is_valid_image(image_path):
             return self.db.add_image(image_path)
         return False
+
+    def delete_image(self, image_id: int):
+        """
+        Delete an image from the database and file system.
+
+        Args:
+            image_id: ID of the image to delete
+        """
+        try:
+            # Delete from database and get file path
+            image_path = self.db.delete_image(image_id)
+
+            # Delete the actual file if it exists
+            if image_path and os.path.exists(image_path):
+                os.remove(image_path)
+
+        except Exception as e:
+            print(f"Error deleting image: {e}")
+            raise e
 
     def get_rankings(self, page: int = 1, per_page: int = 50):
         """
