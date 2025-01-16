@@ -8,7 +8,7 @@ import threading
 
 
 class ImageHandler:
-    def __init__(self, max_size: Tuple[int, int] = (800, 600)):
+    def __init__(self, max_size: Tuple[int, int] = (1800, 1600)):
         """
         Initialize the image handler.
 
@@ -51,8 +51,9 @@ class ImageHandler:
             if hasattr(image, 'is_animated') and image.is_animated:
                 frames = []
                 durations = []
+                max_gif_size = (500, 500)  # Maximum size for animated GIF frames
 
-                # Get display size
+                # Determine display size
                 display_size = target_size if target_size else self.current_size
                 if thumbnail_size:
                     display_size = thumbnail_size
@@ -63,16 +64,15 @@ class ImageHandler:
                     if frame.mode != 'RGB':
                         frame = frame.convert('RGB')
 
-                    # Resize frame if needed
-                    if display_size:
-                        width_ratio = display_size[0] / frame.width
-                        height_ratio = display_size[1] / frame.height
+                    # Resize frame only if it exceeds max_gif_size
+                    if frame.width > max_gif_size[0] or frame.height > max_gif_size[1]:
+                        width_ratio = max_gif_size[0] / frame.width
+                        height_ratio = max_gif_size[1] / frame.height
                         scale_ratio = min(width_ratio, height_ratio)
 
-                        if scale_ratio < 1:
-                            new_size = (int(frame.width * scale_ratio),
-                                        int(frame.height * scale_ratio))
-                            frame = frame.resize(new_size, Image.Resampling.LANCZOS)
+                        new_size = (int(frame.width * scale_ratio),
+                                    int(frame.height * scale_ratio))
+                        frame = frame.resize(new_size, Image.Resampling.LANCZOS)
 
                     frames.append(ctk.CTkImage(light_image=frame, dark_image=frame,
                                                size=frame.size))
@@ -83,7 +83,7 @@ class ImageHandler:
 
                 return (frames, len(frames), durations)
 
-            # Handle static images (existing code)
+            # Handle static images
             if image.mode != 'RGB':
                 image = image.convert('RGB')
 
