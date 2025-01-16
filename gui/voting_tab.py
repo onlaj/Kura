@@ -35,6 +35,21 @@ class VotingTab(ctk.CTkFrame):
         # Bind resize event
         self.bind("<Configure>", self.on_resize)
 
+        self.bind("<Map>", self.on_map_event)
+
+    def on_map_event(self, event=None):
+        """
+        This method is called when the widget is actually displayed on the screen.
+        We use this to ensure the UI is fully rendered before loading images.
+        """
+        # Unbind the event to prevent multiple calls
+        self.unbind("<Map>")
+
+        # Force the UI to process all pending events
+        self.update_idletasks()
+
+        # Now load the images
+        self.load_new_pair()
 
 
     def setup_ui(self):
