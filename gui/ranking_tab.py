@@ -95,6 +95,9 @@ class RankingTab(ctk.CTkFrame):
     def show_preview(self, image_index: int):
         """Show a full-size preview of the image with navigation arrows."""
         if self.preview_mode:
+            # Stop any existing preview animation
+            if hasattr(self, 'preview_label'):
+                self.image_handler.stop_animation(self.preview_label)
             return
 
         self.preview_mode = True
@@ -117,10 +120,19 @@ class RankingTab(ctk.CTkFrame):
         self.btn_prev_image.grid(row=0, column=0, padx=10, pady=10)
 
         # Preview image
-        preview_image = self.image_handler.load_image(self.current_images[image_index][1])
-        self.preview_label = ctk.CTkLabel(self.preview_frame, image=preview_image, text="")
+        self.preview_label = ctk.CTkLabel(self.preview_frame, text="")
         self.preview_label.grid(row=0, column=1, padx=10, pady=10)
-        self.photo_references.append(preview_image)
+
+        # Load and display preview
+        result = self.image_handler.load_image(self.current_images[image_index][1])
+        if isinstance(result, tuple):  # Animated image
+            frames, frame_count, durations = result
+            self.photo_references.extend(frames)
+            self.preview_label.configure(image=frames[0])
+            self.image_handler.start_animation(self.preview_label, frames, durations)
+        else:  # Static image
+            self.photo_references.append(result)
+            self.preview_label.configure(image=result)
 
         # Right arrow button
         self.btn_next_image = ctk.CTkButton(
@@ -166,9 +178,13 @@ class RankingTab(ctk.CTkFrame):
         return self.current_preview_index > 0 or self.current_page > 1
 
     def exit_preview(self, event=None):
-        """Exit preview mode."""
+        """Exit preview mode and clean up animations."""
         if not self.preview_mode:
             return
+
+        # Stop preview animation
+        if hasattr(self, 'preview_label'):
+            self.image_handler.stop_animation(self.preview_label)
 
         self.preview_mode = False
         if self.preview_frame:
@@ -182,25 +198,38 @@ class RankingTab(ctk.CTkFrame):
         frame = ctk.CTkFrame(parent)
         frame.grid_columnconfigure(0, weight=1)
 
-        # Load image and calculate scaled width
-        image = Image.open(path)
-        aspect_ratio = image.width / image.height
-        scaled_width = int(self.thumbnail_height * aspect_ratio)
-
         # Image container
         image_frame = ctk.CTkFrame(frame)
         image_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
+        # Calculate thumbnail dimensions
+        image = Image.open(path)
+        aspect_ratio = image.width / image.height
+        scaled_width = int(self.thumbnail_height * aspect_ratio)
+
+        # Create and store the image label
+        image_label = ctk.CTkLabel(image_frame, text="")
+        image_label.grid(row=0, column=0, padx=5, pady=5)
+
         # Load and display thumbnail
-        photo = self.image_handler.load_image(
+        result = self.image_handler.load_image(
             path,
             thumbnail_size=(scaled_width, self.thumbnail_height)
         )
-        if photo:
-            self.photo_references.append(photo)
-            image_label = ctk.CTkLabel(image_frame, image=photo, text="")
-            image_label.grid(row=0, column=0, padx=5, pady=5)
-            image_label.bind("<Button-1>", lambda e: self.show_preview(index))
+
+        if isinstance(result, tuple):  # Animated image
+            frames, frame_count, durations = result
+            self.photo_references.extend(frames)
+            image_label.configure(image=frames[0])
+            self.image_handler.start_animation(image_label, frames, durations)
+        elif result:  # Static image
+            self.photo_references.append(result)
+            image_label.configure(image=result)
+
+        image_label.bind("<Button-1>", lambda e: self.show_preview(index))
+
+        # Store reference to label and animation status
+        frame.image_label = image_label  # Store reference for cleanup
 
         # Info frame
         info_frame = ctk.CTkFrame(frame)
@@ -235,7 +264,12 @@ class RankingTab(ctk.CTkFrame):
         self.refresh_rankings()
 
     def refresh_rankings(self):
-        """Refresh the rankings display"""
+        """Refresh the rankings display with animation cleanup"""
+        # Stop all current animations
+        for widget in self.scrollable_frame.winfo_children():
+            if hasattr(widget, 'image_label'):
+                self.image_handler.stop_animation(widget.image_label)
+
         # Clear current rankings and photo references
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
