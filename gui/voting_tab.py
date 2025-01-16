@@ -23,17 +23,23 @@ class VotingTab(ctk.CTkFrame):
         self.last_vote_time = 0
         self.vote_cooldown = 1.0  # seconds
 
+        # Configure grid weights for proper scaling
         self.grid_columnconfigure((0, 1), weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.preview_mode = False  # Track if in preview mode
-        self.preview_label = None  # Placeholder for preview label
+        self.preview_mode = False
+        self.preview_label = None
 
         self.setup_ui()
+
+        # Bind resize event
+        self.bind("<Configure>", self.on_resize)
+
         self.load_new_pair()
 
 
     def setup_ui(self):
+        # Create containers for images with proper scaling
         self.left_frame = ctk.CTkFrame(self)
         self.left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         self.left_frame.grid_rowconfigure(0, weight=1)
@@ -44,14 +50,16 @@ class VotingTab(ctk.CTkFrame):
         self.right_frame.grid_rowconfigure(0, weight=1)
         self.right_frame.grid_columnconfigure(0, weight=1)
 
+        # Image labels with proper scaling
         self.left_image_label = ctk.CTkLabel(self.left_frame, text="")
-        self.left_image_label.grid(row=0, column=0, padx=10, pady=10)
+        self.left_image_label.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         self.left_image_label.bind("<Button-1>", lambda e: self.show_preview(self.current_left[1]))
 
         self.right_image_label = ctk.CTkLabel(self.right_frame, text="")
-        self.right_image_label.grid(row=0, column=0, padx=10, pady=10)
+        self.right_image_label.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         self.right_image_label.bind("<Button-1>", lambda e: self.show_preview(self.current_right[1]))
 
+        # Voting buttons
         self.left_button = ctk.CTkButton(
             self.left_frame,
             text="Vote Left",
@@ -110,6 +118,46 @@ class VotingTab(ctk.CTkFrame):
             self.preview_frame.destroy()
             self.preview_frame = None
 
+    def on_resize(self, event):
+        """Handle window resize events"""
+        if not hasattr(self, 'last_resize_time'):
+            self.last_resize_time = 0
+
+        current_time = time.time()
+
+        # Throttle resize events (process only every 0.1 seconds)
+        if current_time - self.last_resize_time > 0.1:
+            self.last_resize_time = current_time
+
+            # Calculate available space for each image
+            # Account for padding and middle gap
+            available_width = (event.width - 60) // 2  # 60 pixels for padding and gap
+            available_height = event.height - 100  # 100 pixels for buttons and padding
+
+            # Update image handler with new size
+            self.image_handler.set_display_size(available_width, available_height)
+
+            # Reload current images if they exist
+            if self.current_left and self.current_right:
+                self.reload_current_images()
+
+    def reload_current_images(self):
+        """Reload and resize current images"""
+        # Clear current photo references
+        self.photo_references.clear()
+
+        if self.current_left:
+            left_photo = self.image_handler.load_image(self.current_left[1])
+            if left_photo:
+                self.photo_references.append(left_photo)
+                self.left_image_label.configure(image=left_photo)
+
+        if self.current_right:
+            right_photo = self.image_handler.load_image(self.current_right[1])
+            if right_photo:
+                self.photo_references.append(right_photo)
+                self.right_image_label.configure(image=right_photo)
+
     def load_new_pair(self):
         """Load a new pair of images for voting"""
         # Clear current images
@@ -120,23 +168,14 @@ class VotingTab(ctk.CTkFrame):
         if not image_pair or None in image_pair:
             self.show_error("Not enough images in database")
             self.disable_voting()
-            self.images_loaded = False  # Reset loaded state if no images available
+            self.images_loaded = False
             return
 
         self.current_left, self.current_right = image_pair
-        self.images_loaded = True  # Mark as loaded
+        self.images_loaded = True
 
-        # Load and display left image
-        left_photo = self.image_handler.load_image(self.current_left[1])
-        if left_photo:
-            self.photo_references.append(left_photo)
-            self.left_image_label.configure(image=left_photo)
-
-        # Load and display right image
-        right_photo = self.image_handler.load_image(self.current_right[1])
-        if right_photo:
-            self.photo_references.append(right_photo)
-            self.right_image_label.configure(image=right_photo)
+        # Load and display images
+        self.reload_current_images()
 
         # Enable voting and clear status
         self.enable_voting()
