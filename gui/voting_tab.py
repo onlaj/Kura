@@ -85,35 +85,44 @@ class VotingTab(ctk.CTkFrame):
         self.status_label.grid(row=2, column=0, columnspan=2, padx=10, pady=5)
 
     def show_preview(self, image_path: str):
-        """Show a full-size preview of the image without altering the current UI."""
+        """Show a full-size preview of the image, handling animations."""
         if self.preview_mode:
             return
 
         self.preview_mode = True
 
-        # Create an overlay frame to act as the preview container
+        # Create preview frame
         self.preview_frame = ctk.CTkFrame(self, fg_color="black")
         self.preview_frame.grid(row=0, column=0, rowspan=3, columnspan=2, sticky="nsew")
         self.preview_frame.grid_columnconfigure(0, weight=1)
         self.preview_frame.grid_rowconfigure(0, weight=1)
 
         # Load and display the preview image
-        preview_image = self.image_handler.load_image(image_path)  # Load full-size image
-        self.preview_label = ctk.CTkLabel(self.preview_frame, image=preview_image, text="")
+        result = self.image_handler.load_image(image_path)
+        self.preview_label = ctk.CTkLabel(self.preview_frame, text="")
         self.preview_label.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        self.photo_references.append(preview_image)
 
-        # Add a click event to exit the preview
+        if isinstance(result, tuple):  # Animated image
+            frames, frame_count, durations = result
+            self.photo_references.extend(frames)
+            self.preview_label.configure(image=frames[0])
+            self.image_handler.start_animation(self.preview_label, frames, durations)
+        else:  # Static image
+            self.photo_references.append(result)
+            self.preview_label.configure(image=result)
+
+        # Add click event to exit preview
         self.preview_label.bind("<Button-1>", self.exit_preview)
 
     def exit_preview(self, event=None):
-        """Exit the preview mode and remove the overlay without altering the current UI."""
+        """Exit preview mode and stop any animations."""
         if not self.preview_mode:
             return
 
-        self.preview_mode = False
+        if self.preview_label:
+            self.image_handler.stop_animation(self.preview_label)
 
-        # Remove the preview overlay frame
+        self.preview_mode = False
         if self.preview_frame:
             self.preview_frame.destroy()
             self.preview_frame = None
@@ -142,25 +151,57 @@ class VotingTab(ctk.CTkFrame):
                 self.reload_current_images()
 
     def reload_current_images(self):
-        """Reload and resize current images"""
-        # Clear current photo references
+        """Reload and resize current images, handling animations with proper cleanup"""
+        # Stop any existing animations and clear labels
+        if hasattr(self, 'left_image_label'):
+            self.image_handler.stop_animation(self.left_image_label)
+            self.left_image_label.configure(image=None)
+
+        if hasattr(self, 'right_image_label'):
+            self.image_handler.stop_animation(self.right_image_label)
+            self.right_image_label.configure(image=None)
+
+        # Clear all photo references
         self.photo_references.clear()
 
+        # Load left image
         if self.current_left:
-            left_photo = self.image_handler.load_image(self.current_left[1])
-            if left_photo:
-                self.photo_references.append(left_photo)
-                self.left_image_label.configure(image=left_photo)
+            result = self.image_handler.load_image(self.current_left[1])
+            if isinstance(result, tuple):  # Animated image
+                frames, frame_count, durations = result
+                self.photo_references.extend(frames)
+                if frames:  # Check if we have any frames
+                    self.left_image_label.configure(image=frames[0])
+                    self.image_handler.start_animation(self.left_image_label, frames, durations)
+            elif result:  # Static image
+                self.photo_references.append(result)
+                self.left_image_label.configure(image=result)
 
+        # Load right image
         if self.current_right:
-            right_photo = self.image_handler.load_image(self.current_right[1])
-            if right_photo:
-                self.photo_references.append(right_photo)
-                self.right_image_label.configure(image=right_photo)
+            result = self.image_handler.load_image(self.current_right[1])
+            if isinstance(result, tuple):  # Animated image
+                frames, frame_count, durations = result
+                self.photo_references.extend(frames)
+                if frames:  # Check if we have any frames
+                    self.right_image_label.configure(image=frames[0])
+                    self.image_handler.start_animation(self.right_image_label, frames, durations)
+            elif result:  # Static image
+                self.photo_references.append(result)
+                self.right_image_label.configure(image=result)
 
     def load_new_pair(self):
-        """Load a new pair of images for voting"""
-        # Clear current images
+        """Load a new pair of images for voting with proper cleanup"""
+        # Stop any existing animations
+        if hasattr(self, 'left_image_label'):
+            self.image_handler.stop_animation(self.left_image_label)
+            self.left_image_label.configure(image=None)  # Clear the image
+
+        if hasattr(self, 'right_image_label'):
+            self.image_handler.stop_animation(self.right_image_label)
+            self.right_image_label.configure(image=None)  # Clear the image
+
+        # Clear all photo references
         self.photo_references.clear()
 
         # Get new pair from database
@@ -171,10 +212,11 @@ class VotingTab(ctk.CTkFrame):
             self.images_loaded = False
             return
 
+        # Store new pair
         self.current_left, self.current_right = image_pair
         self.images_loaded = True
 
-        # Load and display images
+        # Load and display new images
         self.reload_current_images()
 
         # Enable voting and clear status
