@@ -35,7 +35,6 @@ class VotingTab(ctk.CTkFrame):
         # Bind resize event
         self.bind("<Configure>", self.on_resize)
 
-        self.load_new_pair()
 
 
     def setup_ui(self):
@@ -241,6 +240,18 @@ class VotingTab(ctk.CTkFrame):
             return
 
         self.last_vote_time = current_time
+
+        # Stop any existing animations
+        if hasattr(self, 'left_image_label'):
+            self.image_handler.stop_animation(self.left_image_label)
+            self.left_image_label.configure(image=None)  # Clear the image
+
+        if hasattr(self, 'right_image_label'):
+            self.image_handler.stop_animation(self.right_image_label)
+            self.right_image_label.configure(image=None)  # Clear the image
+
+        # Clear all photo references
+        self.photo_references.clear()
 
         # Determine winner and loser
         if vote == "left":
