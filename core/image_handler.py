@@ -1,6 +1,7 @@
 # core/image_handler.py
 
-from PIL import Image, ImageTk
+from PIL import Image
+import customtkinter as ctk
 from pathlib import Path
 from typing import Tuple, Optional
 
@@ -27,7 +28,7 @@ class ImageHandler:
         self.current_size = (width, height)
 
     def load_image(self, image_path: str, target_size: Optional[Tuple[int, int]] = None,
-                   thumbnail_size: Optional[Tuple[int, int]] = None) -> Optional[ImageTk.PhotoImage]:
+                   thumbnail_size: Optional[Tuple[int, int]] = None) -> Optional[ctk.CTkImage]:
         """
         Load and process an image file for display.
 
@@ -39,7 +40,7 @@ class ImageHandler:
                           If provided, creates a thumbnail instead of regular resize
 
         Returns:
-            PhotoImage object ready for display, or None if loading fails
+            CTkImage object ready for display, or None if loading fails
         """
         try:
             # Open and convert image
@@ -75,8 +76,8 @@ class ImageHandler:
                         new_height = int(image.height * scale_ratio)
                         image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-            # Convert to PhotoImage for display
-            return ImageTk.PhotoImage(image)
+            # Convert to CTkImage for display
+            return ctk.CTkImage(light_image=image, dark_image=image, size=image.size)
 
         except Exception as e:
             print(f"Error loading image {image_path}: {e}")
