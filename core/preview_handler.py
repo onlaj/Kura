@@ -21,11 +21,11 @@ class MediaPreview(QWidget):
 
         # Create media container that fills the entire space
         self.media_container = QWidget(self)
-        self.media_container.setStyleSheet("""
-            QWidget {
-                background-color: rgba(0, 0, 0, 200);
-            }
-        """)
+        # self.media_container.setStyleSheet("""
+        #     QWidget {
+        #         background-color: rgba(0, 0, 0, 200);
+        #     }
+        # """)
         self.media_layout = QVBoxLayout(self.media_container)
         self.media_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # Add spacing around the media content
