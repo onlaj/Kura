@@ -6,7 +6,6 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 from core.elo import Rating
 import time
 
-from core.media_handler import ScalableMovie, ScalableLabel
 
 
 class MediaPreviewDialog(QDialog):
@@ -68,6 +67,42 @@ class MediaFrame(QFrame):
                            QSizePolicy.Policy.Expanding)
 
 
+class AspectRatioWidget(QWidget):
+    def __init__(self, widget, aspect_ratio=16 / 9, parent=None):
+        super().__init__(parent)
+        self.aspect_ratio = aspect_ratio
+        self.setLayout(QVBoxLayout())
+        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.layout().addWidget(widget)
+
+        # The contained widget should expand in both directions
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding,
+                             QSizePolicy.Policy.Expanding)
+
+        # This widget should expand in both directions
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Expanding)
+
+    def resizeEvent(self, event):
+        width = self.width()
+        height = self.height()
+
+        target_aspect = self.aspect_ratio
+        current_aspect = width / height if height != 0 else 1
+
+        if current_aspect > target_aspect:
+            # Too wide - constrain width
+            new_width = int(height * target_aspect)
+            offset = (width - new_width) // 2
+            self.layout().setContentsMargins(offset, 0, offset, 0)
+        else:
+            # Too tall - constrain height
+            new_height = int(width / target_aspect)
+            offset = (height - new_height) // 2
+            self.layout().setContentsMargins(0, offset, 0, offset)
+
+        super().resizeEvent(event)
+
 class VotingTab(QWidget):
     def __init__(self, get_pair_callback, update_ratings_callback, media_handler):
         super().__init__()
@@ -119,8 +154,6 @@ class VotingTab(QWidget):
         layout.addWidget(self.status_label)
 
     def load_media_to_frame(self, frame, media_path):
-        """Load media into a frame."""
-        # Clear existing media
         if frame.media_widget:
             if frame.media_player:
                 frame.media_player.stop()
@@ -128,25 +161,22 @@ class VotingTab(QWidget):
             frame.media_widget = None
             frame.media_player = None
 
-        # Load new media
         media = self.media_handler.load_media(media_path)
 
-        if isinstance(media, ScalableLabel):
+        if isinstance(media, AspectRatioWidget):
             # Static image
             frame.media_widget = media
             frame.layout.insertWidget(0, media)
-        elif isinstance(media, tuple) and isinstance(media[0], ScalableMovie):
-            # Animated GIF
-            frame.media_widget = media[0]
-            frame.gif_movie = media[1]
-            frame.layout.insertWidget(0, media[0])
-        else:
-            # Video
-            video_widget, player = media
-            frame.media_widget = video_widget
-            frame.media_player = player
-            frame.layout.insertWidget(0, video_widget)
-            player.play()
+        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
+            if isinstance(media[1], QMovie):  # GIF
+                frame.media_widget = media[0]
+                frame.gif_movie = media[1]
+                frame.layout.insertWidget(0, media[0])
+            else:  # Video
+                frame.media_widget = media[0]
+                frame.media_player = media[1]
+                frame.layout.insertWidget(0, media[0])
+                media[1].play()
 
     def load_new_pair(self):
         """Load a new pair of media items for voting."""

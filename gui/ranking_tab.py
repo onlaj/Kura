@@ -3,10 +3,11 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy)
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QMovie
 import os
 import math
 from core.media_handler import ScalableLabel, ScalableMovie
+from gui.voting_tab import AspectRatioWidget
 
 
 class ImageFrame(QFrame):
@@ -109,25 +110,22 @@ class RankingTab(QWidget):
         scroll_area.setWidget(self.grid_container)
 
     def create_image_frame(self, rank, id, path, rating, votes, index):
-        """Create a frame for an image with its information"""
         frame = ImageFrame()
 
         # Load media
         media = self.media_handler.load_media(path)
 
-        if isinstance(media, ScalableLabel):
+        if isinstance(media, AspectRatioWidget):
             # Static image
             frame.media_layout.addWidget(media)
-        elif isinstance(media, tuple) and isinstance(media[0], ScalableMovie):
-            # Animated GIF
-            frame.media_layout.addWidget(media[0])
-            frame.gif_movie = media[1]
-        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'QVideoWidget':
-            # Video
-            video_widget, player = media
-            frame.media_layout.addWidget(video_widget)
-            frame.video_player = player
-            player.play()
+        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
+            if isinstance(media[1], QMovie):  # GIF
+                frame.media_layout.addWidget(media[0])
+                frame.gif_movie = media[1]
+            else:  # Video
+                frame.media_layout.addWidget(media[0])
+                frame.video_player = media[1]
+                media[1].play()
 
         # Set information
         frame.info_label.setText(f"#{rank} - {os.path.basename(path)}")
