@@ -1,47 +1,45 @@
-# gui/main_window.py
+from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout,
+                             QApplication)
+from PyQt6.QtCore import Qt
 
-import customtkinter as ctk
 
-
-class MainWindow(ctk.CTk):
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Image ELO Ranker")
+        self.resize(1024, 768)
 
-        # Configure window
-        self.title("Image ELO Ranker")
-        self.geometry("1024x768")
+        # Create central widget and layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
 
-        # Configure grid layout (1x1)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
+        # Create tab widget
+        self.tab_widget = QTabWidget()
+        layout.addWidget(self.tab_widget)
 
-        # Create tabview with command
-        self.tabview = ctk.CTkTabview(self, command=self._on_tab_change)
-        self.tabview.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        # Initialize tabs (will be set by Application class)
+        self.tab_voting = None
+        self.tab_upload = None
+        self.tab_ranking = None
 
-        # Create tabs
-        self.tab_voting = self.tabview.add("Voting")
-        self.tab_upload = self.tabview.add("Upload")
-        self.tab_ranking = self.tabview.add("Ranking")
+    def setup_tabs(self, voting_tab, upload_tab, ranking_tab):
+        """Set up the application tabs."""
+        self.tab_voting = voting_tab
+        self.tab_upload = upload_tab
+        self.tab_ranking = ranking_tab
 
-        # Store tab change callback
-        self.tab_change_callback = None
+        self.tab_widget.addTab(self.tab_voting, "Voting")
+        self.tab_widget.addTab(self.tab_upload, "Upload")
+        self.tab_widget.addTab(self.tab_ranking, "Ranking")
 
-        # Configure grid layout for each tab
-        for tab in [self.tab_voting, self.tab_upload, self.tab_ranking]:
-            tab.grid_rowconfigure(0, weight=1)
-            tab.grid_columnconfigure(0, weight=1)
+        # Connect tab changed signal
+        self.tab_widget.currentChanged.connect(self._handle_tab_change)
 
-    def set_tab_change_callback(self, callback):
-        """Set callback for tab changes"""
-        self.tab_change_callback = callback
-
-    def _on_tab_change(self):
-        """Handle tab changes"""
-        if self.tab_change_callback:
-            current_tab = self.tabview.get()
-            self.tab_change_callback(current_tab)
-
-    def start(self):
-        """Start the application main loop"""
-        self.mainloop()
+    def _handle_tab_change(self, index):
+        """Handle tab changes."""
+        tab_name = self.tab_widget.tabText(index)
+        if tab_name == "Voting":
+            self.tab_voting.ensure_images_loaded()
+        elif tab_name == "Ranking":
+            self.tab_ranking.refresh_rankings()

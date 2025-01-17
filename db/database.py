@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional
 
 
 class Database:
-    def __init__(self, db_path: str = "image_ratings.db"):
+    def __init__(self, db_path: str = "media_ratings.db"):
         """
         Initialize database connection and create tables if they don't exist.
 
@@ -19,9 +19,9 @@ class Database:
 
     def _create_tables(self):
         """Create necessary database tables if they don't exist."""
-        # Images table
+        # Media table (renamed from images)
         self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS images (
+            CREATE TABLE IF NOT EXISTS media (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT UNIQUE NOT NULL,
                 rating REAL DEFAULT 1200,
@@ -36,19 +36,27 @@ class Database:
                 winner_id INTEGER NOT NULL,
                 loser_id INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (winner_id) REFERENCES images (id),
-                FOREIGN KEY (loser_id) REFERENCES images (id)
+                FOREIGN KEY (winner_id) REFERENCES media (id),
+                FOREIGN KEY (loser_id) REFERENCES media (id)
             )
         """)
 
         self.conn.commit()
 
-    def add_image(self, image_path: str) -> bool:
-        """Add a new image to the database."""
+    def add_media(self, file_path: str) -> bool:
+        """
+        Add a new media file to the database.
+
+        Args:
+            file_path: Path to the media file
+
+        Returns:
+            bool: True if media was added successfully, False if it already exists
+        """
         try:
             self.cursor.execute(
-                "INSERT INTO images (path) VALUES (?)",
-                (str(Path(image_path)),)
+                "INSERT INTO media (path) VALUES (?)",
+                (str(Path(file_path)),)
             )
             self.conn.commit()
             return True
@@ -62,7 +70,7 @@ class Database:
 
         # Reset all ratings to default
         self.cursor.execute("""
-            UPDATE images 
+            UPDATE media 
             SET rating = 1200, votes = 0
         """)
 
@@ -77,7 +85,7 @@ class Database:
         print(f"Processing {len(votes)} votes...")
 
         # Create a dictionary to track current ratings
-        self.cursor.execute("SELECT id, rating FROM images")
+        self.cursor.execute("SELECT id, rating FROM media")
         ratings = {row[0]: 1200 for row in self.cursor.fetchall()}
 
         # Process each vote
@@ -85,8 +93,8 @@ class Database:
             if winner_id in ratings and loser_id in ratings:
                 # Calculate new ratings
                 rating = Rating(
-                    ratings[winner_id],  # Use current rating from our tracking dict
-                    ratings[loser_id],  # Use current rating from our tracking dict
+                    ratings[winner_id],
+                    ratings[loser_id],
                     Rating.WIN,
                     Rating.LOST
                 )
@@ -98,7 +106,7 @@ class Database:
 
                 # Update vote counts in database
                 self.cursor.execute("""
-                    UPDATE images 
+                    UPDATE media 
                     SET votes = votes + 1 
                     WHERE id IN (?, ?)
                 """, (winner_id, loser_id))
@@ -106,39 +114,42 @@ class Database:
         print("Updating final ratings in database...")
 
         # Update all final ratings in the database
-        for image_id, final_rating in ratings.items():
+        for media_id, final_rating in ratings.items():
             self.cursor.execute("""
-                UPDATE images 
+                UPDATE media 
                 SET rating = ? 
                 WHERE id = ?
-            """, (final_rating, image_id))
+            """, (final_rating, media_id))
 
         self.conn.commit()
         print("Recalculation complete!")
 
-    def delete_image(self, image_id: int):
+    def delete_media(self, media_id: int) -> Optional[str]:
         """
-        Delete an image and recalculate all ratings.
+        Delete a media file and recalculate all ratings.
 
         Args:
-            image_id: ID of the image to delete
+            media_id: ID of the media to delete
+
+        Returns:
+            Optional[str]: Path of the deleted media file, or None if not found
         """
         try:
             # Start transaction
             self.conn.execute("BEGIN")
 
-            # Get image path for file deletion
-            self.cursor.execute("SELECT path FROM images WHERE id = ?", (image_id,))
-            image_path = self.cursor.fetchone()
+            # Get media path for file deletion
+            self.cursor.execute("SELECT path FROM media WHERE id = ?", (media_id,))
+            media_path = self.cursor.fetchone()
 
             # Delete related votes
             self.cursor.execute("""
                 DELETE FROM votes 
                 WHERE winner_id = ? OR loser_id = ?
-            """, (image_id, image_id))
+            """, (media_id, media_id))
 
-            # Delete the image record
-            self.cursor.execute("DELETE FROM images WHERE id = ?", (image_id,))
+            # Delete the media record
+            self.cursor.execute("DELETE FROM media WHERE id = ?", (media_id,))
 
             # Recalculate all ratings
             self._recalculate_ratings()
@@ -147,7 +158,7 @@ class Database:
             self.conn.commit()
 
             # Return path for file deletion
-            return image_path[0] if image_path else None
+            return media_path[0] if media_path else None
 
         except Exception as e:
             self.conn.rollback()
@@ -155,19 +166,27 @@ class Database:
 
     def update_ratings(self, winner_id: int, loser_id: int,
                        new_winner_rating: float, new_loser_rating: float):
-        """Update ratings after a vote."""
+        """
+        Update ratings after a vote.
+
+        Args:
+            winner_id: ID of the winning media
+            loser_id: ID of the losing media
+            new_winner_rating: New rating for the winner
+            new_loser_rating: New rating for the loser
+        """
         try:
             self.conn.execute("BEGIN")
 
             # Update ratings
             self.cursor.execute("""
-                UPDATE images 
+                UPDATE media 
                 SET rating = ?, votes = votes + 1 
                 WHERE id = ?
             """, (new_winner_rating, winner_id))
 
             self.cursor.execute("""
-                UPDATE images 
+                UPDATE media 
                 SET rating = ?, votes = votes + 1 
                 WHERE id = ?
             """, (new_loser_rating, loser_id))
@@ -203,37 +222,43 @@ class Database:
 
     def get_rankings_page(self, page: int, per_page: int = 50) -> Tuple[List[tuple], int]:
         """
-        Get a page of ranked images.
+        Get a page of ranked media items.
 
         Args:
             page: Page number (1-based)
             per_page: Number of items per page
 
         Returns:
-            Tuple of (list of image records, total number of images)
+            Tuple of (list of media records, total number of items)
         """
         # Get total count
-        self.cursor.execute("SELECT COUNT(*) FROM images")
-        total_images = self.cursor.fetchone()[0]
+        self.cursor.execute("SELECT COUNT(*) FROM media")
+        total_items = self.cursor.fetchone()[0]
 
         # Calculate offset
         offset = (page - 1) * per_page
 
-        # Get page of images
+        # Get page of media items
         self.cursor.execute("""
             SELECT id, path, rating, votes 
-            FROM images 
+            FROM media 
             ORDER BY rating DESC
             LIMIT ? OFFSET ?
         """, (per_page, offset))
 
-        return self.cursor.fetchall(), total_images
+        return self.cursor.fetchall(), total_items
 
     def get_pair_for_voting(self) -> Tuple[Optional[tuple], Optional[tuple]]:
-        """Get two images for voting: one least voted and one random."""
+        """
+        Get two media items for voting: one least voted and one random.
+
+        Returns:
+            Tuple of (least voted media, random media), where each is a tuple of
+            (id, path, rating, votes) or None if not enough media items exist
+        """
         self.cursor.execute("""
             SELECT id, path, rating, votes 
-            FROM images 
+            FROM media 
             ORDER BY votes ASC, RANDOM() 
             LIMIT 1
         """)
@@ -244,16 +269,14 @@ class Database:
 
         self.cursor.execute("""
             SELECT id, path, rating, votes 
-            FROM images 
+            FROM media 
             WHERE id != ? 
             ORDER BY RANDOM() 
             LIMIT 1
         """, (least_voted[0],))
-        random_image = self.cursor.fetchone()
+        random_media = self.cursor.fetchone()
 
-        return least_voted, random_image
-
-
+        return least_voted, random_media
 
     def close(self):
         """Close the database connection."""

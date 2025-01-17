@@ -1,91 +1,73 @@
-# gui/upload_tab.py
-
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+                             QTextEdit, QFileDialog)
+from PyQt6.QtCore import Qt
 import os
-import customtkinter as ctk
-from tkinter import filedialog
 from pathlib import Path
-from typing import Callable
 
 
-class UploadTab(ctk.CTkFrame):
-    def __init__(self, parent, db_callback: Callable):
-        """
-        Initialize the upload tab.
-
-        Args:
-            parent: Parent widget
-            db_callback: Callback function to add images to database
-        """
-        super().__init__(parent)
+class UploadTab(QWidget):
+    def __init__(self, db_callback):
+        """Initialize the upload tab."""
+        super().__init__()
         self.db_callback = db_callback
-
-        # Configure grid layout
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_columnconfigure(0, weight=1)
-
-        # Create widgets
         self.setup_ui()
 
     def setup_ui(self):
-        """Setup all UI elements"""
-        # Create buttons frame
-        self.button_frame = ctk.CTkFrame(self)
-        self.button_frame.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
+        """Set up the upload interface."""
+        layout = QVBoxLayout(self)
 
-        # Add file button
-        self.btn_add_files = ctk.CTkButton(
-            self.button_frame,
-            text="Add Files",
-            command=self.add_files
-        )
-        self.btn_add_files.grid(row=0, column=0, padx=10, pady=10)
+        # Create button layout
+        button_layout = QHBoxLayout()
+
+        # Add files button
+        self.btn_add_files = QPushButton("Add Files")
+        self.btn_add_files.clicked.connect(self.add_files)
+        button_layout.addWidget(self.btn_add_files)
 
         # Add folder button
-        self.btn_add_folder = ctk.CTkButton(
-            self.button_frame,
-            text="Add Folder",
-            command=self.add_folder
-        )
-        self.btn_add_folder.grid(row=0, column=1, padx=10, pady=10)
+        self.btn_add_folder = QPushButton("Add Folder")
+        self.btn_add_folder.clicked.connect(self.add_folder)
+        button_layout.addWidget(self.btn_add_folder)
 
-        # Create textbox for logging
-        self.log_text = ctk.CTkTextbox(self)
-        self.log_text.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="nsew")
+        layout.addLayout(button_layout)
+
+        # Create log text area
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text)
 
     def add_files(self):
-        """Handle adding individual files"""
-        filetypes = (
-            ('Image files', '*.jpg *.jpeg *.png *.gif *.bmp'),
-            ('All files', '*.*')
-        )
+        """Handle adding individual files."""
+        file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.avi *.mov *.mkv)"
 
-        filenames = filedialog.askopenfilenames(
-            title='Select images',
-            filetypes=filetypes
+        filenames, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select media files",
+            "",
+            file_filter
         )
 
         self.process_files(filenames)
 
     def add_folder(self):
-        """Handle adding a folder of images"""
-        folder = filedialog.askdirectory(
-            title='Select folder containing images'
+        """Handle adding a folder of media files."""
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select folder containing media files"
         )
 
         if folder:
-            image_files = []
-            for ext in ('*.jpg', '*.jpeg', '*.png', '*.gif', '*.bmp'):
-                image_files.extend(Path(folder).glob(f"**/{ext}"))
+            extensions = ('.jpg', '.jpeg', '.png', '.gif',
+                          '.mp4', '.avi', '.mov', '.mkv')
+            media_files = []
 
-            self.process_files(image_files)
+            for ext in extensions:
+                media_files.extend(Path(folder).glob(f"**/*{ext}"))
+
+            self.process_files(media_files)
 
     def process_files(self, files):
-        """
-        Process the selected files and add them to the database.
-
-        Args:
-            files: List of file paths to process
-        """
+        """Process the selected files and add them to the database."""
         added = 0
         skipped = 0
 
@@ -93,10 +75,15 @@ class UploadTab(ctk.CTkFrame):
             file_path = str(file)
             if self.db_callback(file_path):
                 added += 1
-                self.log_text.insert('end', f"Added: {file_path}\n")
+                self.log_text.append(f"Added: {file_path}")
             else:
                 skipped += 1
-                self.log_text.insert('end', f"Skipped (already exists): {file_path}\n")
+                self.log_text.append(f"Skipped (already exists): {file_path}")
 
-        self.log_text.insert('end', f"\nSummary: Added {added} files, Skipped {skipped} files\n")
-        self.log_text.see('end')
+        self.log_text.append(
+            f"\nSummary: Added {added} files, Skipped {skipped} files\n"
+        )
+
+        # Scroll to bottom
+        scrollbar = self.log_text.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
