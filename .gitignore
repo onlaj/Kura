@@ -1,0 +1,4 @@
+media_ratings.db
+core/__pycache__/*
+db/__pycache__/*
+gui/__pycache__/*
