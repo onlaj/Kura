@@ -1,10 +1,12 @@
+from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
-                             QComboBox, QWidget)
+                             QComboBox, QWidget, QSizePolicy)
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap
 import os
 import math
+from core.media_handler import ScalableLabel, ScalableMovie
 
 
 class ImageFrame(QFrame):
@@ -13,10 +15,14 @@ class ImageFrame(QFrame):
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         self.layout = QVBoxLayout(self)
 
-        # Image label
-        self.image_label = QLabel()
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.image_label)
+        # Media container
+        self.media_container = QWidget()
+        self.media_container.setMinimumSize(200, 200)  # Minimum size for thumbnails
+        self.media_container.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                           QSizePolicy.Policy.Expanding)
+        self.media_layout = QVBoxLayout(self.media_container)
+        self.media_layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.addWidget(self.media_container)
 
         # Info label
         self.info_label = QLabel()
@@ -33,6 +39,10 @@ class ImageFrame(QFrame):
         self.delete_button.setStyleSheet("background-color: #ff0000; color: white;")
         self.layout.addWidget(self.delete_button)
 
+        # Set size policy for the frame
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Expanding)
+
 
 class RankingTab(QWidget):
     def __init__(self, get_rankings_callback, media_handler, delete_callback):
@@ -40,7 +50,6 @@ class RankingTab(QWidget):
         self.get_rankings_callback = get_rankings_callback
         self.media_handler = media_handler
         self.delete_callback = delete_callback
-        self.thumbnail_height = 200
         self.current_page = 1
         self.per_page = 12
         self.columns = 3
@@ -96,25 +105,29 @@ class RankingTab(QWidget):
         # Container for grid
         self.grid_container = QWidget()
         self.grid_layout = QGridLayout(self.grid_container)
+        self.grid_layout.setSpacing(10)  # Add some space between items
         scroll_area.setWidget(self.grid_container)
-
-        # Initial refresh
-        self.refresh_rankings()
 
     def create_image_frame(self, rank, id, path, rating, votes, index):
         """Create a frame for an image with its information"""
         frame = ImageFrame()
 
-        # Load and display media
-        media = self.media_handler.load_media(path, (self.thumbnail_height * 2, self.thumbnail_height))
+        # Load media
+        media = self.media_handler.load_media(path)
 
-        if isinstance(media, tuple):  # Video
+        if isinstance(media, ScalableLabel):
+            # Static image
+            frame.media_layout.addWidget(media)
+        elif isinstance(media, tuple) and isinstance(media[0], ScalableMovie):
+            # Animated GIF
+            frame.media_layout.addWidget(media[0])
+            frame.gif_movie = media[1]
+        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'QVideoWidget':
+            # Video
             video_widget, player = media
-            frame.layout.insertWidget(0, video_widget)
+            frame.media_layout.addWidget(video_widget)
             frame.video_player = player
-            player.start()
-        else:  # Image
-            frame.image_label.setPixmap(media)
+            player.play()
 
         # Set information
         frame.info_label.setText(f"#{rank} - {os.path.basename(path)}")
@@ -124,7 +137,9 @@ class RankingTab(QWidget):
         frame.delete_button.clicked.connect(lambda: self.confirm_delete(id, path))
 
         # Add preview capability
-        frame.image_label.mousePressEvent = lambda e: self.show_preview(path)
+        for child in frame.media_container.findChildren(QWidget):
+            if isinstance(child, (ScalableLabel, ScalableMovie, QVideoWidget)):
+                child.mousePressEvent = lambda e, p=path: self.show_preview(p)
 
         return frame
 
@@ -141,6 +156,14 @@ class RankingTab(QWidget):
 
     def refresh_rankings(self):
         """Refresh the rankings display"""
+        # Stop any playing media
+        for i in range(self.grid_layout.count()):
+            item = self.grid_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'video_player') and widget.video_player:
+                    widget.video_player.stop()
+
         # Clear current grid
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
@@ -180,6 +203,10 @@ class RankingTab(QWidget):
             row = i // self.columns
             col = i % self.columns
             self.grid_layout.addWidget(frame, row, col)
+
+        # Adjust grid layout properties for better presentation
+        self.grid_layout.setHorizontalSpacing(10)
+        self.grid_layout.setVerticalSpacing(10)
 
     def confirm_delete(self, image_id, image_path):
         """Show delete confirmation dialog"""

@@ -6,6 +6,8 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 from core.elo import Rating
 import time
 
+from core.media_handler import ScalableMovie, ScalableLabel
+
 
 class MediaPreviewDialog(QDialog):
     def __init__(self, media_path, media_handler, parent=None):
@@ -122,24 +124,18 @@ class VotingTab(QWidget):
         if frame.media_widget:
             if frame.media_player:
                 frame.media_player.stop()
-            if frame.gif_movie:
-                frame.gif_movie.stop()
             frame.media_widget.deleteLater()
             frame.media_widget = None
             frame.media_player = None
-            frame.gif_movie = None
 
         # Load new media
         media = self.media_handler.load_media(media_path)
 
-        if isinstance(media, QPixmap):
+        if isinstance(media, ScalableLabel):
             # Static image
-            label = QLabel()
-            label.setPixmap(media)
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            frame.media_widget = label
-            frame.layout.insertWidget(0, label)
-        elif isinstance(media, tuple) and isinstance(media[0], QLabel):
+            frame.media_widget = media
+            frame.layout.insertWidget(0, media)
+        elif isinstance(media, tuple) and isinstance(media[0], ScalableMovie):
             # Animated GIF
             frame.media_widget = media[0]
             frame.gif_movie = media[1]
