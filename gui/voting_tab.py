@@ -60,10 +60,6 @@ class MediaFrame(QFrame):
         self.vote_button = QPushButton("Vote")
         self.layout.addWidget(self.vote_button)
 
-        # Preview button
-        self.preview_button = QPushButton("Preview")
-        self.layout.addWidget(self.preview_button)
-
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
 
