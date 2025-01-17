@@ -6,6 +6,7 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 from core.elo import Rating
 import time
 
+from core.preview_handler import MediaPreview
 
 
 class MediaPreviewDialog(QDialog):
@@ -109,12 +110,13 @@ class VotingTab(QWidget):
         self.get_pair_callback = get_pair_callback
         self.update_ratings_callback = update_ratings_callback
         self.media_handler = media_handler
+        self.preview = MediaPreview(self)
 
         self.current_left = None
         self.current_right = None
         self.images_loaded = False
         self.last_vote_time = 0
-        self.vote_cooldown = 1.0  # seconds
+        self.vote_cooldown = 1.0
 
         self.setup_ui()
 
@@ -129,16 +131,12 @@ class VotingTab(QWidget):
         self.left_frame = MediaFrame()
         self.left_frame.vote_button.clicked.connect(
             lambda: self.handle_vote("left"))
-        self.left_frame.preview_button.clicked.connect(
-            lambda: self.show_preview(self.current_left[1]))
         media_layout.addWidget(self.left_frame)
 
         # Right media frame
         self.right_frame = MediaFrame()
         self.right_frame.vote_button.clicked.connect(
             lambda: self.handle_vote("right"))
-        self.right_frame.preview_button.clicked.connect(
-            lambda: self.show_preview(self.current_right[1]))
         media_layout.addWidget(self.right_frame)
 
         layout.addLayout(media_layout)
@@ -164,19 +162,22 @@ class VotingTab(QWidget):
         media = self.media_handler.load_media(media_path)
 
         if isinstance(media, AspectRatioWidget):
-            # Static image
             frame.media_widget = media
             frame.layout.insertWidget(0, media)
+            # Add click handler
+            media.mousePressEvent = lambda e, p=media_path: self.show_preview(p)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
             if isinstance(media[1], QMovie):  # GIF
                 frame.media_widget = media[0]
                 frame.gif_movie = media[1]
                 frame.layout.insertWidget(0, media[0])
+                media[0].mousePressEvent = lambda e, p=media_path: self.show_preview(p)
             else:  # Video
                 frame.media_widget = media[0]
                 frame.media_player = media[1]
                 frame.layout.insertWidget(0, media[0])
                 media[1].play()
+                media[0].mousePressEvent = lambda e, p=media_path: self.show_preview(p)
 
     def load_new_pair(self):
         """Load a new pair of media items for voting."""
@@ -208,9 +209,16 @@ class VotingTab(QWidget):
         self.status_label.clear()
 
     def show_preview(self, media_path):
-        """Show full-size preview of the media item."""
-        dialog = MediaPreviewDialog(media_path, self.media_handler, self)
-        dialog.exec()
+        """Show media preview overlay"""
+        media = self.media_handler.load_media(media_path)
+
+        if isinstance(media, AspectRatioWidget):
+            self.preview.show_media(media)
+        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
+            if isinstance(media[1], QMovie):  # GIF
+                self.preview.show_media(media[0], gif_movie=media[1])
+            else:  # Video
+                self.preview.show_media(media[0], video_player=media[1])
 
     def handle_vote(self, vote):
         """Handle voting for a media item."""

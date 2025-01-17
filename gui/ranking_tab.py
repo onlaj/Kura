@@ -7,6 +7,7 @@ from PyQt6.QtGui import QPixmap, QMovie
 import os
 import math
 from core.media_handler import ScalableLabel, ScalableMovie
+from core.preview_handler import MediaPreview
 from gui.voting_tab import AspectRatioWidget
 
 
@@ -51,12 +52,13 @@ class RankingTab(QWidget):
         self.get_rankings_callback = get_rankings_callback
         self.media_handler = media_handler
         self.delete_callback = delete_callback
+        self.preview = MediaPreview(self)
+
         self.current_page = 1
         self.per_page = 12
         self.columns = 3
         self.total_images = 0
         self.current_images = []
-        self.preview_window = None
 
         self.setup_ui()
 
@@ -116,16 +118,18 @@ class RankingTab(QWidget):
         media = self.media_handler.load_media(path)
 
         if isinstance(media, AspectRatioWidget):
-            # Static image
             frame.media_layout.addWidget(media)
+            media.mousePressEvent = lambda e, p=path: self.show_preview(p)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
             if isinstance(media[1], QMovie):  # GIF
                 frame.media_layout.addWidget(media[0])
                 frame.gif_movie = media[1]
+                media[0].mousePressEvent = lambda e, p=path: self.show_preview(p)
             else:  # Video
                 frame.media_layout.addWidget(media[0])
                 frame.video_player = media[1]
                 media[1].play()
+                media[0].mousePressEvent = lambda e, p=path: self.show_preview(p)
 
         # Set information
         frame.info_label.setText(f"#{rank} - {os.path.basename(path)}")
@@ -134,18 +138,19 @@ class RankingTab(QWidget):
         # Configure delete button
         frame.delete_button.clicked.connect(lambda: self.confirm_delete(id, path))
 
-        # Add preview capability
-        for child in frame.media_container.findChildren(QWidget):
-            if isinstance(child, (ScalableLabel, ScalableMovie, QVideoWidget)):
-                child.mousePressEvent = lambda e, p=path: self.show_preview(p)
-
         return frame
 
     def show_preview(self, media_path):
-        """Show full-size preview of media"""
-        from gui.voting_tab import MediaPreviewDialog
-        dialog = MediaPreviewDialog(media_path, self.media_handler, self)
-        dialog.exec()
+        """Show media preview overlay"""
+        media = self.media_handler.load_media(media_path)
+
+        if isinstance(media, AspectRatioWidget):
+            self.preview.show_media(media)
+        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
+            if isinstance(media[1], QMovie):  # GIF
+                self.preview.show_media(media[0], gif_movie=media[1])
+            else:  # Video
+                self.preview.show_media(media[0], video_player=media[1])
 
     def change_columns(self, value):
         """Handle column count change"""
