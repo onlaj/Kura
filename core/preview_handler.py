@@ -18,45 +18,10 @@ class MediaPreview(QWidget):
         # Media container with semi-transparent background
         self.media_container = QWidget(self)
         self.media_container.setStyleSheet("background-color: rgba(0, 0, 0, 180);")
-        
-        # Add a container for the close button
-        top_container = QWidget()
-        top_layout = QHBoxLayout(top_container)
-        top_layout.setContentsMargins(10, 10, 10, 0)
-        top_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
-        
-        # Create close button
-        self.close_button = QPushButton("×")
-        self.close_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(60, 60, 60, 180);
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                font-size: 20px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 0, 0, 180);
-            }
-        """)
-        self.close_button.setFixedSize(30, 30)
-        self.close_button.clicked.connect(self.close)
-        top_layout.addWidget(self.close_button)
-
-        # Main media container layout
-        media_container_layout = QVBoxLayout(self.media_container)
-        media_container_layout.setContentsMargins(0, 0, 0, 0)
-        media_container_layout.setSpacing(0)
-        
-        # Add top container with close button
-        media_container_layout.addWidget(top_container)
-
-        # Media layout for content
-        self.media_layout = QHBoxLayout()
+        self.media_layout = QHBoxLayout(self.media_container)
         self.media_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.media_layout.setContentsMargins(50, 0, 50, 50)  # Reduced top margin
-        self.media_layout.setSpacing(0)
+        self.media_layout.setContentsMargins(50, 50, 50, 50)
+        self.media_layout.setSpacing(0)  # Reduce spacing
 
         # Navigation buttons
         self.prev_button = QPushButton("←")
@@ -94,9 +59,6 @@ class MediaPreview(QWidget):
         self.media_layout.addWidget(self.content_widget, 1)
         self.media_layout.addWidget(self.next_button)
 
-        # Add media layout to container
-        media_container_layout.addLayout(self.media_layout)
-
         self.layout.addWidget(self.media_container)
 
         self.current_media = None
@@ -114,9 +76,15 @@ class MediaPreview(QWidget):
         # Enable focus for keyboard events
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
+        # Connect mouse press event for the media container
+        self.media_container.mousePressEvent = lambda e: self.handle_click(e)
+
     def handle_click(self, event):
-        """Disabled click-to-close behavior"""
-        pass
+        """Handle click events on the preview"""
+        # Check if click was on navigation buttons
+        clicked_widget = self.childAt(event.position().toPoint())
+        if clicked_widget not in [self.prev_button, self.next_button]:
+            self.close()
 
     def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False):
         """Show media in the preview overlay"""
