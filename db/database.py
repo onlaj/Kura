@@ -54,9 +54,20 @@ class Database:
             bool: True if media was added successfully, False if it already exists
         """
         try:
+            # Normalize the path to handle different path formats
+            normalized_path = str(Path(file_path).resolve())
+            
+            # Check if the file already exists in the database
+            self.cursor.execute(
+                "SELECT id FROM media WHERE path = ?",
+                (normalized_path,)
+            )
+            if self.cursor.fetchone():
+                return False
+                
             self.cursor.execute(
                 "INSERT INTO media (path) VALUES (?)",
-                (str(Path(file_path)),)
+                (normalized_path,)
             )
             self.conn.commit()
             return True

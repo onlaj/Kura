@@ -5,6 +5,7 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget, QVBoxLayout
 import os
 from PIL import Image
+from pathlib import Path
 
 from gui.voting_tab import AspectRatioWidget
 
@@ -81,33 +82,18 @@ class ScalableMovie(QLabel):
         return self._aspect_ratio
 
 class MediaHandler:
+    VALID_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif'}
+    VALID_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv'}
+
     def __init__(self):
         """Initialize the media handler."""
         pass
 
     def is_valid_media(self, file_path: str) -> bool:
-        """Check if file is a valid image or video."""
-        ext = os.path.splitext(file_path)[1].lower()
-
-        # Check images
-        if ext in ['.jpg', '.jpeg', '.png', '.gif']:
-            try:
-                with Image.open(file_path) as img:
-                    img.verify()
-                return True
-            except Exception:
-                return False
-
-        # Check videos
-        elif ext in ['.mp4', '.avi', '.mov', '.mkv']:
-            try:
-                player = QMediaPlayer()
-                player.setSource(file_path)
-                return player.hasVideo()
-            except Exception:
-                return False
-
-        return False
+        """Check if the file is a valid media file."""
+        path = Path(file_path)
+        return (path.suffix.lower() in self.VALID_IMAGE_EXTENSIONS or
+                path.suffix.lower() in self.VALID_VIDEO_EXTENSIONS)
 
     def load_media(self, file_path: str, target_size=None):
         """Load media file and return appropriate widget."""
