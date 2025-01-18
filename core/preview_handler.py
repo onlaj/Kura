@@ -15,24 +15,26 @@ class MediaPreview(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        # Media container
+        # Media container with semi-transparent background
         self.media_container = QWidget(self)
+        self.media_container.setStyleSheet("background-color: rgba(0, 0, 0, 180);")
         self.media_layout = QHBoxLayout(self.media_container)
         self.media_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.media_layout.setContentsMargins(50, 50, 50, 50)
+        self.media_layout.setSpacing(0)  # Reduce spacing
 
         # Navigation buttons
         self.prev_button = QPushButton("←")
         self.prev_button.setStyleSheet("""
             QPushButton {
-                background-color: rgba(0, 0, 0, 100);
+                background-color: rgba(60, 60, 60, 180);
                 color: white;
                 border: none;
                 padding: 15px;
                 font-size: 24px;
             }
             QPushButton:hover {
-                background-color: rgba(0, 0, 0, 150);
+                background-color: rgba(80, 80, 80, 180);
             }
         """)
         self.prev_button.setFixedWidth(50)
@@ -45,10 +47,12 @@ class MediaPreview(QWidget):
         self.next_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.next_button.hide()  # Hide by default
 
-        # Add media content area
+        # Add content area with proper aspect ratio for videos
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(0)  # Reduce spacing
 
         # Arrange layout
         self.media_layout.addWidget(self.prev_button)

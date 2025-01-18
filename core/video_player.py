@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
-
+from gui.voting_tab import AspectRatioWidget
 
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
@@ -14,10 +14,22 @@ class VideoPlayer(QWidget):
         # Create layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)  # Reduce spacing between video and controls
+
+        # Create aspect ratio container for video
+        video_container = QWidget()
+        video_container.setLayout(QVBoxLayout())
+        video_container.layout().setContentsMargins(0, 0, 0, 0)
+        video_container.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                    QSizePolicy.Policy.Expanding)
 
         # Video widget
         self.video_widget = QVideoWidget()
-        layout.addWidget(self.video_widget)
+        video_container.layout().addWidget(self.video_widget)
+
+        # Add aspect ratio wrapper
+        aspect_widget = AspectRatioWidget(video_container, 16/9)
+        layout.addWidget(aspect_widget)
 
         # Media player setup
         self.media_player = QMediaPlayer()
@@ -27,10 +39,11 @@ class VideoPlayer(QWidget):
         self.audio_output = QAudioOutput()
         self.media_player.setAudioOutput(self.audio_output)
 
-        # Create controls widget
+        # Create controls widget with background
         controls_widget = QWidget()
+        controls_widget.setStyleSheet("background-color: rgba(30, 30, 30, 180);")
         controls_layout = QHBoxLayout(controls_widget)
-        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setContentsMargins(5, 5, 5, 5)  # Add some padding
 
         # Play/Pause button
         self.play_button = QPushButton()
