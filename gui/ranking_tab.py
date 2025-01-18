@@ -62,6 +62,8 @@ class RankingTab(QWidget):
 
         self.setup_ui()
 
+        self.current_preview_index = -1
+
     def setup_ui(self):
         """Setup the UI elements"""
         layout = QVBoxLayout(self)
@@ -141,16 +143,76 @@ class RankingTab(QWidget):
         return frame
 
     def show_preview(self, media_path):
-        """Show media preview overlay"""
+        """Show media preview overlay with navigation"""
+        # Find index of current media
+        self.current_preview_index = -1
+        for i, (_, path, _, _) in enumerate(self.current_images):
+            if path == media_path:
+                self.current_preview_index = i
+                break
+
         media = self.media_handler.load_media(media_path)
 
         if isinstance(media, AspectRatioWidget):
-            self.preview.show_media(media)
+            self.preview.show_media(media, enable_navigation=True)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
             if isinstance(media[1], QMovie):  # GIF
-                self.preview.show_media(media[0], gif_movie=media[1])
+                self.preview.show_media(media[0], gif_movie=media[1], enable_navigation=True)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1])
+                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True)
+
+        # Set up navigation callbacks
+        self.preview.set_navigation_callbacks(
+            on_prev=self.show_previous_preview if self.can_show_previous() else None,
+            on_next=self.show_next_preview if self.can_show_next() else None
+        )
+
+    def can_show_previous(self):
+        """Check if we can show previous media"""
+        if self.current_preview_index > 0:
+            return True
+        return self.current_page > 1
+
+    def can_show_next(self):
+        """Check if we can show next media"""
+        if self.current_preview_index < len(self.current_images) - 1:
+            return True
+        total_pages = math.ceil(self.total_images / self.per_page)
+        return self.current_page < total_pages
+
+    def show_previous_preview(self):
+        """Show previous media in preview"""
+        if self.current_preview_index > 0:
+            # Show previous media on current page
+            self.current_preview_index -= 1
+            _, path, _, _ = self.current_images[self.current_preview_index]
+            self.show_preview(path)
+        elif self.current_page > 1:
+            # Load previous page and show last media
+            self.current_page -= 1
+            self.refresh_rankings()
+            if self.current_images:
+                self.current_preview_index = len(self.current_images) - 1
+                _, path, _, _ = self.current_images[self.current_preview_index]
+                self.show_preview(path)
+
+    def show_next_preview(self):
+        """Show next media in preview"""
+        if self.current_preview_index < len(self.current_images) - 1:
+            # Show next media on current page
+            self.current_preview_index += 1
+            _, path, _, _ = self.current_images[self.current_preview_index]
+            self.show_preview(path)
+        else:
+            # Check if we can load next page
+            total_pages = math.ceil(self.total_images / self.per_page)
+            if self.current_page < total_pages:
+                self.current_page += 1
+                self.refresh_rankings()
+                if self.current_images:
+                    self.current_preview_index = 0
+                    _, path, _, _ = self.current_images[0]
+                    self.show_preview(path)
 
     def change_columns(self, value):
         """Handle column count change"""

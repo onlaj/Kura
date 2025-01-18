@@ -1,16 +1,12 @@
 # core/preview_handler.py
-
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QMovie
-from PyQt6.QtMultimediaWidgets import QVideoWidget
+from PyQt6.QtGui import QMovie, QKeyEvent
 
 
 class MediaPreview(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-
-        # Set up the overlay widget to cover the entire window
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -19,27 +15,74 @@ class MediaPreview(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        # Create media container that fills the entire space
+        # Media container
         self.media_container = QWidget(self)
-        # self.media_container.setStyleSheet("""
-        #     QWidget {
-        #         background-color: rgba(0, 0, 0, 200);
-        #     }
-        # """)
-        self.media_layout = QVBoxLayout(self.media_container)
+        self.media_layout = QHBoxLayout(self.media_container)
         self.media_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # Add spacing around the media content
         self.media_layout.setContentsMargins(50, 50, 50, 50)
+
+        # Navigation buttons
+        self.prev_button = QPushButton("←")
+        self.prev_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 0, 0, 100);
+                color: white;
+                border: none;
+                padding: 15px;
+                font-size: 24px;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 150);
+            }
+        """)
+        self.prev_button.setFixedWidth(50)
+        self.prev_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.prev_button.hide()  # Hide by default
+
+        self.next_button = QPushButton("→")
+        self.next_button.setStyleSheet(self.prev_button.styleSheet())
+        self.next_button.setFixedWidth(50)
+        self.next_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.next_button.hide()  # Hide by default
+
+        # Add media content area
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Arrange layout
+        self.media_layout.addWidget(self.prev_button)
+        self.media_layout.addWidget(self.content_widget, 1)
+        self.media_layout.addWidget(self.next_button)
+
         self.layout.addWidget(self.media_container)
 
         self.current_media = None
         self.video_player = None
         self.gif_movie = None
 
-        # Connect click event to close
-        self.media_container.mousePressEvent = lambda e: self.close()
+        # Navigation callbacks
+        self.on_prev = None
+        self.on_next = None
 
-    def show_media(self, media_widget, video_player=None, gif_movie=None):
+        # Connect buttons
+        self.prev_button.clicked.connect(self.navigate_prev)
+        self.next_button.clicked.connect(self.navigate_next)
+
+        # Enable focus for keyboard events
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        # Connect mouse press event for the media container
+        self.media_container.mousePressEvent = lambda e: self.handle_click(e)
+
+    def handle_click(self, event):
+        """Handle click events on the preview"""
+        # Check if click was on navigation buttons
+        clicked_widget = self.childAt(event.position().toPoint())
+        if clicked_widget not in [self.prev_button, self.next_button]:
+            self.close()
+
+    def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False):
         """Show media in the preview overlay"""
         # Clear any existing media
         if self.current_media:
@@ -57,7 +100,7 @@ class MediaPreview(QWidget):
                                    QSizePolicy.Policy.Expanding)
 
         # Add new media to layout
-        self.media_layout.addWidget(media_widget)
+        self.content_layout.addWidget(media_widget)
 
         # Start media playback if needed
         if video_player:
@@ -67,9 +110,46 @@ class MediaPreview(QWidget):
         if self.parent():
             self.setGeometry(self.parent().rect())
 
-        # Show the preview
+        # Show/hide navigation buttons based on enable_navigation parameter
+        self.prev_button.setVisible(enable_navigation)
+        self.next_button.setVisible(enable_navigation)
+
+        # Show the preview and set focus for keyboard events
         self.show()
         self.raise_()
+        self.setFocus()
+
+    def set_navigation_callbacks(self, on_prev=None, on_next=None):
+        """Set callbacks for navigation"""
+        self.on_prev = on_prev
+        self.on_next = on_next
+
+        # Update button visibility and enabled state
+        self.prev_button.setVisible(on_prev is not None)
+        self.next_button.setVisible(on_next is not None)
+        self.prev_button.setEnabled(on_prev is not None)
+        self.next_button.setEnabled(on_next is not None)
+
+    def navigate_prev(self):
+        """Handle navigation to previous media"""
+        if self.on_prev:
+            self.on_prev()
+
+    def navigate_next(self):
+        """Handle navigation to next media"""
+        if self.on_next:
+            self.on_next()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handle keyboard navigation"""
+        if event.key() == Qt.Key.Key_Left and self.prev_button.isVisible():
+            self.navigate_prev()
+        elif event.key() == Qt.Key.Key_Right and self.next_button.isVisible():
+            self.navigate_next()
+        elif event.key() == Qt.Key.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
 
     def close(self):
         """Handle closing the preview"""
