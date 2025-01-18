@@ -9,41 +9,6 @@ import time
 from core.preview_handler import MediaPreview
 
 
-class MediaPreviewDialog(QDialog):
-    def __init__(self, media_path, media_handler, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Preview")
-        self.setModal(True)
-
-        # Set up layout
-        layout = QVBoxLayout(self)
-
-        # Load media
-        media = media_handler.load_media(media_path, (800, 600))
-
-        if isinstance(media, QPixmap):
-            # Static image preview
-            label = QLabel()
-            label.setPixmap(media)
-            layout.addWidget(label)
-        elif isinstance(media, tuple) and isinstance(media[0], QLabel):
-            # Animated GIF preview
-            layout.addWidget(media[0])
-            self.gif_movie = media[1]  # Keep reference to prevent garbage collection
-        else:
-            # Video preview
-            video_widget, player = media
-            layout.addWidget(video_widget)
-            player.play()
-
-        # Add close button
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.close)
-        layout.addWidget(close_btn)
-
-        self.resize(850, 650)
-
-
 class MediaFrame(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
