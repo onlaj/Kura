@@ -1,4 +1,4 @@
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QPixmap, QImage, QMovie
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
@@ -155,6 +155,8 @@ class MediaHandler:
         try:
             video_player.set_source(video_path)
             print(f"Successfully created video player for: {video_path}")
+            # Run video_player.stop() after short delay
+            QTimer.singleShot(1, lambda: self.stop_all_videos())
             return video_player, video_player.media_player
         except Exception as e:
             print(f"Error creating video player: {e}")
