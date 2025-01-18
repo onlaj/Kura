@@ -2,6 +2,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QMovie, QKeyEvent
+from PyQt6.QtMultimediaWidgets import QVideoWidget
 
 
 class MediaPreview(QWidget):
@@ -79,12 +80,35 @@ class MediaPreview(QWidget):
         # Connect mouse press event for the media container
         self.media_container.mousePressEvent = lambda e: self.handle_click(e)
 
+    def is_video_control(self, widget):
+        """Check if the widget is a video control element"""
+        if widget is None:
+            return False
+            
+        # Get the widget's parent chain
+        widget_chain = []
+        current = widget
+        while current is not None:
+            widget_chain.append(current)
+            current = current.parent()
+            
+        # Check if any widget in the chain has a specific video control class name
+        video_control_classes = {'QVideoWidget', 'QSlider', 'QPushButton', 'QToolButton'}
+        for w in widget_chain:
+            class_name = w.__class__.__name__
+            if class_name in video_control_classes and 'control' in w.objectName().lower():
+                return True
+        return False
+
     def handle_click(self, event):
         """Handle click events on the preview"""
-        # Check if click was on navigation buttons
         clicked_widget = self.childAt(event.position().toPoint())
-        if clicked_widget not in [self.prev_button, self.next_button]:
-            self.close()
+        
+        # Only prevent closing if clicking specifically on video controls
+        if self.is_video_control(clicked_widget):
+            return
+            
+        self.close()
 
     def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False):
         """Show media in the preview overlay"""
