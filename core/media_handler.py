@@ -8,6 +8,7 @@ from PIL import Image
 from pathlib import Path
 
 from gui.voting_tab import AspectRatioWidget
+from core.video_player import VideoPlayer
 
 
 class ScalableLabel(QLabel):
@@ -148,14 +149,12 @@ class MediaHandler:
 
     def _create_video_widget(self, video_path: str):
         """Create and return video widget."""
-        player = QMediaPlayer()
-        audio_output = QAudioOutput()
-        player.setAudioOutput(audio_output)
-
-        video_widget = QVideoWidget()
-        video_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                 QSizePolicy.Policy.Expanding)
-        player.setVideoOutput(video_widget)
-        player.setSource(video_path)
-
-        return video_widget, player
+        print(f"Creating video widget for: {video_path}")
+        video_player = VideoPlayer()
+        try:
+            video_player.set_source(video_path)
+            print(f"Successfully created video player for: {video_path}")
+            return video_player, video_player.media_player
+        except Exception as e:
+            print(f"Error creating video player: {e}")
+            raise
