@@ -88,7 +88,7 @@ class MediaHandler:
 
     def __init__(self):
         """Initialize the media handler."""
-        pass
+        self.active_video_players = []
 
     def is_valid_media(self, file_path: str) -> bool:
         """Check if the file is a valid media file."""
@@ -151,6 +151,7 @@ class MediaHandler:
         """Create and return video widget."""
         print(f"Creating video widget for: {video_path}")
         video_player = VideoPlayer()
+        self.active_video_players.append(video_player)
         try:
             video_player.set_source(video_path)
             print(f"Successfully created video player for: {video_path}")
@@ -158,3 +159,14 @@ class MediaHandler:
         except Exception as e:
             print(f"Error creating video player: {e}")
             raise
+
+    def stop_all_videos(self):
+        print("Stopping all active video players.")
+        """Stop all active video players."""
+        for player in self.active_video_players:
+            player.stop()
+
+    def cleanup_player(self, player):
+        """Remove player from tracking."""
+        if player in self.active_video_players:
+            self.active_video_players.remove(player)
