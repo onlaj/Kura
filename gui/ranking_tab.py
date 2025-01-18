@@ -52,7 +52,7 @@ class RankingTab(QWidget):
         self.get_rankings_callback = get_rankings_callback
         self.media_handler = media_handler
         self.delete_callback = delete_callback
-        self.preview = MediaPreview(self)
+        self.preview = MediaPreview(self)  # We'll use this exclusively
 
         self.current_page = 1
         self.per_page = 12

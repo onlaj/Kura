@@ -115,8 +115,16 @@ class MediaPreview(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def handle_click(self, event):
-        """Disabled click-to-close behavior"""
-        pass
+        """Allow interaction with video controls"""
+        # Get the widget under the cursor
+        widget = self.childAt(event.position().toPoint())
+        
+        # Allow clicks to pass through to video controls
+        if isinstance(widget, (QVideoWidget, QPushButton)):
+            return
+            
+        # For all other areas, ignore clicks
+        event.accept()
 
     def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False):
         """Show media in the preview overlay"""
