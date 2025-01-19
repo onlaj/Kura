@@ -1,13 +1,13 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QSlider, QStyle, QSizePolicy, QLabel)
-from PyQt6.QtCore import Qt, QTimer, QUrl
+import cv2
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+                             QSlider, QStyle, QSizePolicy, QLabel)
+
 from gui.voting_tab import AspectRatioWidget
-import cv2
-import os
-import tempfile
+
 
 class ClickableSlider(QSlider):
     def __init__(self, orientation, parent=None):

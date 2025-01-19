@@ -1,14 +1,13 @@
-from PyQt6.QtCore import Qt, QSize, QTimer
-from PyQt6.QtGui import QPixmap, QImage, QMovie
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget, QVBoxLayout
 import os
-from PIL import Image
 from pathlib import Path
 
-from gui.voting_tab import AspectRatioWidget
+from PIL import Image
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QPixmap, QMovie
+from PyQt6.QtWidgets import QLabel, QSizePolicy
+
 from core.video_player import VideoPlayer
+from gui.voting_tab import AspectRatioWidget
 
 
 class ScalableLabel(QLabel):

@@ -1,12 +1,13 @@
 import sys
+
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
+
+from core.media_handler import MediaHandler
 from db.database import Database
 from gui.main_window import MainWindow
-from gui.upload_tab import UploadTab
 from gui.ranking_tab import RankingTab
+from gui.upload_tab import UploadTab
 from gui.voting_tab import VotingTab
-from core.media_handler import MediaHandler
 
 
 class Application:

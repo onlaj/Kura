@@ -1,7 +1,7 @@
 # core/preview_handler.py
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSizePolicy, QPushButton, QHBoxLayout, QWidget
-from PyQt6.QtCore import Qt, QSize, QRect, QEvent, QTimer, QUrl
-from PyQt6.QtGui import QMovie, QKeyEvent, QDesktopServices
+from PyQt6.QtCore import Qt, QEvent, QTimer, QUrl
+from PyQt6.QtGui import QKeyEvent, QDesktopServices
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QSizePolicy, QPushButton, QHBoxLayout, QWidget
 
 
 class MediaPreview(QDialog):

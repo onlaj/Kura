@@ -1,12 +1,12 @@
-from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+import math
+import os
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QMovie
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox)
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QMovie
-import os
-import math
-from core.media_handler import ScalableLabel, ScalableMovie
+
 from core.preview_handler import MediaPreview
 from gui.voting_tab import AspectRatioWidget
 

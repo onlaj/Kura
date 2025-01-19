@@ -1,6 +1,4 @@
-from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout,
-                             QApplication)
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout)
 
 
 class MainWindow(QMainWindow):

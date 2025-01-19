@@ -1,13 +1,13 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QLabel, QFrame, QSizePolicy, QDialog)
-from PyQt6.QtCore import Qt, QSize, QTimer
-from PyQt6.QtGui import QPixmap, QMovie, QKeyEvent
-from PyQt6.QtMultimediaWidgets import QVideoWidget
-from core.elo import Rating
-import time
 import os
+import time
 from datetime import datetime
 
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QMovie, QKeyEvent
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+                             QLabel, QFrame, QSizePolicy)
+
+from core.elo import Rating
 from core.preview_handler import MediaPreview
 
 
