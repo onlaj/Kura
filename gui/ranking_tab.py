@@ -1,7 +1,7 @@
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
-                             QComboBox, QWidget, QSizePolicy)
+                             QComboBox, QWidget, QSizePolicy, QCheckBox)
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QMovie
 import os
@@ -274,19 +274,40 @@ class RankingTab(QWidget):
         self.grid_layout.setVerticalSpacing(10)
 
     def confirm_delete(self, image_id, image_path):
-        """Show delete confirmation dialog"""
+        """Show delete confirmation dialog with a checkbox to delete the file permanently."""
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setText(f"Are you sure you want to delete:\n{os.path.basename(image_path)}?")
         msg.setWindowTitle("Confirm Delete")
+
+        # Add a checkbox for permanent file deletion
+        delete_file_checkbox = QCheckBox("Also permanently delete files", msg)
+        delete_file_checkbox.setChecked(False)  # Unchecked by default
+        msg.setCheckBox(delete_file_checkbox)
+
+        # Add standard buttons
         msg.setStandardButtons(
             QMessageBox.StandardButton.Yes |
             QMessageBox.StandardButton.No
         )
 
-        if msg.exec() == QMessageBox.StandardButton.Yes:
+        # Show the dialog and wait for user input
+        result = msg.exec()
+
+        if result == QMessageBox.StandardButton.Yes:
             try:
+                # Delete the entry from the database
                 self.delete_callback(image_id)
+
+                # If the checkbox is checked, delete the file from the hard drive
+                if delete_file_checkbox.isChecked():
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                        print(f"File deleted from disk: {image_path}")
+                    else:
+                        print(f"File not found: {image_path}")
+
+                # Refresh the rankings
                 self.refresh_rankings()
             except Exception as e:
                 self.show_error(f"Error deleting image: {str(e)}")

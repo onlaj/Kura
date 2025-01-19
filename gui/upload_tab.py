@@ -38,7 +38,7 @@ class UploadTab(QWidget):
 
     def add_files(self):
         """Handle adding individual files."""
-        file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.avi *.mov *.mkv)"
+        file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.avi *.mov *.mkv *.webp)"
 
         filenames, _ = QFileDialog.getOpenFileNames(
             self,
@@ -57,8 +57,8 @@ class UploadTab(QWidget):
         )
 
         if folder:
-            extensions = ('.jpg', '.jpeg', '.png', '.gif',
-                          '.mp4', '.avi', '.mov', '.mkv')
+            extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp',
+                          '.mp4', '.avi', '.mov', '.mkv', '.webp')
             media_files = []
 
             for ext in extensions:

@@ -83,7 +83,7 @@ class ScalableMovie(QLabel):
         return self._aspect_ratio
 
 class MediaHandler:
-    VALID_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif'}
+    VALID_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
     VALID_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv'}
 
     def __init__(self):
@@ -110,7 +110,7 @@ class MediaHandler:
         # Handle different media types
         if ext == '.gif':
             widget, movie = self._load_gif(file_path)
-        elif ext in ['.jpg', '.jpeg', '.png']:
+        elif ext in ['.jpg', '.jpeg', '.png', '.webp']:
             widget = self._load_image(file_path)
         elif ext in ['.mp4', '.avi', '.mov', '.mkv']:
             widget, player = self._create_video_widget(file_path)
