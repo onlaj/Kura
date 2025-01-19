@@ -157,6 +157,11 @@ class RankingTab(QWidget):
         self.uncheck_button.hide()
         control_panel.addWidget(self.uncheck_button)
 
+        # Select All button (always visible)
+        self.select_all_button = QPushButton("Select All")
+        self.select_all_button.clicked.connect(self.select_all)
+        control_panel.addWidget(self.select_all_button)
+
         control_panel.addStretch()
         layout.addLayout(control_panel)
 
@@ -200,7 +205,7 @@ class RankingTab(QWidget):
         frame.delete_button.clicked.connect(lambda: self.confirm_delete(id, path))
 
         # Configure checkbox
-        frame.checkbox.setChecked(id in self.checked_items)
+        frame.checkbox.setChecked(id in self.checked_items)  # Set initial state
         frame.checkbox.stateChanged.connect(lambda state, id=id: self.toggle_checkbox(state, id))
         frame.checkbox.show()
 
@@ -223,6 +228,21 @@ class RankingTab(QWidget):
             self.trash_button.hide()
             self.uncheck_button.hide()
 
+    def select_all(self):
+        """Select all media items on the current page."""
+        for i in range(self.grid_layout.count()):
+            item = self.grid_layout.itemAt(i)
+            if item and item.widget():
+                frame = item.widget()
+                if hasattr(frame, 'checkbox'):
+                    frame.checkbox.setChecked(True)  # Check the checkbox
+                    frame.checkbox.show()
+                    media_id = self.current_images[i][0]  # Get the media ID from current_images
+                    self.checked_items.add(media_id)  # Add to the checked_items set
+
+        # Show the trash and uncheck buttons
+        self.update_buttons_visibility()
+
     def uncheck_all(self):
         """Uncheck all checkboxes."""
         self.checked_items.clear()
@@ -232,6 +252,7 @@ class RankingTab(QWidget):
                 widget = item.widget()
                 if hasattr(widget, 'checkbox'):
                     widget.checkbox.setChecked(False)
+                    widget.checkbox.hide()
         self.update_buttons_visibility()
 
     def delete_selected_items(self):
@@ -377,7 +398,7 @@ class RankingTab(QWidget):
             self.current_page,
             self.per_page
         )
-        self.current_images = rankings
+        self.current_images = rankings  # Update current_images with the new rankings
 
         # Update pagination
         total_pages = math.ceil(self.total_images / self.per_page)
