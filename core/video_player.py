@@ -5,23 +5,47 @@ from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from gui.voting_tab import AspectRatioWidget
 
+class ClickableSlider(QSlider):
+    def __init__(self, orientation, parent=None):
+        super().__init__(orientation, parent)
+
+    def mousePressEvent(self, event):
+        """Handle mouse press events to move the slider to the clicked position."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Calculate the new position based on the click
+            value = self.minimum() + ((self.maximum() - self.minimum()) * event.position().x()) / self.width()
+            self.setValue(int(value))
+            event.accept()
+            # Emit the sliderMoved signal manually
+            self.sliderMoved.emit(int(value))
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """Handle mouse move events to update the slider while dragging."""
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            # Calculate the new position based on the mouse position
+            value = self.minimum() + ((self.maximum() - self.minimum()) * event.position().x()) / self.width()
+            self.setValue(int(value))
+            event.accept()
+            # Emit the sliderMoved signal manually
+            self.sliderMoved.emit(int(value))
+        super().mouseMoveEvent(event)
+
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                          QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Create layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)  # Reduce spacing between video and controls
+        layout.setSpacing(0)
 
         # Create aspect ratio container for video
         video_container = QWidget()
         video_container.setLayout(QVBoxLayout())
         video_container.layout().setContentsMargins(0, 0, 0, 0)
-        video_container.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                    QSizePolicy.Policy.Expanding)
+        video_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Video widget
         self.video_widget = QVideoWidget()
@@ -43,7 +67,7 @@ class VideoPlayer(QWidget):
         controls_widget = QWidget()
         controls_widget.setStyleSheet("background-color: rgba(30, 30, 30, 180);")
         controls_layout = QHBoxLayout(controls_widget)
-        controls_layout.setContentsMargins(5, 5, 5, 5)  # Add some padding
+        controls_layout.setContentsMargins(5, 5, 5, 5)
 
         # Play/Pause button
         self.play_button = QPushButton()
@@ -51,17 +75,47 @@ class VideoPlayer(QWidget):
         self.play_button.clicked.connect(self.play_pause)
         controls_layout.addWidget(self.play_button)
 
-        # Position slider
-        self.position_slider = QSlider(Qt.Orientation.Horizontal)
+        # Position slider (using the new ClickableSlider)
+        self.position_slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.position_slider.setRange(0, 0)
         self.position_slider.sliderMoved.connect(self.set_position)
+        self.position_slider.setMinimumHeight(20)  # Set minimum height for the slider
+        self.position_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                background: #444;
+                height: 8px;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #fff;
+                width: 16px;
+                height: 16px;
+                margin: -4px 0;  /* Adjust handle position */
+                border-radius: 8px;
+            }
+        """)
         controls_layout.addWidget(self.position_slider)
 
-        # Volume slider
-        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        # Volume slider (using the new ClickableSlider)
+        self.volume_slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(70)
         self.volume_slider.setMaximumWidth(100)
+        self.volume_slider.setMinimumHeight(20)  # Set minimum height for the slider
+        self.volume_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                background: #444;
+                height: 8px;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #fff;
+                width: 16px;
+                height: 16px;
+                margin: -4px 0;  /* Adjust handle position */
+                border-radius: 8px;
+            }
+        """)
         self.volume_slider.valueChanged.connect(self.set_volume)
         controls_layout.addWidget(self.volume_slider)
 
@@ -73,7 +127,7 @@ class VideoPlayer(QWidget):
         self.media_player.durationChanged.connect(self.duration_changed)
 
         # Set initial volume
-        self.set_volume(70)
+        self.set_volume(50)
 
     def set_source(self, path):
         """Set the video source."""
