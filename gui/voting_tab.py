@@ -129,11 +129,12 @@ class AspectRatioWidget(QWidget):
 
 
 class VotingTab(QWidget):
-    def __init__(self, get_pair_callback, update_ratings_callback, media_handler):
+    def __init__(self, get_pair_callback, update_ratings_callback, media_handler, ranking_tab):
         super().__init__()
         self.get_pair_callback = get_pair_callback
         self.update_ratings_callback = update_ratings_callback
         self.media_handler = media_handler
+        self.ranking_tab = ranking_tab  # Store reference to RankingTab
         self.preview = MediaPreview(self)
 
         self.current_left = None
@@ -145,6 +146,7 @@ class VotingTab(QWidget):
         self.cooldown_timer.timeout.connect(self.end_cooldown)
 
         self.setup_ui()
+
 
     def setup_ui(self):
         """Set up the voting interface."""
@@ -312,6 +314,9 @@ class VotingTab(QWidget):
                 new_ratings['a'],  # new winner rating
                 new_ratings['b']  # new loser rating
             )
+
+        # Notify RankingTab that there are new votes
+        self.ranking_tab.set_new_votes_flag()
 
         # Load new pair
         self.load_new_pair()

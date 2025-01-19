@@ -127,6 +127,9 @@ class RankingTab(QWidget):
         self.current_images = []
         self.checked_items = set()  # Track checked items
 
+        # Add a flag to track if there are new votes
+        self.new_votes_since_last_refresh = True
+
         self.setup_ui()
 
         self.current_preview_index = -1
@@ -472,8 +475,11 @@ class RankingTab(QWidget):
         # Refresh the rankings
         self.refresh_rankings()
 
-    def refresh_rankings(self):
+    def refresh_rankings(self, force_refresh=True):
         """Refresh the rankings display."""
+        if not force_refresh and not self.new_votes_since_last_refresh:
+            return  # Skip refresh if no new votes and not forced
+
         # Stop any playing media
         for i in range(self.grid_layout.count()):
             item = self.grid_layout.itemAt(i)
@@ -535,6 +541,13 @@ class RankingTab(QWidget):
         # Set row stretch to ensure consistent row heights
         for row in range(math.ceil(len(rankings) / self.columns)):
             self.grid_layout.setRowStretch(row, 1)
+
+        # Reset the new votes flag
+        self.new_votes_since_last_refresh = False
+
+    def set_new_votes_flag(self):
+        """Set the flag indicating that there are new votes."""
+        self.new_votes_since_last_refresh = True
 
     def confirm_delete(self, image_id, image_path):
         """Show delete confirmation dialog with a checkbox to delete the file permanently."""

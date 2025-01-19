@@ -40,4 +40,4 @@ class MainWindow(QMainWindow):
         if tab_name == "Voting":
             self.tab_voting.ensure_images_loaded()
         elif tab_name == "Ranking":
-            self.tab_ranking.refresh_rankings()
+            self.tab_ranking.refresh_rankings(force_refresh=False)

@@ -31,6 +31,7 @@ class Application:
         # Initialize tabs
         self.init_tabs()
 
+
     def init_tabs(self):
         """Initialize all application tabs."""
         # Create tabs
@@ -44,7 +45,8 @@ class Application:
         self.voting_tab = VotingTab(
             self.get_pair_for_voting,
             self.update_ratings,
-            self.media_handler
+            self.media_handler,
+            self.ranking_tab  # Pass the ranking_tab to VotingTab
         )
 
         # Set up tabs in main window
