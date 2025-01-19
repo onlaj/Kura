@@ -111,6 +111,7 @@ class RankingTab(QWidget):
         self.grid_container = QWidget()
         self.grid_layout = QGridLayout(self.grid_container)
         self.grid_layout.setSpacing(10)  # Add some space between items
+        self.grid_layout.setColumnStretch(0, 1)  # Ensure columns are equal width
         scroll_area.setWidget(self.grid_container)
 
     def create_image_frame(self, rank, id, path, rating, votes, index):
@@ -272,6 +273,10 @@ class RankingTab(QWidget):
         # Adjust grid layout properties for better presentation
         self.grid_layout.setHorizontalSpacing(10)
         self.grid_layout.setVerticalSpacing(10)
+
+        # Ensure columns are equal width
+        for col in range(self.columns):
+            self.grid_layout.setColumnStretch(col, 1)
 
     def confirm_delete(self, image_id, image_path):
         """Show delete confirmation dialog with a checkbox to delete the file permanently."""
