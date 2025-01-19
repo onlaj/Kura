@@ -60,11 +60,10 @@ class Application:
         return False
 
     def delete_media(self, media_id: int):
-        """Delete media from database"""
+        """Delete media from database and return the file path."""
         try:
             file_path = self.db.delete_media(media_id)
-            #if file_path and os.path.exists(file_path):
-                #os.remove(file_path)
+            return file_path  # Return the file path for potential file deletion
         except Exception as e:
             print(f"Error deleting media: {e}")
             raise e

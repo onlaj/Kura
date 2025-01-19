@@ -2,7 +2,7 @@ import math
 import os
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QMovie
+from PyQt6.QtGui import QMovie, QIcon
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox)
@@ -26,6 +26,12 @@ class MediaFrame(QFrame):
         self.media_layout.setContentsMargins(0, 0, 0, 0)
         self.layout.addWidget(self.media_container)
 
+        # Checkbox in the top-right corner
+        self.checkbox = QCheckBox(self)
+        self.checkbox.setStyleSheet("background-color: rgba(255, 255, 255, 150);")
+        self.checkbox.move(self.width() - 30, 10)
+        self.checkbox.hide()
+
         # Info label
         self.info_label = QLabel()
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -45,6 +51,10 @@ class MediaFrame(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.checkbox.move(self.width() - 30, 10)
+
 
 class RankingTab(QWidget):
     def __init__(self, get_rankings_callback, media_handler, delete_callback):
@@ -59,6 +69,7 @@ class RankingTab(QWidget):
         self.columns = 3
         self.total_images = 0
         self.current_images = []
+        self.checked_items = set()  # Track checked items
 
         self.setup_ui()
 
@@ -98,6 +109,20 @@ class RankingTab(QWidget):
         self.next_button.clicked.connect(self.next_page)
         self.next_button.setEnabled(False)
         control_panel.addWidget(self.next_button)
+
+        # Trash bin button
+        self.trash_button = QPushButton()
+        self.trash_button.setIcon(QIcon.fromTheme("edit-delete"))
+        self.trash_button.setToolTip("Delete selected items")
+        self.trash_button.clicked.connect(self.delete_selected_items)
+        self.trash_button.hide()
+        control_panel.addWidget(self.trash_button)
+
+        # Uncheck button
+        self.uncheck_button = QPushButton("Uncheck All")
+        self.uncheck_button.clicked.connect(self.uncheck_all)
+        self.uncheck_button.hide()
+        control_panel.addWidget(self.uncheck_button)
 
         control_panel.addStretch()
         layout.addLayout(control_panel)
@@ -141,7 +166,76 @@ class RankingTab(QWidget):
         # Configure delete button
         frame.delete_button.clicked.connect(lambda: self.confirm_delete(id, path))
 
+        # Configure checkbox
+        frame.checkbox.setChecked(id in self.checked_items)
+        frame.checkbox.stateChanged.connect(lambda state, id=id: self.toggle_checkbox(state, id))
+        frame.checkbox.show()
+
         return frame
+
+    def toggle_checkbox(self, state, id):
+        """Handle checkbox state changes."""
+        if state == Qt.CheckState.Checked.value:
+            self.checked_items.add(id)
+        else:
+            self.checked_items.discard(id)
+        self.update_buttons_visibility()
+
+    def update_buttons_visibility(self):
+        """Show/hide trash and uncheck buttons based on checked items."""
+        if self.checked_items:
+            self.trash_button.show()
+            self.uncheck_button.show()
+        else:
+            self.trash_button.hide()
+            self.uncheck_button.hide()
+
+    def uncheck_all(self):
+        """Uncheck all checkboxes."""
+        self.checked_items.clear()
+        for i in range(self.grid_layout.count()):
+            item = self.grid_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'checkbox'):
+                    widget.checkbox.setChecked(False)
+        self.update_buttons_visibility()
+
+    def delete_selected_items(self):
+        """Delete selected items."""
+        if not self.checked_items:
+            return
+
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(f"Are you sure you want to delete {len(self.checked_items)} item(s)?")
+        msg.setWindowTitle("Confirm Delete")
+
+        # Add a checkbox for permanent file deletion
+        delete_file_checkbox = QCheckBox("Also permanently delete files", msg)
+        delete_file_checkbox.setChecked(False)  # Unchecked by default
+        msg.setCheckBox(delete_file_checkbox)
+
+        # Add standard buttons
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Yes |
+            QMessageBox.StandardButton.Cancel
+        )
+
+        # Show the dialog and wait for user input
+        result = msg.exec()
+
+        if result == QMessageBox.StandardButton.Yes:
+            try:
+                delete_files = delete_file_checkbox.isChecked()
+                for media_id in list(self.checked_items):
+                    file_path = self.delete_callback(media_id)
+                    if delete_files and file_path and os.path.exists(file_path):
+                        os.remove(file_path)
+                self.checked_items.clear()
+                self.refresh_rankings()
+            except Exception as e:
+                self.show_error(f"Error deleting items: {str(e)}")
 
     def show_preview(self, media_path):
         """Show media preview overlay with navigation"""
@@ -221,7 +315,7 @@ class RankingTab(QWidget):
         self.refresh_rankings()
 
     def refresh_rankings(self):
-        """Refresh the rankings display"""
+        """Refresh the rankings display."""
         # Stop any playing media
         for i in range(self.grid_layout.count()):
             item = self.grid_layout.itemAt(i)
