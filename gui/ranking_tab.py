@@ -237,9 +237,19 @@ class RankingTab(QWidget):
         # Configure checkbox
         frame.checkbox.setChecked(id in self.checked_items)  # Set initial state
         frame.checkbox.stateChanged.connect(lambda state, id=id: self.toggle_checkbox(state, id))
-        frame.checkbox.show()
+
+        # Use a QTimer to delay the visibility check
+        QTimer.singleShot(0, lambda: self.update_checkbox_visibility(frame, id))
+
 
         return frame
+
+    def update_checkbox_visibility(self, frame, id):
+        """Update the visibility of the checkbox based on its state."""
+        if id in self.checked_items:
+            frame.checkbox.show()
+        else:
+            frame.checkbox.hide()
 
     def toggle_checkbox(self, state, id):
         """Handle checkbox state changes."""
