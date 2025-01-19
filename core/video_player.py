@@ -3,7 +3,11 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
+from PyQt6.QtGui import QPixmap, QImage
 from gui.voting_tab import AspectRatioWidget
+import cv2
+import os
+import tempfile
 
 class ClickableSlider(QSlider):
     def __init__(self, orientation, parent=None):
@@ -49,7 +53,13 @@ class VideoPlayer(QWidget):
 
         # Video widget
         self.video_widget = QVideoWidget()
+        self.video_widget.hide()  # Hide video widget initially
         video_container.layout().addWidget(self.video_widget)
+
+        # Thumbnail label
+        self.thumbnail_label = QLabel()
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        video_container.layout().addWidget(self.thumbnail_label)
 
         # Add aspect ratio wrapper
         aspect_widget = AspectRatioWidget(video_container, 16/9)
@@ -145,6 +155,54 @@ class VideoPlayer(QWidget):
         print(f"Setting video source: {url.toString()}")
         self.media_player.setSource(url)
         self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+
+        # Extract and display thumbnail
+        self.extract_and_display_thumbnail(path)
+
+    def extract_and_display_thumbnail(self, path):
+        """Extract a thumbnail from the middle of the video and display it."""
+        cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            print(f"Error: Could not open video {path}")
+            return
+
+        # Get total number of frames
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total_frames == 0:
+            print(f"Error: Video {path} has no frames")
+            return
+
+        # Set the frame position to the middle of the video
+        middle_frame = total_frames // 2
+        cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
+        ret, frame = cap.read()
+        if not ret:
+            print(f"Error: Could not read frame {middle_frame} from video {path}")
+            return
+
+        # Convert the frame to QImage
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = frame_rgb.shape
+        bytes_per_line = ch * w
+        q_img = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+
+        # Convert QImage to QPixmap and set it to the thumbnail label
+        pixmap = QPixmap.fromImage(q_img)
+        self.thumbnail_label.setPixmap(pixmap.scaled(self.video_widget.size(), Qt.AspectRatioMode.KeepAspectRatio))
+
+        # Hide the thumbnail when the video starts playing
+        self.media_player.playbackStateChanged.connect(self.hide_thumbnail_on_play)
+
+        cap.release()
+
+    def hide_thumbnail_on_play(self, state):
+        """Hide the thumbnail and show the video widget when the video starts playing."""
+        if state == QMediaPlayer.PlaybackState.PlayingState:
+            self.thumbnail_label.hide()
+            self.video_widget.show()  # Show video widget when playing
+        else:
+            self.thumbnail_label.show()
+            self.video_widget.hide()  # Hide video widget when paused/stopped
 
     def play_pause(self):
         """Toggle play/pause state."""

@@ -15,6 +15,8 @@ class MediaFrame(QFrame):
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
 
         self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
 
         # Media display widget (will be set later)
         self.media_widget = None
@@ -25,8 +27,9 @@ class MediaFrame(QFrame):
         self.vote_button = QPushButton("Vote")
         self.layout.addWidget(self.vote_button)
 
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                           QSizePolicy.Policy.Expanding)
+        # Set size policy for the frame
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumSize(400, 400)  # Set a minimum size for the media container
 
 
 class AspectRatioWidget(QWidget):
@@ -38,12 +41,10 @@ class AspectRatioWidget(QWidget):
         self.layout().addWidget(widget)
 
         # The contained widget should expand in both directions
-        widget.setSizePolicy(QSizePolicy.Policy.Expanding,
-                             QSizePolicy.Policy.Expanding)
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # This widget should expand in both directions
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                           QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def resizeEvent(self, event):
         width = self.width()
@@ -87,18 +88,20 @@ class VotingTab(QWidget):
 
         # Create horizontal layout for media frames
         media_layout = QHBoxLayout()
+        media_layout.setContentsMargins(0, 0, 0, 0)
+        media_layout.setSpacing(10)  # Add some spacing between media frames
 
         # Left media frame
         self.left_frame = MediaFrame()
         self.left_frame.vote_button.clicked.connect(
             lambda: self.handle_vote("left"))
-        media_layout.addWidget(self.left_frame)
+        media_layout.addWidget(self.left_frame, 1)  # Equal stretch for both frames
 
         # Right media frame
         self.right_frame = MediaFrame()
         self.right_frame.vote_button.clicked.connect(
             lambda: self.handle_vote("right"))
-        media_layout.addWidget(self.right_frame)
+        media_layout.addWidget(self.right_frame, 1)  # Equal stretch for both frames
 
         layout.addLayout(media_layout)
 
@@ -139,6 +142,11 @@ class VotingTab(QWidget):
                 frame.layout.insertWidget(0, media[0])
                 media[1].play()
                 media[0].mousePressEvent = lambda e, p=media_path: self.show_preview(p)
+
+        # Ensure the media widget expands to fill the frame
+        if frame.media_widget:
+            frame.media_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
 
     def load_new_pair(self):
         """Load a new pair of media items for voting."""
