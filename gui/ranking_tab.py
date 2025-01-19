@@ -140,7 +140,7 @@ class RankingTab(QWidget):
         # Items per page selector
         control_panel.addWidget(QLabel("On page:"))
         self.items_per_page_selector = QComboBox()
-        self.items_per_page_selector.addItems(["10", "20", "50", "100", "500", "ALL"])
+        self.items_per_page_selector.addItems(["12", "24", "48", "96", "500", "ALL"])
         self.items_per_page_selector.setCurrentText(str(self.per_page))  # Set default value
         self.items_per_page_selector.currentTextChanged.connect(self.change_items_per_page)
         control_panel.addWidget(self.items_per_page_selector)
