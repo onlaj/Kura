@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                            QSlider, QStyle, QSizePolicy)
+                             QSlider, QStyle, QSizePolicy, QLabel)
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
@@ -75,11 +75,16 @@ class VideoPlayer(QWidget):
         self.play_button.clicked.connect(self.play_pause)
         controls_layout.addWidget(self.play_button)
 
+        # Current time label
+        self.current_time_label = QLabel("00:00")
+        self.current_time_label.setStyleSheet("color: white; font-size: 12px;")
+        controls_layout.addWidget(self.current_time_label)
+
         # Position slider (using the new ClickableSlider)
         self.position_slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.position_slider.setRange(0, 0)
         self.position_slider.sliderMoved.connect(self.set_position)
-        self.position_slider.setMinimumHeight(20)  # Set minimum height for the slider
+        self.position_slider.setMinimumHeight(20)
         self.position_slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 background: #444;
@@ -90,18 +95,23 @@ class VideoPlayer(QWidget):
                 background: #fff;
                 width: 16px;
                 height: 16px;
-                margin: -4px 0;  /* Adjust handle position */
+                margin: -4px 0;
                 border-radius: 8px;
             }
         """)
         controls_layout.addWidget(self.position_slider)
+
+        # Total time label
+        self.total_time_label = QLabel("00:00")
+        self.total_time_label.setStyleSheet("color: white; font-size: 12px;")
+        controls_layout.addWidget(self.total_time_label)
 
         # Volume slider (using the new ClickableSlider)
         self.volume_slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(70)
         self.volume_slider.setMaximumWidth(100)
-        self.volume_slider.setMinimumHeight(20)  # Set minimum height for the slider
+        self.volume_slider.setMinimumHeight(20)
         self.volume_slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 background: #444;
@@ -112,7 +122,7 @@ class VideoPlayer(QWidget):
                 background: #fff;
                 width: 16px;
                 height: 16px;
-                margin: -4px 0;  /* Adjust handle position */
+                margin: -4px 0;
                 border-radius: 8px;
             }
         """)
@@ -127,7 +137,7 @@ class VideoPlayer(QWidget):
         self.media_player.durationChanged.connect(self.duration_changed)
 
         # Set initial volume
-        self.set_volume(50)
+        self.set_volume(70)
 
     def set_source(self, path):
         """Set the video source."""
@@ -151,12 +161,14 @@ class VideoPlayer(QWidget):
             self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
 
     def position_changed(self, position):
-        """Update slider position."""
+        """Update slider position and current time label."""
         self.position_slider.setValue(position)
+        self.current_time_label.setText(self.format_time(position))
 
     def duration_changed(self, duration):
-        """Update slider range when video duration changes."""
+        """Update slider range and total time label when video duration changes."""
         self.position_slider.setRange(0, duration)
+        self.total_time_label.setText(self.format_time(duration))
 
     def set_position(self, position):
         """Set video position from slider."""
@@ -169,3 +181,10 @@ class VideoPlayer(QWidget):
     def stop(self):
         """Stop video playback."""
         self.media_player.stop()
+
+    def format_time(self, milliseconds):
+        """Convert milliseconds to a formatted time string (MM:SS)."""
+        seconds = milliseconds // 1000
+        minutes = seconds // 60
+        seconds = seconds % 60
+        return f"{minutes:02}:{seconds:02}"
