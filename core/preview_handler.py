@@ -1,7 +1,7 @@
 # core/preview_handler.py
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSizePolicy, QPushButton, QHBoxLayout, QWidget
-from PyQt6.QtCore import Qt, QSize, QRect, QEvent, QTimer
-from PyQt6.QtGui import QMovie, QKeyEvent
+from PyQt6.QtCore import Qt, QSize, QRect, QEvent, QTimer, QUrl
+from PyQt6.QtGui import QMovie, QKeyEvent, QDesktopServices
 
 
 class MediaPreview(QDialog):
@@ -63,6 +63,58 @@ class MediaPreview(QDialog):
         self.media_layout.addWidget(self.content_widget, 1)
         self.media_layout.addWidget(self.next_button)
 
+        # Create top and bottom button containers
+        self.top_layout = QHBoxLayout()
+        self.top_layout.setContentsMargins(50, 20, 50, 0)
+
+        # Create "Open in app" button with distinct style
+        self.open_button = QPushButton("Open in default app")
+        self.open_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(40, 120, 200, 180);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        font-size: 14px;
+                        border-radius: 5px;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(60, 140, 220, 180);
+                    }
+                """)
+        self.open_button.hide()
+        self.open_button.clicked.connect(self.open_in_system_app)
+
+        # Add open button to top layout
+        self.top_layout.addWidget(self.open_button)
+        self.top_layout.addStretch()
+
+        # Create media container with semi-transparent background
+        self.media_container = QWidget(self)
+        self.media_container.setStyleSheet("background-color: rgba(0, 0, 0, 180);")
+        self.media_layout = QVBoxLayout(self.media_container)
+        self.media_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Add top layout to media container
+        self.media_layout.addLayout(self.top_layout)
+
+        # Create horizontal layout for navigation and content
+        nav_content_layout = QHBoxLayout()
+        nav_content_layout.setContentsMargins(50, 0, 50, 50)
+
+        # Add navigation buttons and content to horizontal layout
+        nav_content_layout.addWidget(self.prev_button)
+        nav_content_layout.addWidget(self.content_widget, 1)
+        nav_content_layout.addWidget(self.next_button)
+
+        # Add navigation and content layout to media container
+        self.media_layout.addLayout(nav_content_layout)
+
+        # Add media container to main layout
+        self.layout.addWidget(self.media_container)
+
+        self.current_media_path = None
+
         self.layout.addWidget(self.media_container)
 
         self.current_media = None
@@ -93,7 +145,7 @@ class MediaPreview(QDialog):
         # Store the last known position of the main window
         self.last_window_position = None
 
-    def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False):
+    def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False, media_path=None):
         """Show media in the preview dialog"""
         # Clear existing media
         if self.current_media:
@@ -104,6 +156,10 @@ class MediaPreview(QDialog):
         self.current_media = media_widget
         self.video_player = video_player
         self.gif_movie = gif_movie
+
+        # Store the media path
+        self.current_media_path = media_path
+        self.open_button.setVisible(media_path is not None)
 
         media_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
                                  QSizePolicy.Policy.Expanding)
@@ -135,6 +191,12 @@ class MediaPreview(QDialog):
         clicked_widget = self.childAt(event.position().toPoint())
         if clicked_widget not in [self.prev_button, self.next_button]:
             self.close()
+
+    def open_in_system_app(self):
+        """Open the current media file in the system's default application"""
+        if self.current_media_path:
+            url = QUrl.fromLocalFile(self.current_media_path)
+            QDesktopServices.openUrl(url)
 
     def set_navigation_callbacks(self, on_prev=None, on_next=None):
         """Set callbacks for navigation"""

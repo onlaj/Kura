@@ -174,12 +174,12 @@ class VotingTab(QWidget):
         media = self.media_handler.load_media(media_path)
 
         if isinstance(media, AspectRatioWidget):
-            self.preview.show_media(media)
+            self.preview.show_media(media, media_path=media_path)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
             if isinstance(media[1], QMovie):  # GIF
-                self.preview.show_media(media[0], gif_movie=media[1])
+                self.preview.show_media(media[0], gif_movie=media[1], media_path=media_path)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1])
+                self.preview.show_media(media[0], video_player=media[1], media_path=media_path)
 
     def handle_vote(self, vote):
         """Handle voting for a media item."""
