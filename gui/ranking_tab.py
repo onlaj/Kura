@@ -1,7 +1,7 @@
 import math
 import os
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QMovie, QIcon
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
@@ -28,9 +28,29 @@ class MediaFrame(QFrame):
 
         # Checkbox in the top-right corner
         self.checkbox = QCheckBox(self)
-        self.checkbox.setStyleSheet("background-color: rgba(255, 255, 255, 150);")
+        self.checkbox.setStyleSheet("""
+                    QCheckBox {
+                        background-color: rgba(255, 255, 255, 0);
+                        border: 0px solid #ccc;
+                        border-radius: 3px;
+                        padding: 1px;
+                    }
+                    QCheckBox::indicator {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    QCheckBox::indicator:checked {
+                        image: url(:/icons/checked.png);  /* Use a custom checkmark image if desired */
+                        background-color: #0096FF;  /* Green background for checked state */
+                        border: 1px solid #388E3C;
+                    }
+                    QCheckBox::indicator:unchecked {
+                        background-color: #f0f0f0;  /* Light gray background for unchecked state */
+                        border: 1px solid #ccc;
+                    }
+                """)
         self.checkbox.move(self.width() - 30, 10)
-        self.checkbox.hide()
+        QTimer.singleShot(0, self.checkbox.hide)  # Hide with a slight delay
 
         # Info label
         self.info_label = QLabel()
@@ -53,7 +73,19 @@ class MediaFrame(QFrame):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        # Position the checkbox in the top-right corner
         self.checkbox.move(self.width() - 30, 10)
+
+    def enterEvent(self, event):
+        """Show the checkbox when the mouse enters the frame."""
+        self.checkbox.show()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Hide the checkbox when the mouse leaves the frame, unless it is checked."""
+        if not self.checkbox.isChecked():  # Only hide if the checkbox is unchecked
+            self.checkbox.hide()
+        super().leaveEvent(event)
 
 
 class RankingTab(QWidget):
