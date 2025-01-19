@@ -71,7 +71,7 @@ class MediaPreview(QDialog):
         self.open_button = QPushButton("Open in default app")
         self.open_button.setStyleSheet("""
                     QPushButton {
-                        background-color: rgba(40, 120, 200, 180);
+                        background-color: rgba(60, 60, 60, 180);
                         color: white;
                         border: none;
                         padding: 10px 20px;
