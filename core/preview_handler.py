@@ -166,8 +166,9 @@ class MediaPreview(QDialog):
 
         self.content_layout.addWidget(media_widget)
 
+        # Use a QTimer to delay the video playback
         if video_player:
-            video_player.play()
+            QTimer.singleShot(500, video_player.play)  # 500ms delay
 
         # Set size and position relative to parent
         if self.parent():
