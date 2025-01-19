@@ -11,7 +11,7 @@ from core.preview_handler import MediaPreview
 from gui.voting_tab import AspectRatioWidget
 
 
-class ImageFrame(QFrame):
+class MediaFrame(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
@@ -115,7 +115,7 @@ class RankingTab(QWidget):
         scroll_area.setWidget(self.grid_container)
 
     def create_image_frame(self, rank, id, path, rating, votes, index):
-        frame = ImageFrame()
+        frame = MediaFrame()
 
         # Load media
         media = self.media_handler.load_media(path)
