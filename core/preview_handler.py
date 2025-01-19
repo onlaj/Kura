@@ -1,6 +1,6 @@
 # core/preview_handler.py
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSizePolicy, QPushButton, QHBoxLayout, QWidget
-from PyQt6.QtCore import Qt, QSize, QRect
+from PyQt6.QtCore import Qt, QSize, QRect, QEvent, QTimer
 from PyQt6.QtGui import QMovie, QKeyEvent
 
 
@@ -9,8 +9,7 @@ class MediaPreview(QDialog):
         super().__init__(parent)
         # Set window flags for a proper dialog window
         self.setWindowFlags(Qt.WindowType.Window |
-                          Qt.WindowType.FramelessWindowHint |
-                          Qt.WindowType.WindowStaysOnTopHint)
+                          Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         # Main layout
@@ -81,6 +80,18 @@ class MediaPreview(QDialog):
 
         # Connect mouse press event
         self.media_container.mousePressEvent = lambda e: self.handle_click(e)
+
+        # Install event filter to track main window resize events
+        if self.parent():
+            self.parent().window().installEventFilter(self)
+
+        # Timer to track window movement
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.check_window_position)
+        self.timer.start(10)  # Check every 100ms
+
+        # Store the last known position of the main window
+        self.last_window_position = None
 
     def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False):
         """Show media in the preview dialog"""
@@ -182,3 +193,23 @@ class MediaPreview(QDialog):
             main_rect = main_window.geometry()
             self.setGeometry(main_rect)
         super().showEvent(event)
+
+    def eventFilter(self, obj, event):
+        """Event filter to detect main window resize events"""
+        if event.type() == QEvent.Type.Resize:  # Resize event (code 14)
+            # Update the preview window's geometry to match the main window
+            main_rect = self.parent().window().geometry()
+            self.setGeometry(main_rect)
+        return super().eventFilter(obj, event)
+
+    def check_window_position(self):
+        """Check if the main window has moved and update the preview window accordingly"""
+        if self.parent():
+            main_window = self.parent().window()
+            current_position = main_window.geometry().topLeft()
+
+            # If the position has changed, update the preview window
+            if self.last_window_position != current_position:
+                self.last_window_position = current_position
+                main_rect = main_window.geometry()
+                self.setGeometry(main_rect)
