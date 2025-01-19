@@ -29,32 +29,35 @@ class MediaFrame(QFrame):
         # Checkbox in the top-right corner
         self.checkbox = QCheckBox(self)
         self.checkbox.setStyleSheet("""
-                    QCheckBox {
-                        background-color: rgba(255, 255, 255, 0);
-                        border: 0px solid #ccc;
-                        border-radius: 3px;
-                        padding: 1px;
-                    }
-                    QCheckBox::indicator {
-                        width: 16px;
-                        height: 16px;
-                    }
-                    QCheckBox::indicator:checked {
-                        image: url(:/icons/checked.png);  /* Use a custom checkmark image if desired */
-                        background-color: #0096FF;  /* Green background for checked state */
-                        border: 1px solid #388E3C;
-                    }
-                    QCheckBox::indicator:unchecked {
-                        background-color: #f0f0f0;  /* Light gray background for unchecked state */
-                        border: 1px solid #ccc;
-                    }
-                """)
+            QCheckBox {
+                background-color: rgba(255, 255, 255, 150);
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+            }
+            QCheckBox::indicator:checked {
+                image: url(:/icons/checked.png);  /* Use a custom checkmark image if desired */
+                background-color: #4CAF50;  /* Green background for checked state */
+                border: 1px solid #388E3C;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #f0f0f0;  /* Light gray background for unchecked state */
+                border: 1px solid #ccc;
+            }
+        """)
         self.checkbox.move(self.width() - 30, 10)
-        QTimer.singleShot(0, self.checkbox.hide)  # Hide with a slight delay
+        self.checkbox.hide()  # Hide the checkbox by default
 
-        # Info label
+        # Info label (for file name)
         self.info_label = QLabel()
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.info_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.info_label.setWordWrap(True)  # Enable word wrapping
+        self.info_label.setStyleSheet("font-size: 10px;")  # Optional: Adjust font size
         self.layout.addWidget(self.info_label)
 
         # Rating label
@@ -70,6 +73,17 @@ class MediaFrame(QFrame):
         # Set size policy for the frame
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
+
+    def set_file_info(self, file_name):
+        """Set the file name with elided text and tooltip."""
+        self.info_label.setText(self.elide_text(file_name))  # Set elided text
+        self.info_label.setToolTip(file_name)  # Set full file name as tooltip
+
+    def elide_text(self, text, max_width=150):
+        """Elide text to fit within a specified width."""
+        metrics = self.info_label.fontMetrics()
+        elided_text = metrics.elidedText(text, Qt.TextElideMode.ElideRight, max_width)
+        return elided_text
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -227,8 +241,11 @@ class RankingTab(QWidget):
                 media[1].play()
                 media[0].mousePressEvent = lambda e, p=path: self.show_preview(p)
 
-        # Set information
-        frame.info_label.setText(f"#{rank} - {os.path.basename(path)}")
+        # Set file name with elided text and tooltip
+        file_name = os.path.basename(path)
+        frame.set_file_info(file_name)
+
+        # Set rating and votes
         frame.rating_label.setText(f"Rating: {rating:.1f} | Votes: {votes}")
 
         # Configure delete button
@@ -240,7 +257,6 @@ class RankingTab(QWidget):
 
         # Use a QTimer to delay the visibility check
         QTimer.singleShot(0, lambda: self.update_checkbox_visibility(frame, id))
-
 
         return frame
 
@@ -456,7 +472,6 @@ class RankingTab(QWidget):
         # Refresh the rankings
         self.refresh_rankings()
 
-
     def refresh_rankings(self):
         """Refresh the rankings display."""
         # Stop any playing media
@@ -516,6 +531,10 @@ class RankingTab(QWidget):
         # Ensure columns are equal width
         for col in range(self.columns):
             self.grid_layout.setColumnStretch(col, 1)
+
+        # Set row stretch to ensure consistent row heights
+        for row in range(math.ceil(len(rankings) / self.columns)):
+            self.grid_layout.setRowStretch(row, 1)
 
     def confirm_delete(self, image_id, image_path):
         """Show delete confirmation dialog with a checkbox to delete the file permanently."""
