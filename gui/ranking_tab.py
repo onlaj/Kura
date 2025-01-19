@@ -128,6 +128,14 @@ class RankingTab(QWidget):
         self.column_selector.currentTextChanged.connect(self.change_columns)
         control_panel.addWidget(self.column_selector)
 
+        # Items per page selector
+        control_panel.addWidget(QLabel("On page:"))
+        self.items_per_page_selector = QComboBox()
+        self.items_per_page_selector.addItems(["12", "24", "48", "96", "500", "ALL"])
+        self.items_per_page_selector.setCurrentText(str(self.per_page))  # Set default value
+        self.items_per_page_selector.currentTextChanged.connect(self.change_items_per_page)
+        control_panel.addWidget(self.items_per_page_selector)
+
         # Page info
         self.page_label = QLabel("Page 1")
         control_panel.addWidget(self.page_label)
@@ -377,6 +385,19 @@ class RankingTab(QWidget):
         self.columns = int(value)
         self.refresh_rankings()
 
+    def change_items_per_page(self, value):
+        """Handle changes to the 'On page' dropdown."""
+        if value == "ALL":
+            self.per_page = 5000  # Set a large number to show all items
+        else:
+            self.per_page = int(value)  # Set the number of items per page
+
+        # Reset to the first page
+        self.current_page = 1
+
+        # Refresh the rankings
+        self.refresh_rankings()
+
     def refresh_rankings(self):
         """Refresh the rankings display."""
         # Stop any playing media
@@ -396,12 +417,12 @@ class RankingTab(QWidget):
         # Get current page
         rankings, self.total_images = self.get_rankings_callback(
             self.current_page,
-            self.per_page
+            self.per_page if self.per_page != self.total_images else None  # Handle "ALL" option
         )
         self.current_images = rankings  # Update current_images with the new rankings
 
         # Update pagination
-        total_pages = math.ceil(self.total_images / self.per_page)
+        total_pages = math.ceil(self.total_images / self.per_page) if self.per_page != self.total_images else 1
         self.page_label.setText(
             f"Page {self.current_page} of {total_pages} (Total: {self.total_images})"
         )
