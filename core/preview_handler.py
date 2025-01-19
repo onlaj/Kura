@@ -1,13 +1,16 @@
 # core/preview_handler.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QPushButton, QHBoxLayout
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSizePolicy, QPushButton, QHBoxLayout, QWidget
+from PyQt6.QtCore import Qt, QSize, QRect
 from PyQt6.QtGui import QMovie, QKeyEvent
 
 
-class MediaPreview(QWidget):
+class MediaPreview(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        # Set window flags for a proper dialog window
+        self.setWindowFlags(Qt.WindowType.Window |
+                          Qt.WindowType.FramelessWindowHint |
+                          Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         # Main layout
@@ -21,7 +24,7 @@ class MediaPreview(QWidget):
         self.media_layout = QHBoxLayout(self.media_container)
         self.media_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.media_layout.setContentsMargins(50, 50, 50, 50)
-        self.media_layout.setSpacing(0)  # Reduce spacing
+        self.media_layout.setSpacing(0)
 
         # Navigation buttons
         self.prev_button = QPushButton("←")
@@ -38,21 +41,23 @@ class MediaPreview(QWidget):
             }
         """)
         self.prev_button.setFixedWidth(50)
-        self.prev_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        self.prev_button.hide()  # Hide by default
+        self.prev_button.setSizePolicy(QSizePolicy.Policy.Fixed,
+                                     QSizePolicy.Policy.Expanding)
+        self.prev_button.hide()
 
         self.next_button = QPushButton("→")
         self.next_button.setStyleSheet(self.prev_button.styleSheet())
         self.next_button.setFixedWidth(50)
-        self.next_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        self.next_button.hide()  # Hide by default
+        self.next_button.setSizePolicy(QSizePolicy.Policy.Fixed,
+                                     QSizePolicy.Policy.Expanding)
+        self.next_button.hide()
 
-        # Add content area with proper aspect ratio for videos
+        # Content widget
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.content_layout.setContentsMargins(0, 0, 0, 0)
-        self.content_layout.setSpacing(0)  # Reduce spacing
+        self.content_layout.setSpacing(0)
 
         # Arrange layout
         self.media_layout.addWidget(self.prev_button)
@@ -64,8 +69,6 @@ class MediaPreview(QWidget):
         self.current_media = None
         self.video_player = None
         self.gif_movie = None
-
-        # Navigation callbacks
         self.on_prev = None
         self.on_next = None
 
@@ -76,52 +79,51 @@ class MediaPreview(QWidget):
         # Enable focus for keyboard events
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        # Connect mouse press event for the media container
+        # Connect mouse press event
         self.media_container.mousePressEvent = lambda e: self.handle_click(e)
 
-    def handle_click(self, event):
-        """Handle click events on the preview"""
-        # Check if click was on navigation buttons
-        clicked_widget = self.childAt(event.position().toPoint())
-        if clicked_widget not in [self.prev_button, self.next_button]:
-            self.close()
-
     def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False):
-        """Show media in the preview overlay"""
-        # Clear any existing media
+        """Show media in the preview dialog"""
+        # Clear existing media
         if self.current_media:
             if self.video_player:
                 self.video_player.stop()
             self.current_media.setParent(None)
 
-        # Store and show new media
         self.current_media = media_widget
         self.video_player = video_player
         self.gif_movie = gif_movie
 
-        # Ensure the media widget expands properly
         media_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                   QSizePolicy.Policy.Expanding)
+                                 QSizePolicy.Policy.Expanding)
 
-        # Add new media to layout
         self.content_layout.addWidget(media_widget)
 
-        # Start media playback if needed
         if video_player:
             video_player.play()
 
-        # Ensure the preview covers the entire parent widget
+        # Set size and position relative to parent
         if self.parent():
-            self.setGeometry(self.parent().rect())
+            # Get the main window's geometry
+            main_window = self.parent().window()
+            main_rect = main_window.geometry()
 
-        # Show/hide navigation buttons based on enable_navigation parameter
+            # Set the preview window to match the main window's size and position
+            self.setGeometry(main_rect)
+
+        # Show/hide navigation
         self.prev_button.setVisible(enable_navigation)
         self.next_button.setVisible(enable_navigation)
 
-        # Show the preview and set focus for keyboard events
         self.show()
         self.raise_()
         self.setFocus()
+
+    def handle_click(self, event):
+        """Handle click events on the preview"""
+        clicked_widget = self.childAt(event.position().toPoint())
+        if clicked_widget not in [self.prev_button, self.next_button]:
+            self.close()
 
     def set_navigation_callbacks(self, on_prev=None, on_next=None):
         """Set callbacks for navigation"""
@@ -166,11 +168,17 @@ class MediaPreview(QWidget):
     def resizeEvent(self, event):
         """Ensure preview takes up full parent widget size"""
         if self.parent():
-            self.setGeometry(self.parent().rect())
+            # Update the preview window's geometry to match the main window
+            main_window = self.parent().window()
+            main_rect = main_window.geometry()
+            self.setGeometry(main_rect)
         super().resizeEvent(event)
 
     def showEvent(self, event):
         """Ensure proper sizing when showing the preview"""
         if self.parent():
-            self.setGeometry(self.parent().rect())
+            # Update the preview window's geometry to match the main window
+            main_window = self.parent().window()
+            main_rect = main_window.geometry()
+            self.setGeometry(main_rect)
         super().showEvent(event)
