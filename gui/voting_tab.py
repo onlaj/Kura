@@ -5,6 +5,8 @@ from PyQt6.QtGui import QPixmap, QMovie
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from core.elo import Rating
 import time
+import os
+from datetime import datetime
 
 from core.preview_handler import MediaPreview
 
@@ -23,6 +25,12 @@ class MediaFrame(QFrame):
         self.media_player = None
         self.gif_movie = None  # Added for GIF support
 
+        # File info label
+        self.file_info_label = QLabel()
+        self.file_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.file_info_label.setStyleSheet("font-size: 10px; color: white;")
+        self.layout.addWidget(self.file_info_label)
+
         # Vote button
         self.vote_button = QPushButton("Vote")
         self.layout.addWidget(self.vote_button)
@@ -30,6 +38,31 @@ class MediaFrame(QFrame):
         # Set size policy for the frame
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(400, 400)  # Set a minimum size for the media container
+
+    def set_file_info(self, file_path):
+        """Set the file information (name, size, modification date) in the label."""
+        if not os.path.exists(file_path):
+            self.file_info_label.setText("File not found")
+            return
+
+        # Get file name
+        file_name = os.path.basename(file_path)
+
+        # Get file size in KB/MB
+        file_size = os.path.getsize(file_path)
+        if file_size < 1024:
+            file_size_str = f"{file_size} B"
+        elif file_size < 1024 * 1024:
+            file_size_str = f"{file_size / 1024:.1f} KB"
+        else:
+            file_size_str = f"{file_size / (1024 * 1024):.1f} MB"
+
+        # Get modification date
+        mod_time = os.path.getmtime(file_path)
+        mod_date = datetime.fromtimestamp(mod_time).strftime("%Y-%m-%d %H:%M:%S")
+
+        # Set the label text
+        self.file_info_label.setText(f"{file_name} \n {file_size_str} | {mod_date}")
 
 
 class AspectRatioWidget(QWidget):
@@ -65,6 +98,7 @@ class AspectRatioWidget(QWidget):
             self.layout().setContentsMargins(0, offset, 0, offset)
 
         super().resizeEvent(event)
+
 
 class VotingTab(QWidget):
     def __init__(self, get_pair_callback, update_ratings_callback, media_handler):
@@ -146,6 +180,9 @@ class VotingTab(QWidget):
         # Ensure the media widget expands to fill the frame
         if frame.media_widget:
             frame.media_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # Set file information in the label
+        frame.set_file_info(media_path)
 
 
     def load_new_pair(self):
