@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy, QDialog)
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QPixmap, QMovie, QKeyEvent
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from core.elo import Rating
@@ -79,6 +79,19 @@ class MediaFrame(QFrame):
         # Set the label text
         self.file_info_label.setText(f"{file_name} \n {file_size_str} | {mod_date}")
 
+    def set_cooldown_style(self, on_cooldown):
+        """Set the button style when on cooldown."""
+        if on_cooldown:
+            self.vote_button.setStyleSheet("background-color: grey; color: white;")
+            self.vote_button.setText("Cooldown...")
+            self.double_vote_button.setStyleSheet("background-color: grey; color: white;")
+            self.double_vote_button.setText("Cooldown...")
+        else:
+            self.vote_button.setStyleSheet("")
+            self.vote_button.setText("Vote")
+            self.double_vote_button.setStyleSheet("")
+            self.double_vote_button.setText("Double Vote")
+
 
 class AspectRatioWidget(QWidget):
     def __init__(self, widget, aspect_ratio=16 / 9, parent=None):
@@ -128,6 +141,8 @@ class VotingTab(QWidget):
         self.images_loaded = False
         self.last_vote_time = 0
         self.vote_cooldown = 1.0
+        self.cooldown_timer = QTimer(self)
+        self.cooldown_timer.timeout.connect(self.end_cooldown)
 
         self.setup_ui()
 
@@ -215,7 +230,6 @@ class VotingTab(QWidget):
         # Set file information in the label
         frame.set_file_info(media_path)
 
-
     def load_new_pair(self):
         """Load a new pair of media items for voting."""
         # Stop any playing media
@@ -266,6 +280,13 @@ class VotingTab(QWidget):
 
         self.last_vote_time = current_time
 
+        # Apply cooldown styling
+        self.left_frame.set_cooldown_style(True)
+        self.right_frame.set_cooldown_style(True)
+
+        # Start cooldown timer
+        self.cooldown_timer.start(int(self.vote_cooldown * 1000))
+
         # Determine winner and loser
         if vote == "left":
             winner = self.current_left
@@ -294,6 +315,12 @@ class VotingTab(QWidget):
 
         # Load new pair
         self.load_new_pair()
+
+    def end_cooldown(self):
+        """End the cooldown period and revert button styles."""
+        self.left_frame.set_cooldown_style(False)
+        self.right_frame.set_cooldown_style(False)
+        self.cooldown_timer.stop()
 
     def ensure_images_loaded(self):
         """Load images if they haven't been loaded yet."""
