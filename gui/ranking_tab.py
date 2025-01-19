@@ -134,17 +134,13 @@ class RankingTab(QWidget):
 
         self.current_preview_index = -1
 
+
     def setup_ui(self):
         """Setup the UI elements"""
         layout = QVBoxLayout(self)
 
         # Control panel
         control_panel = QHBoxLayout()
-
-        # Refresh button
-        self.refresh_button = QPushButton("Refresh Rankings")
-        self.refresh_button.clicked.connect(self.refresh_rankings)
-        control_panel.addWidget(self.refresh_button)
 
         # Column selector
         control_panel.addWidget(QLabel("Columns:"))
