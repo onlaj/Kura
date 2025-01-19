@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy, QDialog)
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QMovie
+from PyQt6.QtGui import QPixmap, QMovie, QKeyEvent
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from core.elo import Rating
 import time
@@ -39,11 +39,13 @@ class MediaFrame(QFrame):
 
         # Regular Vote button
         self.vote_button = QPushButton("Vote")
+        self.vote_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.button_layout.addWidget(self.vote_button)
 
         # Double Vote button
         self.double_vote_button = QPushButton("Double Vote")
         self.double_vote_button.setFixedWidth(80)  # Smaller width
+        self.double_vote_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.button_layout.addWidget(self.double_vote_button)
 
         self.layout.addWidget(self.button_container)
@@ -158,6 +160,7 @@ class VotingTab(QWidget):
 
         # Skip button
         self.skip_button = QPushButton("Skip Pair")
+        self.skip_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.skip_button.clicked.connect(self.load_new_pair)
         layout.addWidget(self.skip_button)
 
@@ -165,6 +168,17 @@ class VotingTab(QWidget):
         self.status_label = QLabel()
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
+
+        # Enable focus for keyboard events
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFocus()  # Ensure the widget has focus when the tab is opened
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handle keyboard voting using arrow keys."""
+        if event.key() == Qt.Key.Key_Left:
+            self.handle_vote("left", 1)  # Regular vote for left image
+        elif event.key() == Qt.Key.Key_Right:
+            self.handle_vote("right", 1)  # Regular vote for right image
 
     def load_media_to_frame(self, frame, media_path):
         if frame.media_widget:

@@ -82,6 +82,7 @@ class VideoPlayer(QWidget):
         # Play/Pause button
         self.play_button = QPushButton()
         self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+        self.play_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.play_button.clicked.connect(self.play_pause)
         controls_layout.addWidget(self.play_button)
 
@@ -95,6 +96,7 @@ class VideoPlayer(QWidget):
         self.position_slider.setRange(0, 0)
         self.position_slider.sliderMoved.connect(self.set_position)
         self.position_slider.setMinimumHeight(20)
+        self.position_slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.position_slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 background: #444;
@@ -122,6 +124,7 @@ class VideoPlayer(QWidget):
         self.volume_slider.setValue(70)
         self.volume_slider.setMaximumWidth(100)
         self.volume_slider.setMinimumHeight(20)
+        self.volume_slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.volume_slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 background: #444;
