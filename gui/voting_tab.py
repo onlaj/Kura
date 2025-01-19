@@ -31,9 +31,22 @@ class MediaFrame(QFrame):
         self.file_info_label.setStyleSheet("font-size: 10px; color: white;")
         self.layout.addWidget(self.file_info_label)
 
-        # Vote button
+        # Vote button container
+        self.button_container = QWidget()
+        self.button_layout = QHBoxLayout(self.button_container)
+        self.button_layout.setContentsMargins(0, 0, 0, 0)
+        self.button_layout.setSpacing(5)  # Add some spacing between buttons
+
+        # Regular Vote button
         self.vote_button = QPushButton("Vote")
-        self.layout.addWidget(self.vote_button)
+        self.button_layout.addWidget(self.vote_button)
+
+        # Double Vote button
+        self.double_vote_button = QPushButton("Double Vote")
+        self.double_vote_button.setFixedWidth(80)  # Smaller width
+        self.button_layout.addWidget(self.double_vote_button)
+
+        self.layout.addWidget(self.button_container)
 
         # Set size policy for the frame
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -128,13 +141,17 @@ class VotingTab(QWidget):
         # Left media frame
         self.left_frame = MediaFrame()
         self.left_frame.vote_button.clicked.connect(
-            lambda: self.handle_vote("left"))
+            lambda: self.handle_vote("left", 1))
+        self.left_frame.double_vote_button.clicked.connect(
+            lambda: self.handle_vote("left", 2))
         media_layout.addWidget(self.left_frame, 1)  # Equal stretch for both frames
 
         # Right media frame
         self.right_frame = MediaFrame()
         self.right_frame.vote_button.clicked.connect(
-            lambda: self.handle_vote("right"))
+            lambda: self.handle_vote("right", 1))
+        self.right_frame.double_vote_button.clicked.connect(
+            lambda: self.handle_vote("right", 2))
         media_layout.addWidget(self.right_frame, 1)  # Equal stretch for both frames
 
         layout.addLayout(media_layout)
@@ -226,7 +243,7 @@ class VotingTab(QWidget):
             else:  # Video
                 self.preview.show_media(media[0], video_player=media[1], media_path=media_path)
 
-    def handle_vote(self, vote):
+    def handle_vote(self, vote, vote_count):
         """Handle voting for a media item."""
         # Check cooldown
         current_time = time.time()
@@ -253,12 +270,13 @@ class VotingTab(QWidget):
         new_ratings = rating.get_new_ratings()
 
         # Update database
-        self.update_ratings_callback(
-            winner[0],  # winner_id
-            loser[0],  # loser_id
-            new_ratings['a'],  # new winner rating
-            new_ratings['b']  # new loser rating
-        )
+        for _ in range(vote_count):
+            self.update_ratings_callback(
+                winner[0],  # winner_id
+                loser[0],  # loser_id
+                new_ratings['a'],  # new winner rating
+                new_ratings['b']  # new loser rating
+            )
 
         # Load new pair
         self.load_new_pair()
