@@ -1,7 +1,7 @@
 import math
 import os
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtGui import QMovie, QIcon
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
@@ -86,6 +86,15 @@ class MediaFrame(QFrame):
         if not self.checkbox.isChecked():  # Only hide if the checkbox is unchecked
             self.checkbox.hide()
         super().leaveEvent(event)
+
+    def cleanup(self):
+        """Release any resources (e.g., video players) used by this frame."""
+        if hasattr(self, 'video_player') and self.video_player:
+            self.video_player.stop()
+            self.video_player.setSource(QUrl())  # Clear the source
+        if hasattr(self, 'gif_movie') and self.gif_movie:
+            self.gif_movie.stop()
+            self.gif_movie.setFileName("")  # Clear the file name
 
 
 class RankingTab(QWidget):
@@ -293,7 +302,16 @@ class RankingTab(QWidget):
                 for media_id in list(self.checked_items):
                     # Delete the media from the database and get the file path
                     file_path = self.delete_callback(media_id, recalculate=False)  # Disable recalculation
+
                     if delete_files and file_path and os.path.exists(file_path):
+                        # Release any resources using the file
+                        for i in range(self.grid_layout.count()):
+                            item = self.grid_layout.itemAt(i)
+                            if item and item.widget():
+                                widget = item.widget()
+                                if hasattr(widget, 'cleanup'):
+                                    widget.cleanup()  # Release resources
+
                         try:
                             os.remove(file_path)  # Delete the file from the system
                             print(f"File deleted from disk: {file_path}")
@@ -301,12 +319,29 @@ class RankingTab(QWidget):
                             print(f"Error deleting file {file_path}: {e}")
 
                 # Recalculate ratings once after all deletions are complete
-                self.db._recalculate_ratings()  # Call recalculation directly
+                self.db._recalculate_ratings()
 
                 self.checked_items.clear()  # Clear the set of checked items
                 self.refresh_rankings()  # Refresh the rankings display
             except Exception as e:
                 self.show_error(f"Error deleting items: {str(e)}")
+
+    def release_file_resources(self, file_path: str):
+        """Release any resources (e.g., video players) using the file."""
+        for i in range(self.grid_layout.count()):
+            item = self.grid_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'video_player') and widget.video_player:
+                    # Stop and release the video player if it's using the file
+                    if widget.video_player.source() == file_path:
+                        widget.video_player.stop()
+                        widget.video_player.setSource(QUrl())  # Clear the source
+                if hasattr(widget, 'gif_movie') and widget.gif_movie:
+                    # Stop and release the GIF movie if it's using the file
+                    if widget.gif_movie.fileName() == file_path:
+                        widget.gif_movie.stop()
+                        widget.gif_movie.setFileName("")  # Clear the file name
 
     def show_preview(self, media_path):
         """Show media preview overlay with navigation"""
@@ -479,14 +514,20 @@ class RankingTab(QWidget):
 
         if result == QMessageBox.StandardButton.Yes:
             try:
+                # Release any resources using the file
+                self.release_file_resources(image_path)
+
                 # Delete the entry from the database
                 self.delete_callback(image_id)
 
                 # If the checkbox is checked, delete the file from the hard drive
                 if delete_file_checkbox.isChecked():
                     if os.path.exists(image_path):
-                        os.remove(image_path)
-                        print(f"File deleted from disk: {image_path}")
+                        try:
+                            os.remove(image_path)  # Delete the file from the system
+                            print(f"File deleted from disk: {image_path}")
+                        except Exception as e:
+                            print(f"Error deleting file {image_path}: {e}")
                     else:
                         print(f"File not found: {image_path}")
 
