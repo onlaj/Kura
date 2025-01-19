@@ -140,7 +140,7 @@ class RankingTab(QWidget):
         # Items per page selector
         control_panel.addWidget(QLabel("On page:"))
         self.items_per_page_selector = QComboBox()
-        self.items_per_page_selector.addItems(["12", "24", "48", "96", "500", "ALL"])
+        self.items_per_page_selector.addItems(["10", "20", "50", "100", "500", "ALL"])
         self.items_per_page_selector.setCurrentText(str(self.per_page))  # Set default value
         self.items_per_page_selector.currentTextChanged.connect(self.change_items_per_page)
         control_panel.addWidget(self.items_per_page_selector)
@@ -149,16 +149,29 @@ class RankingTab(QWidget):
         self.page_label = QLabel("Page 1")
         control_panel.addWidget(self.page_label)
 
-        # Navigation buttons
+        # First page button (<<)
+        self.first_page_button = QPushButton("<<")
+        self.first_page_button.clicked.connect(self.go_to_first_page)
+        self.first_page_button.setEnabled(False)  # Disabled by default
+        control_panel.addWidget(self.first_page_button)
+
+        # Previous button
         self.prev_button = QPushButton("Previous")
         self.prev_button.clicked.connect(self.prev_page)
         self.prev_button.setEnabled(False)
         control_panel.addWidget(self.prev_button)
 
+        # Next button
         self.next_button = QPushButton("Next")
         self.next_button.clicked.connect(self.next_page)
         self.next_button.setEnabled(False)
         control_panel.addWidget(self.next_button)
+
+        # Last page button (>>)
+        self.last_page_button = QPushButton(">>")
+        self.last_page_button.clicked.connect(self.go_to_last_page)
+        self.last_page_button.setEnabled(False)  # Disabled by default
+        control_panel.addWidget(self.last_page_button)
 
         # Trash bin button
         self.trash_button = QPushButton()
@@ -433,6 +446,7 @@ class RankingTab(QWidget):
         # Refresh the rankings
         self.refresh_rankings()
 
+
     def refresh_rankings(self):
         """Refresh the rankings display."""
         # Stop any playing media
@@ -463,8 +477,10 @@ class RankingTab(QWidget):
         )
 
         # Update navigation buttons
-        self.prev_button.setEnabled(self.current_page > 1)
-        self.next_button.setEnabled(self.current_page < total_pages)
+        self.first_page_button.setEnabled(self.current_page > 1)  # Enable if not on the first page
+        self.prev_button.setEnabled(self.current_page > 1)  # Enable if not on the first page
+        self.next_button.setEnabled(self.current_page < total_pages)  # Enable if not on the last page
+        self.last_page_button.setEnabled(self.current_page < total_pages)  # Enable if not on the last page
 
         # Calculate starting rank
         start_rank = (self.current_page - 1) * self.per_page + 1
@@ -551,4 +567,17 @@ class RankingTab(QWidget):
         """Go to previous page"""
         if self.current_page > 1:
             self.current_page -= 1
+            self.refresh_rankings()
+
+    def go_to_first_page(self):
+        """Navigate to the first page."""
+        if self.current_page != 1:  # Only navigate if not already on the first page
+            self.current_page = 1
+            self.refresh_rankings()
+
+    def go_to_last_page(self):
+        """Navigate to the last page."""
+        total_pages = math.ceil(self.total_images / self.per_page)
+        if self.current_page != total_pages:  # Only navigate if not already on the last page
+            self.current_page = total_pages
             self.refresh_rankings()
