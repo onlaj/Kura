@@ -57,11 +57,12 @@ class MediaFrame(QFrame):
 
 
 class RankingTab(QWidget):
-    def __init__(self, get_rankings_callback, media_handler, delete_callback):
+    def __init__(self, get_rankings_callback, media_handler, delete_callback, db):
         super().__init__()
         self.get_rankings_callback = get_rankings_callback
         self.media_handler = media_handler
         self.delete_callback = delete_callback
+        self.db = db  # Store the db object
         self.preview = MediaPreview(self)
 
         self.current_page = 1
@@ -229,11 +230,20 @@ class RankingTab(QWidget):
             try:
                 delete_files = delete_file_checkbox.isChecked()
                 for media_id in list(self.checked_items):
-                    file_path = self.delete_callback(media_id)
+                    # Delete the media from the database and get the file path
+                    file_path = self.delete_callback(media_id, recalculate=False)  # Disable recalculation
                     if delete_files and file_path and os.path.exists(file_path):
-                        os.remove(file_path)
-                self.checked_items.clear()
-                self.refresh_rankings()
+                        try:
+                            os.remove(file_path)  # Delete the file from the system
+                            print(f"File deleted from disk: {file_path}")
+                        except Exception as e:
+                            print(f"Error deleting file {file_path}: {e}")
+
+                # Recalculate ratings once after all deletions are complete
+                self.db._recalculate_ratings()  # Call recalculation directly
+
+                self.checked_items.clear()  # Clear the set of checked items
+                self.refresh_rankings()  # Refresh the rankings display
             except Exception as e:
                 self.show_error(f"Error deleting items: {str(e)}")
 

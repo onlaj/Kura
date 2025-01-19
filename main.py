@@ -38,7 +38,8 @@ class Application:
         self.ranking_tab = RankingTab(
             self.get_rankings,
             self.media_handler,
-            self.delete_media
+            self.delete_media,
+            self.db  # Pass the db object to RankingTab
         )
         self.voting_tab = VotingTab(
             self.get_pair_for_voting,
@@ -59,10 +60,10 @@ class Application:
             return self.db.add_media(file_path)
         return False
 
-    def delete_media(self, media_id: int):
+    def delete_media(self, media_id: int, recalculate: bool = True):
         """Delete media from database and return the file path."""
         try:
-            file_path = self.db.delete_media(media_id)
+            file_path = self.db.delete_media(media_id, recalculate=recalculate)
             return file_path  # Return the file path for potential file deletion
         except Exception as e:
             print(f"Error deleting media: {e}")

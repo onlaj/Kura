@@ -135,12 +135,13 @@ class Database:
         self.conn.commit()
         print("Recalculation complete!")
 
-    def delete_media(self, media_id: int) -> Optional[str]:
+    def delete_media(self, media_id: int, recalculate: bool = True) -> Optional[str]:
         """
-        Delete a media file and recalculate all ratings.
+        Delete a media file and optionally recalculate all ratings.
 
         Args:
             media_id: ID of the media to delete
+            recalculate: Whether to recalculate ratings after deletion (default: True)
 
         Returns:
             Optional[str]: Path of the deleted media file, or None if not found
@@ -162,8 +163,9 @@ class Database:
             # Delete the media record
             self.cursor.execute("DELETE FROM media WHERE id = ?", (media_id,))
 
-            # Recalculate all ratings
-            self._recalculate_ratings()
+            # Recalculate all ratings (if requested)
+            if recalculate:
+                self._recalculate_ratings()
 
             # Commit transaction
             self.conn.commit()
