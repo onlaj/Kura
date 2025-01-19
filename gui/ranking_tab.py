@@ -1,15 +1,48 @@
 import math
 import os
 
-from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread
 from PyQt6.QtGui import QMovie, QIcon
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox)
 
 from core.preview_handler import MediaPreview
+from gui.loading_overlay import LoadingOverlay
 from gui.voting_tab import AspectRatioWidget
 
+
+class MediaLoader(QObject):
+    """Helper class to handle media loading operations in the main thread."""
+    load_started = pyqtSignal()
+    load_finished = pyqtSignal(list, int)
+
+    def __init__(self, get_rankings_callback):
+        super().__init__()
+        self.get_rankings_callback = get_rankings_callback
+
+    def load_media(self, page, per_page):
+        """Load media items (runs in main thread)."""
+        try:
+            rankings, total = self.get_rankings_callback(page, per_page)
+            self.load_finished.emit(rankings, total)
+        except Exception as e:
+            print(f"Error loading media: {e}")
+            self.load_finished.emit([], 0)
+
+
+class LoadingThread(QThread):
+    """Thread to coordinate loading process."""
+    request_load = pyqtSignal(int, int)  # Signal to request loading (page, per_page)
+
+    def __init__(self, page, per_page):
+        super().__init__()
+        self.page = page
+        self.per_page = per_page
+
+    def run(self):
+        """Emit signal to request loading in main thread."""
+        self.request_load.emit(self.page, self.per_page)
 
 class MediaFrame(QFrame):
     def __init__(self, parent=None):
@@ -129,6 +162,17 @@ class RankingTab(QWidget):
 
         # Add a flag to track if there are new votes
         self.new_votes_since_last_refresh = True
+
+        # Add loading overlay
+        self.loading_overlay = LoadingOverlay(self)
+
+        # Set up media loader
+        self.media_loader = MediaLoader(get_rankings_callback)
+        self.media_loader.load_started.connect(self._on_load_started)
+        self.media_loader.load_finished.connect(self._handle_loaded_media)
+
+        # Initialize thread variable
+        self.loading_thread = None
 
         self.setup_ui()
 
@@ -474,28 +518,40 @@ class RankingTab(QWidget):
     def refresh_rankings(self, force_refresh=True):
         """Refresh the rankings display."""
         if not force_refresh and not self.new_votes_since_last_refresh:
-            return  # Skip refresh if no new votes and not forced
+            return
+
+        # Show loading overlay
+        self.loading_overlay.show()
 
         # Stop any playing media
         for i in range(self.grid_layout.count()):
-            item = self.grid_layout.itemAt(i)
-            if item and item.widget():
-                widget = item.widget()
-                if hasattr(widget, 'video_player') and widget.video_player:
-                    widget.video_player.stop()
-
-        # Clear current grid
-        while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
             if item.widget():
+                if hasattr(item.widget(), 'cleanup'):
+                    item.widget().cleanup()
                 item.widget().deleteLater()
 
-        # Get current page
-        rankings, self.total_images = self.get_rankings_callback(
+        # Create and start loading thread
+        self.loading_thread = LoadingThread(
             self.current_page,
-            self.per_page if self.per_page != self.total_images else None  # Handle "ALL" option
+            self.per_page if self.per_page != self.total_images else None
         )
-        self.current_images = rankings  # Update current_images with the new rankings
+
+        # Connect thread signals
+        self.loading_thread.request_load.connect(self.media_loader.load_media)
+        self.loading_thread.finished.connect(self.loading_thread.deleteLater)
+
+        # Start loading process
+        self.loading_thread.start()
+
+    def _on_load_started(self):
+        """Handle load start event."""
+        self.loading_overlay.set_message("Loading media items...")
+
+    def _handle_loaded_media(self, rankings, total_images):
+        """Handle the loaded media data."""
+        self.current_images = rankings
+        self.total_images = total_images
 
         # Update pagination
         total_pages = math.ceil(self.total_images / self.per_page) if self.per_page != self.total_images else 1
@@ -504,10 +560,10 @@ class RankingTab(QWidget):
         )
 
         # Update navigation buttons
-        self.first_page_button.setEnabled(self.current_page > 1)  # Enable if not on the first page
-        self.prev_button.setEnabled(self.current_page > 1)  # Enable if not on the first page
-        self.next_button.setEnabled(self.current_page < total_pages)  # Enable if not on the last page
-        self.last_page_button.setEnabled(self.current_page < total_pages)  # Enable if not on the last page
+        self.first_page_button.setEnabled(self.current_page > 1)
+        self.prev_button.setEnabled(self.current_page > 1)
+        self.next_button.setEnabled(self.current_page < total_pages)
+        self.last_page_button.setEnabled(self.current_page < total_pages)
 
         # Calculate starting rank
         start_rank = (self.current_page - 1) * self.per_page + 1
@@ -526,20 +582,26 @@ class RankingTab(QWidget):
             col = i % self.columns
             self.grid_layout.addWidget(frame, row, col)
 
-        # Adjust grid layout properties for better presentation
+        # Adjust grid layout properties
         self.grid_layout.setHorizontalSpacing(10)
         self.grid_layout.setVerticalSpacing(10)
 
-        # Ensure columns are equal width
+        # Set column and row stretches
         for col in range(self.columns):
             self.grid_layout.setColumnStretch(col, 1)
 
-        # Set row stretch to ensure consistent row heights
         for row in range(math.ceil(len(rankings) / self.columns)):
             self.grid_layout.setRowStretch(row, 1)
 
-        # Reset the new votes flag
+        # Reset flags and hide loading overlay
         self.new_votes_since_last_refresh = False
+        self.loading_overlay.hide()
+
+    def resizeEvent(self, event):
+        """Handle resize events to keep overlay properly positioned."""
+        super().resizeEvent(event)
+        if self.loading_overlay:
+            self.loading_overlay.setGeometry(self.rect())
 
     def set_new_votes_flag(self):
         """Set the flag indicating that there are new votes."""
