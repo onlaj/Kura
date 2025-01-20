@@ -455,8 +455,11 @@ class RankingTab(QWidget):
                 # Recalculate ratings once after all deletions are complete
                 self.db._recalculate_ratings()
 
-                self.checked_items.clear()  # Clear the set of checked items
-                self.refresh_rankings()  # Refresh the rankings display
+                # Clear the set of checked items and uncheck all checkboxes
+                self.uncheck_all()  # Call uncheck_all after deletion
+
+                # Refresh the rankings display
+                self.refresh_rankings()
             except Exception as e:
                 self.show_error(f"Error deleting items: {str(e)}")
 
