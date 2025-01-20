@@ -161,10 +161,15 @@ class MediaPreview(QDialog):
         self.current_media_path = media_path
         self.open_button.setVisible(media_path is not None)
 
+        # Set size policy to expand in both directions
         media_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
                                  QSizePolicy.Policy.Expanding)
 
+        # Add the media widget to the content layout
         self.content_layout.addWidget(media_widget)
+
+        # Adjust content margins for better spacing
+        self.content_layout.setContentsMargins(20, 20, 20, 20)
 
         # Use a QTimer to delay the video playback
         if video_player:
@@ -172,11 +177,8 @@ class MediaPreview(QDialog):
 
         # Set size and position relative to parent
         if self.parent():
-            # Get the main window's geometry
             main_window = self.parent().window()
             main_rect = main_window.geometry()
-
-            # Set the preview window to match the main window's size and position
             self.setGeometry(main_rect)
 
         # Show/hide navigation

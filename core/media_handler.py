@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from PIL import Image
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSize
 from PyQt6.QtGui import QPixmap, QMovie
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
@@ -14,14 +14,16 @@ class ScalableLabel(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(1, 1)
+        # Change to Expanding in both directions
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed  # Change to Fixed
+            QSizePolicy.Policy.Expanding
         )
-        self.setMaximumHeight(400)  # Add maximum height
+        # Remove maximum height restriction
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._original_pixmap = None
         self._original_size = None
+        self._aspect_ratio = None
 
     def setPixmap(self, pixmap):
         self._original_pixmap = pixmap
@@ -39,15 +41,27 @@ class ScalableLabel(QLabel):
 
     def _update_scaled_pixmap(self):
         if self._original_pixmap:
+            available_size = self.size()
+            # Calculate the scaled size while maintaining aspect ratio
+            scaled_size = self._original_pixmap.size()
+            scaled_size.scale(
+                available_size.width(),
+                available_size.height(),
+                Qt.AspectRatioMode.KeepAspectRatio
+            )
+
             scaled_pixmap = self._original_pixmap.scaled(
-                self.size(),
+                scaled_size,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
             super().setPixmap(scaled_pixmap)
 
     def get_aspect_ratio(self):
-        return self._aspect_ratio if hasattr(self, '_aspect_ratio') else 16/9
+        return self._aspect_ratio if self._aspect_ratio else 16 / 9
+
+    def minimumSizeHint(self):
+        return QSize(100, 100)  # Set a reasonable minimum size
 
 class ScalableMovie(QLabel):
     def __init__(self, parent=None):
@@ -55,9 +69,8 @@ class ScalableMovie(QLabel):
         self.setMinimumSize(1, 1)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed  # Change to Fixed
+            QSizePolicy.Policy.Expanding  # Change to Expanding
         )
-        self.setMaximumHeight(400)  # Add maximum height
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._movie = None
         self._original_size = None
@@ -78,17 +91,20 @@ class ScalableMovie(QLabel):
     def _update_scaled_movie(self):
         if self._movie and self._original_size:
             available_size = self.size()
-            # Ensure we don't exceed maximum height
-            if available_size.height() > 400:
-                available_size.setHeight(400)
-            scaled_size = self._original_size.scaled(
-                available_size,
+            # Calculate the scaled size while maintaining aspect ratio
+            scaled_size = self._original_size
+            scaled_size.scale(
+                available_size.width(),
+                available_size.height(),
                 Qt.AspectRatioMode.KeepAspectRatio
             )
             self._movie.setScaledSize(scaled_size)
 
     def get_aspect_ratio(self):
         return self._aspect_ratio
+
+    def minimumSizeHint(self):
+        return QSize(100, 100)  # Set a reasonable minimum size
 
 class MediaHandler:
     VALID_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
