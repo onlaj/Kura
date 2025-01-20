@@ -38,7 +38,7 @@ class Application:
     def init_tabs(self):
         """Initialize all application tabs."""
         # Create tabs
-        self.upload_tab = UploadTab(self.add_media_to_db, self.media_handler)
+
         self.ranking_tab = RankingTab(
             self.get_rankings,
             self.media_handler,
@@ -52,12 +52,16 @@ class Application:
             self.ranking_tab
         )
 
+        self.upload_tab = UploadTab(self.add_media_to_db, self.media_handler, self.ranking_tab)  # Pass ranking_tab
+
         # Set up tabs in main window
         self.main_window.setup_tabs(
             self.voting_tab,
             self.upload_tab,
             self.ranking_tab
         )
+
+
 
     def add_media_to_db(self, file_path: str, media_type: str) -> bool:
         """Add media file to database if valid."""

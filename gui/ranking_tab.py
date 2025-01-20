@@ -188,6 +188,9 @@ class RankingTab(QWidget):
         # Cache for total media count
         self.total_media_count = self.db.get_total_media_count()
 
+        # Add a flag to track new files
+        self.new_files_since_last_refresh = False
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -296,6 +299,12 @@ class RankingTab(QWidget):
         self.grid_layout.setSpacing(10)
         self.grid_layout.setColumnStretch(0, 1)
         scroll_area.setWidget(self.grid_container)
+
+
+    def set_new_files_flag(self):
+        """Set the flag indicating that new files have been uploaded."""
+        self.new_files_since_last_refresh = True
+
 
     def change_filter(self, value):
         """Handle filter change."""
@@ -560,8 +569,8 @@ class RankingTab(QWidget):
 
     def refresh_rankings(self, force_refresh=True):
         """Refresh the rankings display."""
-        if not force_refresh and not self.new_votes_since_last_refresh:
-            return
+        if not force_refresh and not self.new_votes_since_last_refresh and not self.new_files_since_last_refresh:
+            return  # Skip refresh if no new votes or files and no forced refresh
 
         # Show loading overlay
         self.loading_overlay.show()
@@ -577,6 +586,10 @@ class RankingTab(QWidget):
         # Fetch rankings with the current filter
         rankings, total_filtered = self.get_rankings(self.current_page, self.per_page)
         self._handle_loaded_media(rankings, total_filtered)
+
+        # Reset flags after refresh
+        self.new_votes_since_last_refresh = False
+        self.new_files_since_last_refresh = False
 
     def _on_load_started(self):
         """Handle load start event."""

@@ -5,10 +5,11 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 
 
 class UploadTab(QWidget):
-    def __init__(self, db_callback, media_handler):
+    def __init__(self, db_callback, media_handler, ranking_tab):
         super().__init__()
         self.db_callback = db_callback
         self.media_handler = media_handler
+        self.ranking_tab = ranking_tab  # Store reference to RankingTab
         self.setup_ui()
 
     def setup_ui(self):
@@ -83,6 +84,10 @@ class UploadTab(QWidget):
         self.log_text.append(
             f"\nSummary: Added {added} files, Skipped {skipped} files\n"
         )
+
+        # Notify RankingTab that new files have been uploaded
+        if added > 0:
+            self.ranking_tab.set_new_files_flag()
 
         # Scroll to bottom
         scrollbar = self.log_text.verticalScrollBar()
