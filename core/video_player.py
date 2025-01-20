@@ -35,6 +35,7 @@ class ClickableSlider(QSlider):
             self.sliderMoved.emit(int(value))
         super().mouseMoveEvent(event)
 
+
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -62,7 +63,7 @@ class VideoPlayer(QWidget):
         video_container.layout().addWidget(self.thumbnail_label)
 
         # Add aspect ratio wrapper
-        aspect_widget = AspectRatioWidget(video_container, 16/9)
+        aspect_widget = AspectRatioWidget(video_container, 16 / 9)
         layout.addWidget(aspect_widget)
 
         # Media player setup
@@ -162,6 +163,9 @@ class VideoPlayer(QWidget):
         # Extract and display thumbnail
         self.extract_and_display_thumbnail(path)
 
+        # Connect the playback state signal to handle thumbnail visibility
+        self.media_player.playbackStateChanged.connect(self.hide_thumbnail_on_play)
+
     def extract_and_display_thumbnail(self, path):
         """Extract a thumbnail from the middle of the video and display it."""
         cap = cv2.VideoCapture(path)
@@ -189,12 +193,14 @@ class VideoPlayer(QWidget):
         bytes_per_line = ch * w
         q_img = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
 
-        # Convert QImage to QPixmap and set it to the thumbnail label
+        # Convert QImage to QPixmap
         pixmap = QPixmap.fromImage(q_img)
-        self.thumbnail_label.setPixmap(pixmap.scaled(self.video_widget.size(), Qt.AspectRatioMode.KeepAspectRatio))
 
-        # Hide the thumbnail when the video starts playing
-        self.media_player.playbackStateChanged.connect(self.hide_thumbnail_on_play)
+        # Configure thumbnail label for proper scaling
+        self.thumbnail_label.setMinimumSize(1, 1)
+        self.thumbnail_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.thumbnail_label.setPixmap(pixmap)
+        self.thumbnail_label.setScaledContents(True)
 
         cap.release()
 
@@ -204,8 +210,8 @@ class VideoPlayer(QWidget):
             self.thumbnail_label.hide()
             self.video_widget.show()  # Show video widget when playing
         else:
-            self.thumbnail_label.show()
             self.video_widget.hide()  # Hide video widget when paused/stopped
+            self.thumbnail_label.show()
 
     def play_pause(self):
         """Toggle play/pause state."""
