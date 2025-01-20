@@ -25,8 +25,14 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT UNIQUE NOT NULL,
                 rating REAL DEFAULT 1200,
-                votes INTEGER DEFAULT 0
+                votes INTEGER DEFAULT 0,
+                type TEXT NOT NULL  -- New column for media type
             )
+        """)
+
+        # Create an index on the type column for faster filtering
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_media_type ON media (type)
         """)
 
         # Votes history table
@@ -43,12 +49,13 @@ class Database:
 
         self.conn.commit()
 
-    def add_media(self, file_path: str) -> bool:
+    def add_media(self, file_path: str, media_type: str) -> bool:
         """
         Add a new media file to the database.
 
         Args:
             file_path: Path to the media file
+            media_type: Type of media (image, gif, video)
 
         Returns:
             bool: True if media was added successfully, False if it already exists
@@ -56,7 +63,7 @@ class Database:
         try:
             # Normalize the path to handle different path formats
             normalized_path = str(Path(file_path).resolve())
-            
+
             # Check if the file already exists in the database
             self.cursor.execute(
                 "SELECT id FROM media WHERE path = ?",
@@ -64,10 +71,10 @@ class Database:
             )
             if self.cursor.fetchone():
                 return False
-                
+
             self.cursor.execute(
-                "INSERT INTO media (path) VALUES (?)",
-                (normalized_path,)
+                "INSERT INTO media (path, type) VALUES (?, ?)",
+                (normalized_path, media_type)
             )
             self.conn.commit()
             return True
@@ -233,31 +240,44 @@ class Database:
             print(f"Error recording vote: {e}")
             raise e
 
-    def get_rankings_page(self, page: int, per_page: int = 50) -> Tuple[List[tuple], int]:
+    def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all") -> Tuple[List[tuple], int]:
         """
         Get a page of ranked media items.
 
         Args:
             page: Page number (1-based)
             per_page: Number of items per page
+            media_type: Type of media to filter by (all, image, gif, video)
 
         Returns:
             Tuple of (list of media records, total number of items)
         """
         # Get total count
-        self.cursor.execute("SELECT COUNT(*) FROM media")
+        if media_type == "all":
+            self.cursor.execute("SELECT COUNT(*) FROM media")
+        else:
+            self.cursor.execute("SELECT COUNT(*) FROM media WHERE type = ?", (media_type,))
         total_items = self.cursor.fetchone()[0]
 
         # Calculate offset
         offset = (page - 1) * per_page
 
         # Get page of media items
-        self.cursor.execute("""
-            SELECT id, path, rating, votes 
-            FROM media 
-            ORDER BY rating DESC
-            LIMIT ? OFFSET ?
-        """, (per_page, offset))
+        if media_type == "all":
+            self.cursor.execute("""
+                SELECT id, path, rating, votes 
+                FROM media 
+                ORDER BY rating DESC
+                LIMIT ? OFFSET ?
+            """, (per_page, offset))
+        else:
+            self.cursor.execute("""
+                SELECT id, path, rating, votes 
+                FROM media 
+                WHERE type = ?
+                ORDER BY rating DESC
+                LIMIT ? OFFSET ?
+            """, (media_type, per_page, offset))
 
         return self.cursor.fetchall(), total_items
 

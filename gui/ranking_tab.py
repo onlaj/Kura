@@ -178,9 +178,11 @@ class RankingTab(QWidget):
         # Initialize thread variable
         self.loading_thread = None
 
-        self.setup_ui()
-
         self.current_preview_index = -1
+
+        self.current_filter = "all"  # Default filter
+
+        self.setup_ui()
 
 
     def setup_ui(self):
@@ -202,9 +204,16 @@ class RankingTab(QWidget):
         control_panel.addWidget(QLabel("On page:"))
         self.items_per_page_selector = QComboBox()
         self.items_per_page_selector.addItems(["12", "24", "48", "96", "500", "ALL"])
-        self.items_per_page_selector.setCurrentText(str(self.per_page))  # Set default value
+        self.items_per_page_selector.setCurrentText(str(self.per_page))
         self.items_per_page_selector.currentTextChanged.connect(self.change_items_per_page)
         control_panel.addWidget(self.items_per_page_selector)
+
+        # Media type filter
+        control_panel.addWidget(QLabel("Filter:"))
+        self.filter_selector = QComboBox()
+        self.filter_selector.addItems(["All", "Image", "Gif", "Video"])
+        self.filter_selector.currentTextChanged.connect(self.change_filter)
+        control_panel.addWidget(self.filter_selector)
 
         # Page info
         self.page_label = QLabel("Page 1")
@@ -213,7 +222,7 @@ class RankingTab(QWidget):
         # First page button (<<)
         self.first_page_button = QPushButton("<<")
         self.first_page_button.clicked.connect(self.go_to_first_page)
-        self.first_page_button.setEnabled(False)  # Disabled by default
+        self.first_page_button.setEnabled(False)
         control_panel.addWidget(self.first_page_button)
 
         # Previous button
@@ -231,7 +240,7 @@ class RankingTab(QWidget):
         # Last page button (>>)
         self.last_page_button = QPushButton(">>")
         self.last_page_button.clicked.connect(self.go_to_last_page)
-        self.last_page_button.setEnabled(False)  # Disabled by default
+        self.last_page_button.setEnabled(False)
         control_panel.addWidget(self.last_page_button)
 
         # Trash bin button
@@ -264,9 +273,18 @@ class RankingTab(QWidget):
         # Container for grid
         self.grid_container = QWidget()
         self.grid_layout = QGridLayout(self.grid_container)
-        self.grid_layout.setSpacing(10)  # Add some space between items
-        self.grid_layout.setColumnStretch(0, 1)  # Ensure columns are equal width
+        self.grid_layout.setSpacing(10)
+        self.grid_layout.setColumnStretch(0, 1)
         scroll_area.setWidget(self.grid_container)
+
+    def change_filter(self, value):
+        """Handle filter change."""
+        self.current_filter = value.lower()
+        self.refresh_rankings()
+
+    def get_rankings(self, page: int, per_page: int):
+        """Get rankings with filtering."""
+        return self.db.get_rankings_page(page, per_page, self.current_filter)
 
     def create_image_frame(self, rank, id, path, rating, votes, index):
         frame = MediaFrame()
@@ -535,18 +553,9 @@ class RankingTab(QWidget):
                     item.widget().cleanup()
                 item.widget().deleteLater()
 
-        # Create and start loading thread
-        self.loading_thread = LoadingThread(
-            self.current_page,
-            self.per_page if self.per_page != self.total_images else None
-        )
-
-        # Connect thread signals
-        self.loading_thread.request_load.connect(self.media_loader.load_media)
-        self.loading_thread.finished.connect(self.loading_thread.deleteLater)
-
-        # Start loading process
-        self.loading_thread.start()
+        # Fetch rankings with the current filter
+        rankings, total = self.get_rankings(self.current_page, self.per_page)
+        self._handle_loaded_media(rankings, total)
 
     def _on_load_started(self):
         """Handle load start event."""
@@ -560,7 +569,7 @@ class RankingTab(QWidget):
         # Update pagination
         total_pages = math.ceil(self.total_images / self.per_page) if self.per_page != self.total_images else 1
         self.page_label.setText(
-            f"Page {self.current_page} of {total_pages} (Total: {self.total_images})"
+            f"Page {self.current_page} of {total_pages} (Total: {self.total_images}, Filtered: {len(rankings)})"
         )
 
         # Update navigation buttons

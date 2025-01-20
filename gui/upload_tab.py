@@ -5,10 +5,10 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 
 
 class UploadTab(QWidget):
-    def __init__(self, db_callback):
-        """Initialize the upload tab."""
+    def __init__(self, db_callback, media_handler):
         super().__init__()
         self.db_callback = db_callback
+        self.media_handler = media_handler
         self.setup_ui()
 
     def setup_ui(self):
@@ -72,9 +72,10 @@ class UploadTab(QWidget):
 
         for file in files:
             file_path = str(file)
-            if self.db_callback(file_path):
+            media_type = self.media_handler.get_media_type(file_path)
+            if self.db_callback(file_path, media_type):
                 added += 1
-                self.log_text.append(f"Added: {file_path}")
+                self.log_text.append(f"Added: {file_path} ({media_type})")
             else:
                 skipped += 1
                 self.log_text.append(f"Skipped (already exists): {file_path}")

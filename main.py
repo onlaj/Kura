@@ -31,11 +31,10 @@ class Application:
         # Initialize tabs
         self.init_tabs()
 
-
     def init_tabs(self):
         """Initialize all application tabs."""
         # Create tabs
-        self.upload_tab = UploadTab(self.add_media_to_db)
+        self.upload_tab = UploadTab(self.add_media_to_db, self.media_handler)  # Pass media_handler here
         self.ranking_tab = RankingTab(
             self.get_rankings,
             self.media_handler,
@@ -56,10 +55,10 @@ class Application:
             self.ranking_tab
         )
 
-    def add_media_to_db(self, file_path: str) -> bool:
+    def add_media_to_db(self, file_path: str, media_type: str) -> bool:
         """Add media file to database if valid."""
         if self.media_handler.is_valid_media(file_path):
-            return self.db.add_media(file_path)
+            return self.db.add_media(file_path, media_type)
         return False
 
     def delete_media(self, media_id: int, recalculate: bool = True):

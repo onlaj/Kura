@@ -120,6 +120,18 @@ class MediaHandler:
         return (path.suffix.lower() in self.VALID_IMAGE_EXTENSIONS or
                 path.suffix.lower() in self.VALID_VIDEO_EXTENSIONS)
 
+    def get_media_type(self, file_path: str) -> str:
+        """Determine the type of media (image, gif, video)."""
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext in ['.jpg', '.jpeg', '.png', '.webp']:
+            return 'image'
+        elif ext == '.gif':
+            return 'gif'
+        elif ext in ['.mp4', '.avi', '.mov', '.mkv']:
+            return 'video'
+        else:
+            return 'unknown'
+
     def load_media(self, file_path: str, target_size=None):
         """Load media file and return appropriate widget."""
         ext = os.path.splitext(file_path)[1].lower()
