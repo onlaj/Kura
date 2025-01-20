@@ -14,8 +14,11 @@ class ScalableLabel(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(1, 1)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                          QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed  # Change to Fixed
+        )
+        self.setMaximumHeight(400)  # Add maximum height
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._original_pixmap = None
         self._original_size = None
@@ -50,8 +53,11 @@ class ScalableMovie(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(1, 1)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                          QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed  # Change to Fixed
+        )
+        self.setMaximumHeight(400)  # Add maximum height
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._movie = None
         self._original_size = None
@@ -72,6 +78,9 @@ class ScalableMovie(QLabel):
     def _update_scaled_movie(self):
         if self._movie and self._original_size:
             available_size = self.size()
+            # Ensure we don't exceed maximum height
+            if available_size.height() > 400:
+                available_size.setHeight(400)
             scaled_size = self._original_size.scaled(
                 available_size,
                 Qt.AspectRatioMode.KeepAspectRatio

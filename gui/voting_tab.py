@@ -94,38 +94,42 @@ class MediaFrame(QFrame):
 
 
 class AspectRatioWidget(QWidget):
-    def __init__(self, widget, aspect_ratio=16 / 9, parent=None):
-        super().__init__(parent)
+    def __init__(self, widget, aspect_ratio):
+        super().__init__()
         self.aspect_ratio = aspect_ratio
-        self.setLayout(QVBoxLayout())
-        self.layout().setContentsMargins(0, 0, 0, 0)
-        self.layout().addWidget(widget)
-
-        # The contained widget should expand in both directions
-        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-        # This widget should expand in both directions
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.widget = widget
+        
+        # Create layout and add widget
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.addWidget(widget)
+        
+        # Set size policies
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed  # Change to Fixed
+        )
+        
+        # Set a reasonable maximum height
+        self.setMaximumHeight(400)
 
     def resizeEvent(self, event):
-        width = self.width()
-        height = self.height()
-
-        target_aspect = self.aspect_ratio
-        current_aspect = width / height if height != 0 else 1
-
-        if current_aspect > target_aspect:
-            # Too wide - constrain width
-            new_width = int(height * target_aspect)
-            offset = (width - new_width) // 2
-            self.layout().setContentsMargins(offset, 0, offset, 0)
-        else:
-            # Too tall - constrain height
-            new_height = int(width / target_aspect)
-            offset = (height - new_height) // 2
-            self.layout().setContentsMargins(0, offset, 0, offset)
-
+        width = event.size().width()
+        # Calculate height based on aspect ratio, but cap it and convert to integer
+        desired_height = int(width / self.aspect_ratio)  # Convert to integer
+        max_height = 400  # Match the maximum height we set
+        actual_height = min(desired_height, max_height)
+        
+        self.setFixedHeight(actual_height)
         super().resizeEvent(event)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        desired_height = int(width / self.aspect_ratio)  # Convert to integer
+        max_height = 400  # Match the maximum height we set
+        return min(desired_height, max_height)
 
 
 class VotingTab(QWidget):

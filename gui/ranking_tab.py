@@ -49,12 +49,16 @@ class MediaFrame(QFrame):
         super().__init__(parent)
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         self.layout = QVBoxLayout(self)
-
-        # Media container
+        
+        # Media container with fixed maximum height
         self.media_container = QWidget()
         self.media_container.setMinimumSize(200, 200)  # Minimum size for thumbnails
-        self.media_container.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                           QSizePolicy.Policy.Expanding)
+        self.media_container.setMaximumHeight(400)  # Add maximum height constraint
+        self.media_container.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed  # Change to Fixed to prevent vertical stretching
+        )
+        
         self.media_layout = QVBoxLayout(self.media_container)
         self.media_layout.setContentsMargins(0, 0, 0, 0)
         self.layout.addWidget(self.media_container)
