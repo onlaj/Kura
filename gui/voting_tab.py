@@ -57,7 +57,7 @@ class MediaFrame(QFrame):
     def set_file_info(self, file_path):
         """Set the file information (name, size, modification date) in the label."""
         if not os.path.exists(file_path):
-            self.file_info_label.setText("File not found")
+            self.file_info_label.setText("File not found: " + file_path)
             return
 
         # Get file name
