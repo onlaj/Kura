@@ -191,6 +191,8 @@ class RankingTab(QWidget):
         # Add a flag to track new files
         self.new_files_since_last_refresh = False
 
+        self._is_programmatic_change = False
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -609,8 +611,10 @@ class RankingTab(QWidget):
             f"Page {self.current_page} of {total_pages} (Total: {self.total_media_count}, Filtered: {self.total_images})"
         )
 
-        # Update page input field
+        # Update page input field (programmatically)
+        self._is_programmatic_change = True  # Set the flag
         self.page_input.setText(str(self.current_page))
+        self._is_programmatic_change = False  # Reset the flag
 
         # Update navigation buttons
         self.first_page_button.setEnabled(self.current_page > 1)
@@ -746,6 +750,13 @@ class RankingTab(QWidget):
         else:
             self.go_button.hide()
 
+    def on_page_input_changed(self):
+        """Show the 'Go' button when the user edits the page input field."""
+        if not self._is_programmatic_change and self.page_input.text().strip():
+            self.go_button.show()
+        else:
+            self.go_button.hide()
+
     def go_to_page(self):
         """Navigate to the page specified in the page input field."""
         try:
@@ -760,3 +771,5 @@ class RankingTab(QWidget):
                 QMessageBox.warning(self, "Invalid Page", f"Please enter a page number between 1 and {total_pages}.")
         except ValueError:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid page number.")
+        finally:
+            self._is_programmatic_change = False  # Reset the flag
