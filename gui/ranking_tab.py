@@ -182,6 +182,9 @@ class RankingTab(QWidget):
 
         self.current_filter = "all"  # Default filter
 
+        # Cache for total media count
+        self.total_media_count = self.db.get_total_media_count()
+
         self.setup_ui()
 
 
@@ -554,22 +557,22 @@ class RankingTab(QWidget):
                 item.widget().deleteLater()
 
         # Fetch rankings with the current filter
-        rankings, total = self.get_rankings(self.current_page, self.per_page)
-        self._handle_loaded_media(rankings, total)
+        rankings, total_filtered = self.get_rankings(self.current_page, self.per_page)
+        self._handle_loaded_media(rankings, total_filtered)
 
     def _on_load_started(self):
         """Handle load start event."""
         self.loading_overlay.set_message("Loading media items...")
 
-    def _handle_loaded_media(self, rankings, total_images):
+    def _handle_loaded_media(self, rankings, total_filtered):
         """Handle the loaded media data."""
         self.current_images = rankings
-        self.total_images = total_images
+        self.total_images = total_filtered
 
-        # Update pagination
+        # Update pagination label
         total_pages = math.ceil(self.total_images / self.per_page) if self.per_page != self.total_images else 1
         self.page_label.setText(
-            f"Page {self.current_page} of {total_pages} (Total: {self.total_images}, Filtered: {len(rankings)})"
+            f"Page {self.current_page} of {total_pages} (Total: {self.total_media_count}, Filtered: {self.total_images})"
         )
 
         # Update navigation buttons
@@ -609,6 +612,10 @@ class RankingTab(QWidget):
         # Reset flags and hide loading overlay
         self.new_votes_since_last_refresh = False
         self.loading_overlay.hide()
+
+    def invalidate_total_media_count_cache(self):
+        """Invalidate the total media count cache."""
+        self.total_media_count = self.db.get_total_media_count()
 
     def resizeEvent(self, event):
         """Handle resize events to keep overlay properly positioned."""

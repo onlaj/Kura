@@ -34,18 +34,18 @@ class Application:
     def init_tabs(self):
         """Initialize all application tabs."""
         # Create tabs
-        self.upload_tab = UploadTab(self.add_media_to_db, self.media_handler)  # Pass media_handler here
+        self.upload_tab = UploadTab(self.add_media_to_db, self.media_handler)
         self.ranking_tab = RankingTab(
             self.get_rankings,
             self.media_handler,
             self.delete_media,
-            self.db  # Pass the db object to RankingTab
+            self.db
         )
         self.voting_tab = VotingTab(
             self.get_pair_for_voting,
             self.update_ratings,
             self.media_handler,
-            self.ranking_tab  # Pass the ranking_tab to VotingTab
+            self.ranking_tab
         )
 
         # Set up tabs in main window
@@ -58,14 +58,18 @@ class Application:
     def add_media_to_db(self, file_path: str, media_type: str) -> bool:
         """Add media file to database if valid."""
         if self.media_handler.is_valid_media(file_path):
-            return self.db.add_media(file_path, media_type)
+            result = self.db.add_media(file_path, media_type)
+            if result:
+                self.ranking_tab.invalidate_total_media_count_cache()  # Invalidate cache
+            return result
         return False
 
     def delete_media(self, media_id: int, recalculate: bool = True):
         """Delete media from database and return the file path."""
         try:
             file_path = self.db.delete_media(media_id, recalculate=recalculate)
-            return file_path  # Return the file path for potential file deletion
+            self.ranking_tab.invalidate_total_media_count_cache()  # Invalidate cache
+            return file_path
         except Exception as e:
             print(f"Error deleting media: {e}")
             raise e
