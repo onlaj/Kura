@@ -9,6 +9,11 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from gui.voting_tab import AspectRatioWidget
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class ClickableSlider(QSlider):
     def __init__(self, orientation, parent=None):
         super().__init__(orientation, parent)
@@ -156,7 +161,7 @@ class VideoPlayer(QWidget):
     def set_source(self, path):
         """Set the video source."""
         url = QUrl.fromLocalFile(path)
-        print(f"Setting video source: {url.toString()}")
+        logger.info(f"Setting video source: {url.toString()}")
         self.media_player.setSource(url)
         self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
 
@@ -170,13 +175,13 @@ class VideoPlayer(QWidget):
         """Extract a thumbnail from the middle of the video and display it."""
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
-            print(f"Error: Could not open video {path}")
+            logger.warning(f"Error: Could not open video {path}")
             return
 
         # Get total number of frames
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         if total_frames == 0:
-            print(f"Error: Video {path} has no frames")
+            logger.warning(f"Error: Video {path} has no frames")
             return
 
         # Set the frame position to the middle of the video
@@ -184,7 +189,7 @@ class VideoPlayer(QWidget):
         cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
         ret, frame = cap.read()
         if not ret:
-            print(f"Error: Could not read frame {middle_frame} from video {path}")
+            logger.warning(f"Error: Could not read frame {middle_frame} from video {path}")
             return
 
         # Convert the frame to QImage

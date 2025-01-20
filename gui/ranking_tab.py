@@ -10,6 +10,9 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
 from core.preview_handler import MediaPreview
 from gui.loading_overlay import LoadingOverlay
 from gui.voting_tab import AspectRatioWidget
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class MediaLoader(QObject):
@@ -27,7 +30,7 @@ class MediaLoader(QObject):
             rankings, total = self.get_rankings_callback(page, per_page)
             self.load_finished.emit(rankings, total)
         except Exception as e:
-            print(f"Error loading media: {e}")
+            logger.info(f"Error loading media: {e}")
             self.load_finished.emit([], 0)
 
 
@@ -422,9 +425,9 @@ class RankingTab(QWidget):
 
                         try:
                             os.remove(file_path)  # Delete the file from the system
-                            print(f"File deleted from disk: {file_path}")
+                            logger.info(f"File deleted from disk: {file_path}")
                         except Exception as e:
-                            print(f"Error deleting file {file_path}: {e}")
+                            logger.info(f"Error deleting file {file_path}: {e}")
 
                 # Recalculate ratings once after all deletions are complete
                 self.db._recalculate_ratings()
@@ -662,11 +665,11 @@ class RankingTab(QWidget):
                     if os.path.exists(image_path):
                         try:
                             os.remove(image_path)  # Delete the file from the system
-                            print(f"File deleted from disk: {image_path}")
+                            logger.info(f"File deleted from disk: {image_path}")
                         except Exception as e:
-                            print(f"Error deleting file {image_path}: {e}")
+                            logger.warning(f"Error deleting file {image_path}: {e}")
                     else:
-                        print(f"File not found: {image_path}")
+                        logger.info(f"File not found: {image_path}")
 
                 # Refresh the rankings
                 self.refresh_rankings()

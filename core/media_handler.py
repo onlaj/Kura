@@ -9,6 +9,9 @@ from PyQt6.QtWidgets import QLabel, QSizePolicy
 from core.video_player import VideoPlayer
 from gui.voting_tab import AspectRatioWidget
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ScalableLabel(QLabel):
     def __init__(self, parent=None):
@@ -185,21 +188,21 @@ class MediaHandler:
 
     def _create_video_widget(self, video_path: str):
         """Create and return video widget."""
-        print(f"Creating video widget for: {video_path}")
+        logger.info(f"Creating video widget for: {video_path}")
         video_player = VideoPlayer()
         self.active_video_players.append(video_player)
         try:
             video_player.set_source(video_path)
-            print(f"Successfully created video player for: {video_path}")
+            logger.info(f"Successfully created video player for: {video_path}")
             # Run video_player.stop() after short delay
             QTimer.singleShot(1, lambda: self.stop_all_videos())
             return video_player, video_player.media_player
         except Exception as e:
-            print(f"Error creating video player: {e}")
+            logger.warning(f"Error creating video player: {e}")
             raise
 
     def stop_all_videos(self):
-        print("Stopping all active video players.")
+        logger.info("Stopping all active video players.")
         """Stop all active video players."""
         for player in self.active_video_players:
             player.stop()

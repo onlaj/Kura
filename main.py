@@ -8,11 +8,15 @@ from gui.main_window import MainWindow
 from gui.ranking_tab import RankingTab
 from gui.upload_tab import UploadTab
 from gui.voting_tab import VotingTab
+from utils.config import setup_logging
 
 
 class Application:
     def __init__(self):
         """Initialize the application and its components."""
+        # Set up logging
+        setup_logging()
+
         # Create Qt application
         self.app = QApplication(sys.argv)
 
