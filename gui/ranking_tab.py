@@ -283,6 +283,7 @@ class RankingTab(QWidget):
     def change_filter(self, value):
         """Handle filter change."""
         self.current_filter = value.lower()
+        self.current_page = 1  # Reset to the first page
         self.refresh_rankings()
 
     def get_rankings(self, page: int, per_page: int):

@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout)
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Image ELO Ranker")
+        self.setWindowTitle("Rankify")
         self.resize(1280, 800)
 
         # Create central widget and layout
