@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread
 from PyQt6.QtGui import QMovie, QIcon
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
-                             QComboBox, QWidget, QSizePolicy, QCheckBox)
+                             QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
 
 from core.preview_handler import MediaPreview
 from gui.loading_overlay import LoadingOverlay
@@ -190,7 +190,6 @@ class RankingTab(QWidget):
 
         self.setup_ui()
 
-
     def setup_ui(self):
         """Setup the UI elements"""
         layout = QVBoxLayout(self)
@@ -221,7 +220,22 @@ class RankingTab(QWidget):
         self.filter_selector.currentTextChanged.connect(self.change_filter)
         control_panel.addWidget(self.filter_selector)
 
-        # Page info
+        # Page navigation input
+        control_panel.addWidget(QLabel("Page:"))
+        self.page_input = QLineEdit()
+        self.page_input.setFixedWidth(50)  # Set a fixed width for the input field
+        self.page_input.setAlignment(Qt.AlignmentFlag.AlignRight)  # Align text to the right
+        self.page_input.textChanged.connect(self.on_page_input_changed)  # Connect to the textChanged signal
+        control_panel.addWidget(self.page_input)
+
+        # "Go" button (initially hidden)
+        self.go_button = QPushButton("Go")
+        self.go_button.setFixedWidth(40)  # Set a fixed width for the button
+        self.go_button.clicked.connect(self.go_to_page)  # Connect to the go_to_page method
+        self.go_button.hide()  # Hide the button initially
+        control_panel.addWidget(self.go_button)
+
+        # Page info label
         self.page_label = QLabel("Page 1")
         control_panel.addWidget(self.page_label)
 
@@ -579,6 +593,9 @@ class RankingTab(QWidget):
             f"Page {self.current_page} of {total_pages} (Total: {self.total_media_count}, Filtered: {self.total_images})"
         )
 
+        # Update page input field
+        self.page_input.setText(str(self.current_page))
+
         # Update navigation buttons
         self.first_page_button.setEnabled(self.current_page > 1)
         self.prev_button.setEnabled(self.current_page > 1)
@@ -705,3 +722,25 @@ class RankingTab(QWidget):
         if self.current_page != total_pages:  # Only navigate if not already on the last page
             self.current_page = total_pages
             self.refresh_rankings()
+
+    def on_page_input_changed(self):
+        """Show the 'Go' button when the user edits the page input field."""
+        if self.page_input.text().strip():
+            self.go_button.show()
+        else:
+            self.go_button.hide()
+
+    def go_to_page(self):
+        """Navigate to the page specified in the page input field."""
+        try:
+            page_number = int(self.page_input.text())
+            total_pages = math.ceil(self.total_images / self.per_page)
+
+            if 1 <= page_number <= total_pages:
+                self.current_page = page_number
+                self.refresh_rankings()
+                self.go_button.hide()  # Hide the "Go" button after navigation
+            else:
+                QMessageBox.warning(self, "Invalid Page", f"Please enter a page number between 1 and {total_pages}.")
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid page number.")
