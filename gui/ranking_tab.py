@@ -53,7 +53,7 @@ class MediaFrame(QFrame):
         # Media container with fixed maximum height
         self.media_container = QWidget()
         self.media_container.setMinimumSize(200, 200)  # Minimum size for thumbnails
-        self.media_container.setMaximumHeight(400)  # Add maximum height constraint
+        self.media_container.setMaximumHeight(200)  # Add maximum height constraint
         self.media_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed  # Change to Fixed to prevent vertical stretching
