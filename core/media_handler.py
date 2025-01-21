@@ -195,7 +195,7 @@ class MediaHandler:
             video_player.set_source(video_path)
             logger.info(f"Successfully created video player for: {video_path}")
             # Run video_player.stop() after short delay
-            QTimer.singleShot(1, lambda: self.stop_all_videos())
+            #QTimer.singleShot(1, lambda: self.stop_all_videos())
             return video_player, video_player.media_player
         except Exception as e:
             logger.warning(f"Error creating video player: {e}")

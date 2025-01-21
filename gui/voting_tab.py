@@ -223,7 +223,6 @@ class VotingTab(QWidget):
                 frame.media_widget = media[0]
                 frame.media_player = media[1]
                 frame.layout.insertWidget(0, media[0])
-                media[1].play()
                 media[0].mousePressEvent = lambda e, f=frame.media_player, p=media_path: self.show_preview(p, f)
 
         # Ensure the media widget expands to fill the frame
@@ -270,7 +269,7 @@ class VotingTab(QWidget):
     def show_preview(self, media_path, media_player = None):
         """Show media preview overlay"""
         media = self.media_handler.load_media(media_path)
-        position = media_player.position()
+        media_player.pause()
         if isinstance(media, AspectRatioWidget):
             self.preview.show_media(media, media_path=media_path)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':

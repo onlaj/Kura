@@ -347,7 +347,6 @@ class RankingTab(QWidget):
                 frame.gif_movie = player
             else:  # Video
                 frame.video_player = player
-                player.play()
             widget.mousePressEvent = lambda e, f=frame.video_player, p=path: self.show_preview(p, f)
 
         # Set file info
