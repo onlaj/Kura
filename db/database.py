@@ -308,9 +308,9 @@ class Database:
             print(f"Error recording vote: {e}")
             raise e
 
-    def get_total_media_count(self) -> int:
+    def get_total_media_count(self, active_album_id) -> int:
         """Get the total number of media items in the database."""
-        self.cursor.execute("SELECT COUNT(*) FROM media")
+        self.cursor.execute("SELECT COUNT(*) FROM media WHERE album_id = ?", (active_album_id,))
         return self.cursor.fetchone()[0]
 
     def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all", album_id: int = 1) -> Tuple[List[tuple], int]:

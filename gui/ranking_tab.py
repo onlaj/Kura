@@ -186,15 +186,15 @@ class RankingTab(QWidget):
 
         self.current_filter = "all"  # Default filter
 
+        self.active_album_id = 1  # Default album
+
         # Cache for total media count
-        self.total_media_count = self.db.get_total_media_count()
+        self.total_media_count = self.db.get_total_media_count(self.active_album_id)
 
         # Add a flag to track new files
         self.new_files_since_last_refresh = False
 
         self._is_programmatic_change = False
-
-        self.active_album_id = 1  # Default album
 
         self.setup_ui()
 
@@ -698,7 +698,7 @@ class RankingTab(QWidget):
 
     def invalidate_total_media_count_cache(self):
         """Invalidate the total media count cache."""
-        self.total_media_count = self.db.get_total_media_count()
+        self.total_media_count = self.db.get_total_media_count(self.active_album_id)
 
     def resizeEvent(self, event):
         """Handle resize events to keep overlay properly positioned."""
