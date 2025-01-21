@@ -263,6 +263,9 @@ class VideoPlayer(QWidget):
 
     def position_changed(self, position):
         """Update slider position and current time label."""
+        if self.media_player.playbackState() == QMediaPlayer.PlaybackState.StoppedState:
+            self.media_player.play()
+
         self.position_slider.setValue(position)
         self.current_time_label.setText(self.format_time(position))
 
