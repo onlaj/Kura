@@ -201,6 +201,12 @@ class MediaHandler:
             logger.warning(f"Error creating video player: {e}")
             raise
 
+    def pause_all_videos(self):
+        logger.info("Stopping all active video players.")
+        """Stop all active video players."""
+        for player in self.active_video_players:
+            player.pause()
+
     def stop_all_videos(self):
         logger.info("Stopping all active video players.")
         """Stop all active video players."""
