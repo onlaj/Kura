@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
 
+from core.media_loader import ThreadedMediaLoader
 from core.preview_handler import MediaPreview
 from gui.loading_overlay import LoadingOverlay
 from gui.voting_tab import AspectRatioWidget
@@ -195,6 +196,11 @@ class RankingTab(QWidget):
 
         self.setup_ui()
 
+        # Add threaded media loader
+        self.threaded_loader = ThreadedMediaLoader(media_handler)
+        self.threaded_loader.media_loaded.connect(self._handle_loaded_media_item)
+        self.threaded_loader.all_media_loaded.connect(self._on_all_media_loaded)
+
     def setup_ui(self):
         """Setup the UI elements"""
         layout = QVBoxLayout(self)
@@ -318,27 +324,26 @@ class RankingTab(QWidget):
         """Get rankings with filtering."""
         return self.db.get_rankings_page(page, per_page, self.current_filter)
 
-    def create_image_frame(self, rank, id, path, rating, votes, index):
+    def create_image_frame(self, rank, id, path, rating, votes, index, pre_loaded_widget=None):
         frame = MediaFrame()
-
-        # Load media
+        
+        # Load the media in the frame
         media = self.media_handler.load_media(path)
-
+        
         if isinstance(media, AspectRatioWidget):
             frame.media_layout.addWidget(media)
             media.mousePressEvent = lambda e, p=path: self.show_preview(p)
-        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
-            if isinstance(media[1], QMovie):  # GIF
-                frame.media_layout.addWidget(media[0])
-                frame.gif_movie = media[1]
-                media[0].mousePressEvent = lambda e, p=path: self.show_preview(p)
+        elif isinstance(media, tuple):
+            widget, player = media
+            frame.media_layout.addWidget(widget)
+            if isinstance(player, QMovie):  # GIF
+                frame.gif_movie = player
             else:  # Video
-                frame.media_layout.addWidget(media[0])
-                frame.video_player = media[1]
-                media[1].play()
-                media[0].mousePressEvent = lambda e, p=path: self.show_preview(p)
+                frame.video_player = player
+                player.play()
+            widget.mousePressEvent = lambda e, p=path: self.show_preview(p)
 
-        # Set file name with elided text and tooltip
+        # Set file info
         file_name = os.path.basename(path)
         frame.set_file_info(file_name)
 
@@ -349,7 +354,7 @@ class RankingTab(QWidget):
         frame.delete_button.clicked.connect(lambda: self.confirm_delete(id, path))
 
         # Configure checkbox
-        frame.checkbox.setChecked(id in self.checked_items)  # Set initial state
+        frame.checkbox.setChecked(id in self.checked_items)
         frame.checkbox.stateChanged.connect(lambda state, id=id: self.toggle_checkbox(state, id))
 
         # Use a QTimer to delay the visibility check
@@ -612,9 +617,9 @@ class RankingTab(QWidget):
         )
 
         # Update page input field (programmatically)
-        self._is_programmatic_change = True  # Set the flag
+        self._is_programmatic_change = True
         self.page_input.setText(str(self.current_page))
-        self._is_programmatic_change = False  # Reset the flag
+        self._is_programmatic_change = False
 
         # Update navigation buttons
         self.first_page_button.setEnabled(self.current_page > 1)
@@ -622,23 +627,38 @@ class RankingTab(QWidget):
         self.next_button.setEnabled(self.current_page < total_pages)
         self.last_page_button.setEnabled(self.current_page < total_pages)
 
-        # Calculate starting rank
-        start_rank = (self.current_page - 1) * self.per_page + 1
+        # Clear existing grid
+        for i in reversed(range(self.grid_layout.count())):
+            item = self.grid_layout.takeAt(0)
+            if item.widget():
+                if hasattr(item.widget(), 'cleanup'):
+                    item.widget().cleanup()
+                item.widget().deleteLater()
 
-        # Display rankings
-        for i, (id, path, rating, votes) in enumerate(rankings):
+        # Start threaded loading of media
+        self.threaded_loader.load_media_batch(rankings)
+
+    def _handle_loaded_media_item(self, media_id, file_path, index):
+        """Handle individual loaded media item."""
+        try:
+            id, path, rating, votes = self.current_images[index]
             frame = self.create_image_frame(
-                start_rank + i,
+                index + 1,  # rank
                 id,
                 path,
                 rating,
                 votes,
-                i
+                index
             )
-            row = i // self.columns
-            col = i % self.columns
+            
+            row = index // self.columns
+            col = index % self.columns
             self.grid_layout.addWidget(frame, row, col)
+        except Exception as e:
+            logger.error(f"Error handling loaded media item: {e}")
 
+    def _on_all_media_loaded(self):
+        """Handle completion of all media loading."""
         # Adjust grid layout properties
         self.grid_layout.setHorizontalSpacing(10)
         self.grid_layout.setVerticalSpacing(10)
@@ -647,7 +667,7 @@ class RankingTab(QWidget):
         for col in range(self.columns):
             self.grid_layout.setColumnStretch(col, 1)
 
-        for row in range(math.ceil(len(rankings) / self.columns)):
+        for row in range(math.ceil(len(self.current_images) / self.columns)):
             self.grid_layout.setRowStretch(row, 1)
 
         # Reset flags and hide loading overlay
