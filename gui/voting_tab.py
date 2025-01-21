@@ -144,6 +144,7 @@ class VotingTab(QWidget):
         self.vote_cooldown = 1.0
         self.cooldown_timer = QTimer(self)
         self.cooldown_timer.timeout.connect(self.end_cooldown)
+        self.active_album_id = 1  # Default album
 
         self.setup_ui()
 
@@ -241,10 +242,10 @@ class VotingTab(QWidget):
             if frame.gif_movie:
                 frame.gif_movie.stop()
 
-        # Get new pair from database
-        media_pair = self.get_pair_callback()
+        # Get new pair from database using active album
+        media_pair = self.get_pair_callback(self.active_album_id)  # Pass album_id
         if not media_pair or None in media_pair:
-            self.status_label.setText("Not enough media items in database")
+            self.status_label.setText("Not enough media items in this album")
             self.disable_voting()
             self.images_loaded = False
             return
@@ -260,6 +261,11 @@ class VotingTab(QWidget):
         # Enable voting and clear status
         self.enable_voting()
         self.status_label.clear()
+
+    def set_active_album(self, album_id: int):
+        """Set the active album and reload media pair."""
+        self.active_album_id = album_id
+        self.load_new_pair()
 
     def show_preview(self, media_path):
         """Show media preview overlay"""

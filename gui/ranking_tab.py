@@ -194,6 +194,8 @@ class RankingTab(QWidget):
 
         self._is_programmatic_change = False
 
+        self.active_album_id = 1  # Default album
+
         self.setup_ui()
 
         # Add threaded media loader
@@ -321,8 +323,13 @@ class RankingTab(QWidget):
         self.refresh_rankings()
 
     def get_rankings(self, page: int, per_page: int):
-        """Get rankings with filtering."""
-        return self.db.get_rankings_page(page, per_page, self.current_filter)
+        """Get rankings with filtering and active album."""
+        return self.db.get_rankings_page(
+            page, 
+            per_page, 
+            self.current_filter,
+            self.active_album_id
+        )
 
     def create_image_frame(self, rank, id, path, rating, votes, index, pre_loaded_widget=None):
         frame = MediaFrame()
@@ -594,7 +601,13 @@ class RankingTab(QWidget):
     def _request_rankings_load(self, page, per_page):
         """Request rankings load in the main thread."""
         try:
-            rankings, total_filtered = self.get_rankings(page, per_page)
+            # Pass active_album_id to get_rankings
+            rankings, total_filtered = self.get_rankings_callback(
+                page, 
+                per_page, 
+                self.current_filter, 
+                self.active_album_id
+            )
             self._handle_loaded_media(rankings, total_filtered)
         except Exception as e:
             logger.error(f"Error loading rankings: {e}")
@@ -802,3 +815,8 @@ class RankingTab(QWidget):
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid page number.")
         finally:
             self._is_programmatic_change = False  # Reset the flag
+
+    def set_active_album(self, album_id: int):
+        """Set the active album and refresh rankings."""
+        self.active_album_id = album_id
+        self.refresh_rankings(force_refresh=True)

@@ -1,4 +1,5 @@
-from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout)
+from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout, QLabel)
+from PyQt6.QtCore import Qt
 
 
 class MainWindow(QMainWindow):
@@ -12,27 +13,43 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
+        # Create album label
+        self.album_label = QLabel("Album: Default")
+        self.album_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.album_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
+        layout.addWidget(self.album_label)
+
         # Create tab widget
         self.tab_widget = QTabWidget()
         layout.addWidget(self.tab_widget)
 
         # Initialize tabs (will be set by Application class)
+        self.tab_albums = None
         self.tab_voting = None
         self.tab_upload = None
         self.tab_ranking = None
 
-    def setup_tabs(self, voting_tab, upload_tab, ranking_tab):
+    def setup_tabs(self, albums_tab, voting_tab, upload_tab, ranking_tab):
         """Set up the application tabs."""
+        self.tab_albums = albums_tab
         self.tab_voting = voting_tab
         self.tab_upload = upload_tab
         self.tab_ranking = ranking_tab
 
+        # Connect album change signal
+        self.tab_albums.album_changed.connect(self.on_album_changed)
+
+        self.tab_widget.addTab(self.tab_albums, "Albums")
         self.tab_widget.addTab(self.tab_voting, "Voting")
         self.tab_widget.addTab(self.tab_upload, "Upload")
         self.tab_widget.addTab(self.tab_ranking, "Ranking")
 
         # Connect tab changed signal
         self.tab_widget.currentChanged.connect(self._handle_tab_change)
+
+    def on_album_changed(self, album_id: int, album_name: str):
+        """Update the album label when active album changes."""
+        self.album_label.setText(f"Album: {album_name}")
 
     def _handle_tab_change(self, index):
         """Handle tab changes."""

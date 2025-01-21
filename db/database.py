@@ -16,17 +16,30 @@ class Database:
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
         self._create_tables()
+        self._ensure_default_album()
 
     def _create_tables(self):
         """Create necessary database tables if they don't exist."""
-        # Media table (renamed from images)
+        # Albums table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS albums (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Media table with album support
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS media (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                path TEXT UNIQUE NOT NULL,
+                path TEXT NOT NULL,
                 rating REAL DEFAULT 1200,
                 votes INTEGER DEFAULT 0,
-                type TEXT NOT NULL  -- New column for media type
+                type TEXT NOT NULL,
+                album_id INTEGER NOT NULL,
+                FOREIGN KEY (album_id) REFERENCES albums (id),
+                UNIQUE(path, album_id)
             )
         """)
 
@@ -49,13 +62,68 @@ class Database:
 
         self.conn.commit()
 
-    def add_media(self, file_path: str, media_type: str) -> bool:
+    def _ensure_default_album(self):
+        """Ensure default album exists"""
+        self.cursor.execute("""
+            INSERT OR IGNORE INTO albums (id, name) VALUES (1, 'Default')
+        """)
+        self.conn.commit()
+
+    def create_album(self, name: str) -> bool:
+        """Create a new album."""
+        try:
+            self.cursor.execute("INSERT INTO albums (name) VALUES (?)", (name,))
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def rename_album(self, album_id: int, new_name: str) -> bool:
+        """Rename an album."""
+        if album_id == 1:  # Default album can't be renamed
+            return False
+        try:
+            self.cursor.execute("UPDATE albums SET name = ? WHERE id = ?", (new_name, album_id))
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def delete_album(self, album_id: int) -> bool:
+        """Delete an album and all its media."""
+        if album_id == 1:  # Default album can't be deleted
+            return False
+        try:
+            self.conn.execute("BEGIN")
+            # Delete all votes involving media from this album
+            self.cursor.execute("""
+                DELETE FROM votes WHERE winner_id IN 
+                (SELECT id FROM media WHERE album_id = ?)
+                OR loser_id IN (SELECT id FROM media WHERE album_id = ?)
+            """, (album_id, album_id))
+            # Delete all media in the album
+            self.cursor.execute("DELETE FROM media WHERE album_id = ?", (album_id,))
+            # Delete the album
+            self.cursor.execute("DELETE FROM albums WHERE id = ?", (album_id,))
+            self.conn.commit()
+            return True
+        except:
+            self.conn.rollback()
+            return False
+
+    def get_albums(self) -> List[tuple]:
+        """Get all albums."""
+        self.cursor.execute("SELECT id, name FROM albums ORDER BY id")
+        return self.cursor.fetchall()
+
+    def add_media(self, file_path: str, media_type: str, album_id: int) -> bool:
         """
         Add a new media file to the database.
 
         Args:
             file_path: Path to the media file
             media_type: Type of media (image, gif, video)
+            album_id: ID of the album to add the media to
 
         Returns:
             bool: True if media was added successfully, False if it already exists
@@ -66,15 +134,15 @@ class Database:
 
             # Check if the file already exists in the database
             self.cursor.execute(
-                "SELECT id FROM media WHERE path = ?",
-                (normalized_path,)
+                "SELECT id FROM media WHERE path = ? AND album_id = ?",
+                (normalized_path, album_id)
             )
             if self.cursor.fetchone():
                 return False
 
             self.cursor.execute(
-                "INSERT INTO media (path, type) VALUES (?, ?)",
-                (normalized_path, media_type)
+                "INSERT INTO media (path, type, album_id) VALUES (?, ?, ?)",
+                (normalized_path, media_type, album_id)
             )
             self.conn.commit()
             return True
@@ -245,7 +313,7 @@ class Database:
         self.cursor.execute("SELECT COUNT(*) FROM media")
         return self.cursor.fetchone()[0]
 
-    def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all") -> Tuple[List[tuple], int]:
+    def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all", album_id: int = 1) -> Tuple[List[tuple], int]:
         """
         Get a page of ranked media items.
 
@@ -253,15 +321,16 @@ class Database:
             page: Page number (1-based)
             per_page: Number of items per page
             media_type: Type of media to filter by (all, image, gif, video)
+            album_id: ID of the album to filter by
 
         Returns:
             Tuple of (list of media records, total number of items)
         """
         # Get total count
-        if media_type == "all":
-            self.cursor.execute("SELECT COUNT(*) FROM media")
+        if (media_type == "all"):
+            self.cursor.execute("SELECT COUNT(*) FROM media WHERE album_id = ?", (album_id,))
         else:
-            self.cursor.execute("SELECT COUNT(*) FROM media WHERE type = ?", (media_type,))
+            self.cursor.execute("SELECT COUNT(*) FROM media WHERE type = ? AND album_id = ?", (media_type, album_id))
         total_items = self.cursor.fetchone()[0]
 
         # Calculate offset
@@ -272,21 +341,22 @@ class Database:
             self.cursor.execute("""
                 SELECT id, path, rating, votes 
                 FROM media 
+                WHERE album_id = ?
                 ORDER BY rating DESC
                 LIMIT ? OFFSET ?
-            """, (per_page, offset))
+            """, (album_id, per_page, offset))
         else:
             self.cursor.execute("""
                 SELECT id, path, rating, votes 
                 FROM media 
-                WHERE type = ?
+                WHERE type = ? AND album_id = ?
                 ORDER BY rating DESC
                 LIMIT ? OFFSET ?
-            """, (media_type, per_page, offset))
+            """, (media_type, album_id, per_page, offset))
 
         return self.cursor.fetchall(), total_items
 
-    def get_pair_for_voting(self) -> Tuple[Optional[tuple], Optional[tuple]]:
+    def get_pair_for_voting(self, album_id: int = 1) -> Tuple[Optional[tuple], Optional[tuple]]:
         """
         Get two media items for voting: one least voted and one random.
 
@@ -297,9 +367,10 @@ class Database:
         self.cursor.execute("""
             SELECT id, path, rating, votes 
             FROM media 
+            WHERE album_id = ?
             ORDER BY votes ASC, RANDOM() 
             LIMIT 1
-        """)
+        """, (album_id,))
         least_voted = self.cursor.fetchone()
 
         if not least_voted:
@@ -308,10 +379,10 @@ class Database:
         self.cursor.execute("""
             SELECT id, path, rating, votes 
             FROM media 
-            WHERE id != ? 
+            WHERE id != ? AND album_id = ?
             ORDER BY RANDOM() 
             LIMIT 1
-        """, (least_voted[0],))
+        """, (least_voted[0], album_id))
         random_media = self.cursor.fetchone()
 
         return least_voted, random_media
