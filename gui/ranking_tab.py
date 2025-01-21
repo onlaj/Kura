@@ -785,12 +785,6 @@ class RankingTab(QWidget):
             self.current_page = total_pages
             self.refresh_rankings()
 
-    def on_page_input_changed(self):
-        """Show the 'Go' button when the user edits the page input field."""
-        if self.page_input.text().strip():
-            self.go_button.show()
-        else:
-            self.go_button.hide()
 
     def on_page_input_changed(self):
         """Show the 'Go' button when the user edits the page input field."""
