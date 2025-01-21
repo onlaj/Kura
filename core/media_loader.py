@@ -18,6 +18,7 @@ class MediaLoadTask:
 class ThreadedMediaLoader(QObject):
     media_loaded = pyqtSignal(int, str, int)  # media_id, file_path, index
     all_media_loaded = pyqtSignal()
+    progress_updated = pyqtSignal()  # Add new signal for progress updates
 
     def __init__(self, media_handler):
         super().__init__()
@@ -71,6 +72,7 @@ class ThreadedMediaLoader(QObject):
                 # Instead of loading the widget here, just emit the path
                 # The actual widget creation will happen in the main thread
                 self.media_loaded.emit(task.media_id, task.file_path, task.index)
+                self.progress_updated.emit()  # Emit progress signal
             except Exception as e:
                 logger.error(f"Error loading media {task.file_path}: {e}")
 
@@ -78,6 +80,6 @@ class ThreadedMediaLoader(QObject):
 
     def _monitor_completion(self):
         """Monitor thread to check when all tasks are complete."""
-        self.task_queue.join()
+        self.task_queue.join()  # Wait for all tasks to complete
         if self.active:
-            self.all_media_loaded.emit()
+            self.all_media_loaded.emit()  # Emit signal when all media is actually loaded

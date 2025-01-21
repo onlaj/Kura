@@ -47,12 +47,34 @@ class LoadingOverlay(QWidget):
         # Hide by default
         self.hide()
 
+        self.total_items = 0
+        self.loaded_items = 0
+
     def showEvent(self, event):
         """Position the overlay to cover the parent widget."""
         if self.parent():
             self.setGeometry(self.parent().rect())
+            # Ensure overlay is on top
+            self.raise_()
+            self.activateWindow()
         super().showEvent(event)
 
     def set_message(self, message):
         """Update the loading message."""
         self.label.setText(message)
+        # Ensure visibility
+        if not self.isVisible():
+            self.show()
+
+    def set_total_items(self, total):
+        """Set the total number of items to load."""
+        self.total_items = total
+        self.loaded_items = 0
+        self.progress.setMaximum(total)
+        self.progress.setValue(0)
+
+    def increment_progress(self):
+        """Increment the progress counter by one."""
+        self.loaded_items += 1
+        self.progress.setValue(self.loaded_items)
+        self.label.setText(f"Loading media... ({self.loaded_items}/{self.total_items})")

@@ -582,24 +582,23 @@ class RankingTab(QWidget):
         if not force_refresh and not self.new_votes_since_last_refresh and not self.new_files_since_last_refresh:
             return  # Skip refresh if no new votes or files and no forced refresh
 
-        # Show loading overlay
+        # Show loading overlay immediately
+        self.loading_overlay.set_message("Loading media data...")
         self.loading_overlay.show()
 
-        # Stop any playing media
-        for i in range(self.grid_layout.count()):
-            item = self.grid_layout.takeAt(0)
-            if item.widget():
-                if hasattr(item.widget(), 'cleanup'):
-                    item.widget().cleanup()
-                item.widget().deleteLater()
+        # Create a loading thread
+        self.loading_thread = LoadingThread(self.current_page, self.per_page)
+        self.loading_thread.request_load.connect(self._request_rankings_load)
+        self.loading_thread.start()
 
-        # Fetch rankings with the current filter
-        rankings, total_filtered = self.get_rankings(self.current_page, self.per_page)
-        self._handle_loaded_media(rankings, total_filtered)
-
-        # Reset flags after refresh
-        self.new_votes_since_last_refresh = False
-        self.new_files_since_last_refresh = False
+    def _request_rankings_load(self, page, per_page):
+        """Request rankings load in the main thread."""
+        try:
+            rankings, total_filtered = self.get_rankings(page, per_page)
+            self._handle_loaded_media(rankings, total_filtered)
+        except Exception as e:
+            logger.error(f"Error loading rankings: {e}")
+            self.loading_overlay.hide()
 
     def _on_load_started(self):
         """Handle load start event."""
@@ -607,16 +606,24 @@ class RankingTab(QWidget):
 
     def _handle_loaded_media(self, rankings, total_filtered):
         """Handle the loaded media data."""
+        # Clear existing grid first
+        for i in reversed(range(self.grid_layout.count())):
+            item = self.grid_layout.takeAt(0)
+            if item and item.widget():
+                if hasattr(item.widget(), 'cleanup'):
+                    item.widget().cleanup()
+                item.widget().deleteLater()
+
         self.current_images = rankings
         self.total_images = total_filtered
 
-        # Update pagination label
+        # Update pagination info
         total_pages = math.ceil(self.total_images / self.per_page) if self.per_page != self.total_images else 1
         self.page_label.setText(
             f"Page {self.current_page} of {total_pages} (Total: {self.total_media_count}, Filtered: {self.total_images})"
         )
 
-        # Update page input field (programmatically)
+        # Update page input field
         self._is_programmatic_change = True
         self.page_input.setText(str(self.current_page))
         self._is_programmatic_change = False
@@ -627,33 +634,34 @@ class RankingTab(QWidget):
         self.next_button.setEnabled(self.current_page < total_pages)
         self.last_page_button.setEnabled(self.current_page < total_pages)
 
-        # Clear existing grid
-        for i in reversed(range(self.grid_layout.count())):
-            item = self.grid_layout.takeAt(0)
-            if item.widget():
-                if hasattr(item.widget(), 'cleanup'):
-                    item.widget().cleanup()
-                item.widget().deleteLater()
+        # Update loading overlay and progress
+        self.loading_overlay.set_message("Loading media files...")
+        self.loading_overlay.set_total_items(len(rankings))  # Set total items to load
 
         # Start threaded loading of media
+        self.threaded_loader = ThreadedMediaLoader(self.media_handler)
+        self.threaded_loader.media_loaded.connect(self._handle_loaded_media_item)
+        self.threaded_loader.all_media_loaded.connect(self._on_all_media_loaded)
+        self.threaded_loader.progress_updated.connect(self.loading_overlay.increment_progress)  # Connect progress signal
         self.threaded_loader.load_media_batch(rankings)
 
     def _handle_loaded_media_item(self, media_id, file_path, index):
         """Handle individual loaded media item."""
         try:
-            id, path, rating, votes = self.current_images[index]
-            frame = self.create_image_frame(
-                index + 1,  # rank
-                id,
-                path,
-                rating,
-                votes,
-                index
-            )
-            
-            row = index // self.columns
-            col = index % self.columns
-            self.grid_layout.addWidget(frame, row, col)
+            if index < len(self.current_images):
+                id, path, rating, votes = self.current_images[index]
+                frame = self.create_image_frame(
+                    index + 1,  # rank
+                    id,
+                    path,
+                    rating,
+                    votes,
+                    index
+                )
+                
+                row = index // self.columns
+                col = index % self.columns
+                self.grid_layout.addWidget(frame, row, col)
         except Exception as e:
             logger.error(f"Error handling loaded media item: {e}")
 
@@ -667,7 +675,8 @@ class RankingTab(QWidget):
         for col in range(self.columns):
             self.grid_layout.setColumnStretch(col, 1)
 
-        for row in range(math.ceil(len(self.current_images) / self.columns)):
+        total_rows = math.ceil(len(self.current_images) / self.columns)
+        for row in range(total_rows):
             self.grid_layout.setRowStretch(row, 1)
 
         # Reset flags and hide loading overlay
