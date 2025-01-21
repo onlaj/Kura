@@ -1,8 +1,6 @@
 from pathlib import Path
-
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QTextEdit, QFileDialog)
-
+                             QTextEdit, QFileDialog, QCheckBox, QGroupBox, QFormLayout)
 
 class UploadTab(QWidget):
     def __init__(self, db_callback, media_handler, ranking_tab):
@@ -31,6 +29,33 @@ class UploadTab(QWidget):
 
         layout.addLayout(button_layout)
 
+        # Create options group box
+        options_group = QGroupBox("Folder Upload Options")
+        options_layout = QFormLayout()
+
+        # Recursive search checkbox
+        self.recursive_checkbox = QCheckBox("Recursive search")
+        self.recursive_checkbox.setChecked(True)
+        options_layout.addRow(self.recursive_checkbox)
+
+        # Image checkbox
+        self.images_checkbox = QCheckBox("Images")
+        self.images_checkbox.setChecked(True)
+        options_layout.addRow(self.images_checkbox)
+
+        # GIF checkbox
+        self.gifs_checkbox = QCheckBox("GIFs")
+        self.gifs_checkbox.setChecked(True)
+        options_layout.addRow(self.gifs_checkbox)
+
+        # Video checkbox
+        self.videos_checkbox = QCheckBox("Videos")
+        self.videos_checkbox.setChecked(True)
+        options_layout.addRow(self.videos_checkbox)
+
+        options_group.setLayout(options_layout)
+        layout.addWidget(options_group)
+
         # Create log text area
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
@@ -57,12 +82,21 @@ class UploadTab(QWidget):
         )
 
         if folder:
-            extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp',
-                          '.mp4', '.avi', '.mov', '.mkv', '.webp')
-            media_files = []
+            extensions = []
+            if self.images_checkbox.isChecked():
+                extensions.extend(['.jpg', '.jpeg', '.png', '.webp'])
+            if self.gifs_checkbox.isChecked():
+                extensions.append('.gif')
+            if self.videos_checkbox.isChecked():
+                extensions.extend(['.mp4', '.avi', '.mov', '.mkv'])
 
-            for ext in extensions:
-                media_files.extend(Path(folder).glob(f"**/*{ext}"))
+            media_files = []
+            if self.recursive_checkbox.isChecked():
+                for ext in extensions:
+                    media_files.extend(Path(folder).glob(f"**/*{ext}"))
+            else:
+                for ext in extensions:
+                    media_files.extend(Path(folder).glob(f"*{ext}"))
 
             self.process_files(media_files)
 
