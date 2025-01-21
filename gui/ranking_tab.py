@@ -505,15 +505,13 @@ class RankingTab(QWidget):
 
         media = self.media_handler.load_media(media_path)
 
-        position = media_player.position()
-
         if isinstance(media, AspectRatioWidget):
             self.preview.show_media(media, enable_navigation=True, media_path=media_path)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
             if isinstance(media[1], QMovie):  # GIF
                 self.preview.show_media(media[0], gif_movie=media[1], enable_navigation=True, media_path=media_path)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True, media_path=media_path, position=position, old_media_player=media_player)
+                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True, media_path=media_path, thumbnail_media_player=media_player)
 
         # Set up navigation callbacks
         self.preview.set_navigation_callbacks(
