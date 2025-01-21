@@ -348,7 +348,7 @@ class RankingTab(QWidget):
             else:  # Video
                 frame.video_player = player
                 player.play()
-            widget.mousePressEvent = lambda e, p=path: self.show_preview(p)
+            widget.mousePressEvent = lambda e, f=frame.video_player, p=path: self.show_preview(p, f)
 
         # Set file info
         file_name = os.path.basename(path)
@@ -494,7 +494,7 @@ class RankingTab(QWidget):
                         widget.gif_movie.stop()
                         widget.gif_movie.setFileName("")  # Clear the file name
 
-    def show_preview(self, media_path):
+    def show_preview(self, media_path, media_player = None):
         """Show media preview overlay with navigation"""
         # Find index of current media
         self.current_preview_index = -1
@@ -505,13 +505,15 @@ class RankingTab(QWidget):
 
         media = self.media_handler.load_media(media_path)
 
+        position = media_player.position()
+
         if isinstance(media, AspectRatioWidget):
             self.preview.show_media(media, enable_navigation=True, media_path=media_path)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
             if isinstance(media[1], QMovie):  # GIF
                 self.preview.show_media(media[0], gif_movie=media[1], enable_navigation=True, media_path=media_path)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True, media_path=media_path)
+                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True, media_path=media_path, position=position)
 
         # Set up navigation callbacks
         self.preview.set_navigation_callbacks(
