@@ -145,7 +145,7 @@ class MediaPreview(QDialog):
         # Store the last known position of the main window
         self.last_window_position = None
 
-    def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False, media_path=None):
+    def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False, media_path=None, position = 0):
         """Show media in the preview dialog"""
         # Clear existing media
         if self.current_media:
@@ -173,6 +173,7 @@ class MediaPreview(QDialog):
 
         # Use a QTimer to delay the video playback
         if video_player:
+            QTimer.singleShot(10, lambda: video_player.setPosition(position))
             QTimer.singleShot(0, video_player.play)
 
         # Set size and position relative to parent
