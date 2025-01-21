@@ -503,6 +503,7 @@ class RankingTab(QWidget):
                 break
 
         media = self.media_handler.load_media(media_path)
+        media_player.pause()
 
         if isinstance(media, AspectRatioWidget):
             self.preview.show_media(media, enable_navigation=True, media_path=media_path)
