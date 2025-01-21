@@ -1,6 +1,7 @@
 # core/preview_handler.py
 from PyQt6.QtCore import Qt, QEvent, QTimer, QUrl
 from PyQt6.QtGui import QKeyEvent, QDesktopServices
+from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QSizePolicy, QPushButton, QHBoxLayout, QWidget
 
 
@@ -245,6 +246,8 @@ class MediaPreview(QDialog):
         if self.video_player:
             # Set time of video player in preview to thumbnail video preview
             self.thumbnail_media_player.setPosition(self.video_player.position())
+            if self.video_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                self.thumbnail_media_player.play()
             self.video_player.stop()
         if self.gif_movie:
             self.gif_movie.stop()
