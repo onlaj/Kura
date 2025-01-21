@@ -286,6 +286,9 @@ class VideoPlayer(QWidget):
         """Stop video playback."""
         self.media_player.stop()
 
+    def pause(self):
+        self.media_player.pause()
+
     @staticmethod
     def format_time(milliseconds):
         """Convert milliseconds to a formatted time string (MM:SS)."""
