@@ -269,7 +269,7 @@ class VotingTab(QWidget):
     def show_preview(self, media_path, media_player = None):
         """Show media preview overlay"""
         media = self.media_handler.load_media(media_path)
-        media_player.pause()
+        self.media_handler.pause_all_videos()
         if isinstance(media, AspectRatioWidget):
             self.preview.show_media(media, media_path=media_path)
         elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
