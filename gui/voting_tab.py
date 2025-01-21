@@ -277,7 +277,7 @@ class VotingTab(QWidget):
             if isinstance(media[1], QMovie):  # GIF
                 self.preview.show_media(media[0], gif_movie=media[1], media_path=media_path)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1], media_path=media_path, position=position)
+                self.preview.show_media(media[0], video_player=media[1], media_path=media_path, position=position, old_media_player=media_player)
 
     def handle_vote(self, vote, vote_count):
         """Handle voting for a media item."""

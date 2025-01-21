@@ -145,7 +145,7 @@ class MediaPreview(QDialog):
         # Store the last known position of the main window
         self.last_window_position = None
 
-    def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False, media_path=None, position = 0):
+    def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False, media_path=None, position = 0, old_media_player=None):
         """Show media in the preview dialog"""
         # Clear existing media
         if self.current_media:
@@ -156,6 +156,9 @@ class MediaPreview(QDialog):
         self.current_media = media_widget
         self.video_player = video_player
         self.gif_movie = gif_movie
+
+        if old_media_player:
+            self.old_media_player = old_media_player
 
         # Store the media path
         self.current_media_path = media_path
@@ -237,6 +240,8 @@ class MediaPreview(QDialog):
     def close(self):
         """Handle closing the preview"""
         if self.video_player:
+            # Set time of video player in preview to thumbnail video preview
+            self.old_media_player.setPosition(self.video_player.position())
             self.video_player.stop()
         if self.gif_movie:
             self.gif_movie.stop()
