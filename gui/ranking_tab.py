@@ -513,7 +513,7 @@ class RankingTab(QWidget):
             if isinstance(media[1], QMovie):  # GIF
                 self.preview.show_media(media[0], gif_movie=media[1], enable_navigation=True, media_path=media_path)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True, media_path=media_path, position=position)
+                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True, media_path=media_path, position=position, old_media_player=media_player)
 
         # Set up navigation callbacks
         self.preview.set_navigation_callbacks(
