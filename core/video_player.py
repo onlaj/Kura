@@ -276,6 +276,7 @@ class VideoPlayer(QWidget):
 
     def set_position(self, position):
         """Set video position from slider."""
+        self.media_player.play()
         self.media_player.setPosition(position)
 
     def set_volume(self, volume):
