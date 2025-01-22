@@ -1,6 +1,6 @@
 import cv2
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -41,14 +41,26 @@ class ClickableSlider(QSlider):
         super().mouseMoveEvent(event)
 
 
+class ClickInterceptWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def mousePressEvent(self, event):
+        # Intercept clicks and do nothing
+        event.accept()
+
+    def paintEvent(self, event):
+        # Draw the background color explicitly
+        painter = QPainter(self)
+        painter.setBrush(QBrush(QColor(30, 30, 30, 180)))  # Match your desired background color
+        painter.setPen(Qt.PenStyle.NoPen)  # No border
+        painter.drawRect(self.rect())  # Fill the widget's entire area
+
+
 class VideoPlayer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-        # Configuration for click protection zone
-        self.control_height = 50  # Total height of controls
-        self.protection_zone = 50  # Additional protection zone above controls
 
         # Create layout
         layout = QVBoxLayout(self)
@@ -84,8 +96,7 @@ class VideoPlayer(QWidget):
         self.media_player.setAudioOutput(self.audio_output)
 
         # Create controls widget with background
-        controls_widget = QWidget()
-        controls_widget.setStyleSheet("background-color: rgba(30, 30, 30, 180);")
+        controls_widget = ClickInterceptWidget()
         controls_layout = QHBoxLayout(controls_widget)
         controls_layout.setContentsMargins(5, 5, 5, 5)
 
