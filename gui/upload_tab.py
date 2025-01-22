@@ -63,7 +63,7 @@ class UploadTab(QWidget):
 
     def add_files(self):
         """Handle adding individual files."""
-        file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.avi *.mov *.mkv *.webp)"
+        file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.avi *.mov *.mkv *.webp *.webm)"
 
         filenames, _ = QFileDialog.getOpenFileNames(
             self,
@@ -88,7 +88,7 @@ class UploadTab(QWidget):
             if self.gifs_checkbox.isChecked():
                 extensions.append('.gif')
             if self.videos_checkbox.isChecked():
-                extensions.extend(['.mp4', '.avi', '.mov', '.mkv'])
+                extensions.extend(['.mp4', '.avi', '.mov', '.mkv', '.webm'])
 
             media_files = []
             if self.recursive_checkbox.isChecked():
