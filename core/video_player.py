@@ -64,13 +64,11 @@ class VideoPlayer(QWidget):
         # Video widget with click handling
         self.video_widget = QVideoWidget()
         self.video_widget.hide()  # Hide video widget initially
-        self.video_widget.mousePressEvent = self.handle_video_click
         video_container.layout().addWidget(self.video_widget)
 
         # Thumbnail label with click handling
         self.thumbnail_label = QLabel()
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumbnail_label.mousePressEvent = self.handle_video_click
         video_container.layout().addWidget(self.thumbnail_label)
 
         # Add aspect ratio wrapper
@@ -164,28 +162,6 @@ class VideoPlayer(QWidget):
         # Set initial volume
         self.set_volume(70)
 
-    def handle_video_click(self, event):
-        """Handle clicks on the video area with protection zone logic"""
-        # Get the total height of the widget
-        total_height = self.height()
-
-        # Calculate the y-coordinate of the click relative to the bottom
-        click_y_from_bottom = total_height - event.position().y()
-
-        if click_y_from_bottom <= self.control_height + self.protection_zone:
-            # Click is within the control area or protection zone
-            # Prevent both control activation and preview
-            event.accept()
-            return
-
-        # Click is outside protection zone - allow normal preview behavior
-        # Let the event propagate to parent for preview handling
-        event.ignore()
-
-    def set_click_protection(self, control_height: int = 50, protection_zone: int = 25):
-        """Configure the click protection zones"""
-        self.control_height = control_height
-        self.protection_zone = protection_zone
 
     def set_source(self, path):
         """Set the video source."""
