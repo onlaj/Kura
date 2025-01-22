@@ -322,14 +322,7 @@ class RankingTab(QWidget):
         self.current_page = 1  # Reset to the first page
         self.refresh_rankings()
 
-    def get_rankings(self, page: int, per_page: int):
-        """Get rankings with filtering and active album."""
-        return self.db.get_rankings_page(
-            page, 
-            per_page, 
-            self.current_filter,
-            self.active_album_id
-        )
+
 
     def create_image_frame(self, rank, id, path, rating, votes, index, pre_loaded_widget=None):
         frame = MediaFrame()
