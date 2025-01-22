@@ -1,5 +1,6 @@
 import math
 import os
+from datetime import datetime
 
 from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread
 from PyQt6.QtGui import QMovie, QIcon
@@ -115,10 +116,32 @@ class MediaFrame(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
 
-    def set_file_info(self, file_name):
-        """Set the file name with elided text and tooltip."""
-        self.info_label.setText(self.elide_text(file_name))  # Set elided text
-        self.info_label.setToolTip(file_name)  # Set full file name as tooltip
+    def set_file_info(self, file_path):
+        """Set the file information (name, size, modification date) in the label."""
+        if not os.path.exists(file_path):
+            self.info_label.setText("File not found: " + file_path)
+            return
+
+        # Get file name
+        file_name = os.path.basename(file_path)
+
+        # Get file size in KB/MB
+        file_size = os.path.getsize(file_path)
+        if file_size < 1024:
+            file_size_str = f"{file_size} B"
+        elif file_size < 1024 * 1024:
+            file_size_str = f"{file_size / 1024:.1f} KB"
+        else:
+            file_size_str = f"{file_size / (1024 * 1024):.1f} MB"
+
+        # Get modification date
+        mod_time = os.path.getmtime(file_path)
+        mod_date = datetime.fromtimestamp(mod_time).strftime("%Y-%m-%d %H:%M:%S")
+
+        # Set the label text with elided file name
+        elided_name = self.elide_text(file_name)
+        self.info_label.setText(f"{elided_name}\n{file_size_str} | {mod_date}")
+        self.info_label.setToolTip(f"{file_name}\nSize: {file_size_str}\nModified: {mod_date}")
 
     def elide_text(self, text, max_width=150):
         """Elide text to fit within a specified width."""
@@ -378,7 +401,7 @@ class RankingTab(QWidget):
 
         # Set file info
         file_name = os.path.basename(path)
-        frame.set_file_info(file_name)
+        frame.set_file_info(path)
 
         # Set rating and votes
         frame.rating_label.setText(f"Rating: {rating:.1f} | Votes: {votes}")
