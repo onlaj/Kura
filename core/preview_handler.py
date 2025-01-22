@@ -245,9 +245,11 @@ class MediaPreview(QDialog):
         """Handle closing the preview"""
         if self.video_player:
             # Set time of video player in preview to thumbnail video preview
-            self.thumbnail_media_player.setPosition(self.video_player.position())
+            if self.thumbnail_media_player:
+                self.thumbnail_media_player.setPosition(self.video_player.position())
             if self.video_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-                self.thumbnail_media_player.play()
+                if self.thumbnail_media_player:
+                    self.thumbnail_media_player.play()
             self.video_player.stop()
         if self.gif_movie:
             self.gif_movie.stop()
