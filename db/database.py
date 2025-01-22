@@ -1,5 +1,5 @@
 # db/database.py
-
+import os
 import sqlite3
 from pathlib import Path
 from typing import List, Tuple, Optional
@@ -38,6 +38,7 @@ class Database:
                 votes INTEGER DEFAULT 0,
                 type TEXT NOT NULL,
                 album_id INTEGER NOT NULL,
+                file_size INTEGER,
                 FOREIGN KEY (album_id) REFERENCES albums (id),
                 UNIQUE(path, album_id)
             )
@@ -132,6 +133,9 @@ class Database:
             # Normalize the path to handle different path formats
             normalized_path = str(Path(file_path).resolve())
 
+            # Get the file size
+            file_size = os.path.getsize(normalized_path)
+
             # Check if the file already exists in the database
             self.cursor.execute(
                 "SELECT id FROM media WHERE path = ? AND album_id = ?",
@@ -141,8 +145,8 @@ class Database:
                 return False
 
             self.cursor.execute(
-                "INSERT INTO media (path, type, album_id) VALUES (?, ?, ?)",
-                (normalized_path, media_type, album_id)
+                "INSERT INTO media (path, type, album_id, file_size) VALUES (?, ?, ?, ?)",
+                (normalized_path, media_type, album_id, file_size)
             )
             self.conn.commit()
             return True
