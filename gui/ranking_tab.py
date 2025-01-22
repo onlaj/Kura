@@ -345,9 +345,10 @@ class RankingTab(QWidget):
             frame.media_layout.addWidget(widget)
             if isinstance(player, QMovie):  # GIF
                 frame.gif_movie = player
+                widget.mousePressEvent = lambda e, p=path: self.show_preview(p)
             else:  # Video
                 frame.video_player = player
-            widget.mousePressEvent = lambda e, f=frame.video_player, p=path: self.show_preview(p, f)
+                widget.mousePressEvent = lambda e, f=frame.video_player, p=path: self.show_preview(p, f)
 
         # Set file info
         file_name = os.path.basename(path)
