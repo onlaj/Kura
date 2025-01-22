@@ -186,6 +186,9 @@ class RankingTab(QWidget):
 
         self.current_filter = "all"  # Default filter
 
+        self.sort_by = "rating"  # Default sort column
+        self.sort_order = "DESC"  # Default sort order
+
         self.active_album_id = 1  # Default album
 
         # Cache for total media count
@@ -232,6 +235,19 @@ class RankingTab(QWidget):
         self.filter_selector.addItems(["All", "Image", "Gif", "Video"])
         self.filter_selector.currentTextChanged.connect(self.change_filter)
         control_panel.addWidget(self.filter_selector)
+
+        control_panel.addWidget(QLabel("Sort by:"))
+        self.sort_selector = QComboBox()
+        self.sort_selector.addItems(["Rating", "Votes", "File Name", "File Size"])
+        self.sort_selector.currentTextChanged.connect(self.change_sort)
+        control_panel.addWidget(self.sort_selector)
+
+        # Order by selector
+        control_panel.addWidget(QLabel("Order:"))
+        self.order_selector = QComboBox()
+        self.order_selector.addItems(["Descending", "Ascending"])
+        self.order_selector.currentTextChanged.connect(self.change_order)
+        control_panel.addWidget(self.order_selector)
 
         # Page navigation input
         control_panel.addWidget(QLabel("Page:"))
@@ -322,6 +338,23 @@ class RankingTab(QWidget):
         self.current_page = 1  # Reset to the first page
         self.refresh_rankings()
 
+    def change_sort(self, value):
+        """Handle sort column change"""
+        sort_map = {
+            "Rating": "rating",
+            "Votes": "votes",
+            "File Name": "file_name",
+            "File Size": "file_size"
+        }
+        self.sort_by = sort_map[value]
+        self.current_page = 1  # Reset to first page
+        self.refresh_rankings()
+
+    def change_order(self, value):
+        """Handle sort order change"""
+        self.sort_order = "DESC" if value == "Descending" else "ASC"
+        self.current_page = 1  # Reset to first page
+        self.refresh_rankings()
 
 
     def create_image_frame(self, rank, id, path, rating, votes, index, pre_loaded_widget=None):
@@ -595,12 +628,14 @@ class RankingTab(QWidget):
     def _request_rankings_load(self, page, per_page):
         """Request rankings load in the main thread."""
         try:
-            # Pass active_album_id to get_rankings
+            # Pass sorting parameters to get_rankings
             rankings, total_filtered = self.get_rankings_callback(
-                page, 
-                per_page, 
-                self.current_filter, 
-                self.active_album_id
+                page,
+                per_page,
+                self.current_filter,
+                self.active_album_id,
+                self.sort_by,
+                self.sort_order
             )
             self._handle_loaded_media(rankings, total_filtered)
         except Exception as e:

@@ -93,9 +93,14 @@ class Application:
             print(f"Error deleting media: {e}")
             raise e
 
-    def get_rankings(self, page: int = 1, per_page: int = 50, media_type: str = "all", album_id: int = 1):
-        """Get current rankings with pagination and album filtering."""
-        return self.db.get_rankings_page(page, per_page, media_type, album_id)
+    def get_rankings(self, page: int = 1, per_page: int = 50,
+                    media_type: str = "all", album_id: int = 1,
+                    sort_by: str = "rating", sort_order: str = "DESC"):
+        """Get current rankings with pagination, filtering, and sorting."""
+        return self.db.get_rankings_page(
+            page, per_page, media_type, album_id, sort_by, sort_order
+        )
+
 
     def get_pair_for_voting(self, album_id: int = 1):
         """Get a pair of media items for voting from specified album."""

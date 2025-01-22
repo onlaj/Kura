@@ -16,7 +16,23 @@ class Database:
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
         self._create_tables()
+        self._create_indices()
         self._ensure_default_album()
+
+    def _create_indices(self):
+        """Create indices for efficient sorting and filtering."""
+        indices = [
+            "CREATE INDEX IF NOT EXISTS idx_media_rating ON media (rating)",
+            "CREATE INDEX IF NOT EXISTS idx_media_votes ON media (votes)",
+            "CREATE INDEX IF NOT EXISTS idx_media_path ON media (path)",  # For filename sorting
+            "CREATE INDEX IF NOT EXISTS idx_media_file_size ON media (file_size)",
+            "CREATE INDEX IF NOT EXISTS idx_media_type ON media (type)",  # Already existed
+            "CREATE INDEX IF NOT EXISTS idx_media_album ON media (album_id)"  # For album filtering
+        ]
+
+        for index in indices:
+            self.cursor.execute(index)
+        self.conn.commit()
 
     def _create_tables(self):
         """Create necessary database tables if they don't exist."""
@@ -317,47 +333,71 @@ class Database:
         self.cursor.execute("SELECT COUNT(*) FROM media WHERE album_id = ?", (active_album_id,))
         return self.cursor.fetchone()[0]
 
-    def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all", album_id: int = 1) -> Tuple[List[tuple], int]:
+    def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all",
+                          album_id: int = 1, sort_by: str = "rating", sort_order: str = "DESC") -> Tuple[
+        List[tuple], int]:
         """
-        Get a page of ranked media items.
+        Get a page of ranked media items with sorting options.
 
         Args:
             page: Page number (1-based)
             per_page: Number of items per page
             media_type: Type of media to filter by (all, image, gif, video)
             album_id: ID of the album to filter by
-
-        Returns:
-            Tuple of (list of media records, total number of items)
+            sort_by: Column to sort by (rating, votes, path, file_size)
+            sort_order: Sort order (ASC or DESC)
         """
-        # Get total count
-        if (media_type == "all"):
-            self.cursor.execute("SELECT COUNT(*) FROM media WHERE album_id = ?", (album_id,))
+        # Validate and sanitize sort parameters
+        valid_sort_columns = {
+            'rating': 'rating',
+            'votes': 'votes',
+            'file_name': 'path',  # We'll sort by path for file name
+            'file_size': 'file_size'
+        }
+        sort_column = valid_sort_columns.get(sort_by, 'rating')  # Default to rating if invalid
+        sort_direction = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
+
+        # Get total count with filter
+        if media_type == "all":
+            self.cursor.execute(
+                "SELECT COUNT(*) FROM media WHERE album_id = ?",
+                (album_id,)
+            )
         else:
-            self.cursor.execute("SELECT COUNT(*) FROM media WHERE type = ? AND album_id = ?", (media_type, album_id))
+            self.cursor.execute(
+                "SELECT COUNT(*) FROM media WHERE type = ? AND album_id = ?",
+                (media_type, album_id)
+            )
         total_items = self.cursor.fetchone()[0]
 
         # Calculate offset
         offset = (page - 1) * per_page
 
-        # Get page of media items
-        if media_type == "all":
-            self.cursor.execute("""
-                SELECT id, path, rating, votes 
-                FROM media 
-                WHERE album_id = ?
-                ORDER BY rating DESC
-                LIMIT ? OFFSET ?
-            """, (album_id, per_page, offset))
-        else:
-            self.cursor.execute("""
-                SELECT id, path, rating, votes 
-                FROM media 
-                WHERE type = ? AND album_id = ?
-                ORDER BY rating DESC
-                LIMIT ? OFFSET ?
-            """, (media_type, album_id, per_page, offset))
+        # Build the query
+        query = """
+            SELECT id, path, rating, votes 
+            FROM media 
+            WHERE {where_clause}
+            ORDER BY {sort_column} {sort_direction}
+            LIMIT ? OFFSET ?
+        """
 
+        # Set up where clause and parameters based on media type
+        if media_type == "all":
+            where_clause = "album_id = ?"
+            params = (album_id, per_page, offset)
+        else:
+            where_clause = "type = ? AND album_id = ?"
+            params = (media_type, album_id, per_page, offset)
+
+        # Format and execute query
+        formatted_query = query.format(
+            where_clause=where_clause,
+            sort_column=sort_column,
+            sort_direction=sort_direction
+        )
+
+        self.cursor.execute(formatted_query, params)
         return self.cursor.fetchall(), total_items
 
     def get_pair_for_voting(self, album_id: int = 1) -> Tuple[Optional[tuple], Optional[tuple]]:
