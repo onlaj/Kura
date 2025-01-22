@@ -50,9 +50,8 @@ class ClickInterceptWidget(QWidget):
         event.accept()
 
     def paintEvent(self, event):
-        # Draw the background color explicitly
         painter = QPainter(self)
-        painter.setBrush(QBrush(QColor(30, 30, 30, 180)))  # Match your desired background color
+        painter.setBrush(QBrush(QColor(0, 0, 0, 120)))  # Reduced opacity
         painter.setPen(Qt.PenStyle.NoPen)  # No border
         painter.drawRect(self.rect())  # Fill the widget's entire area
 
@@ -105,6 +104,17 @@ class VideoPlayer(QWidget):
         self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
         self.play_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.play_button.clicked.connect(self.play_pause)
+        self.play_button.setStyleSheet("""
+                    QPushButton {
+                        background: #444;
+                        border: none;
+                        padding: 5px;
+                    }
+                    QPushButton:hover {
+                        background: rgba(255, 255, 255, 0.8);
+                        border-radius: 4px;
+                    }
+                """)
         controls_layout.addWidget(self.play_button)
 
         # Current time label
