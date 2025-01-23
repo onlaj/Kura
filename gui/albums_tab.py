@@ -118,13 +118,6 @@ class AlbumsTab(QWidget):
         self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
         self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
 
-    def refresh_albums(self):
-        """Refresh the albums list."""
-        self.album_list.clear()
-        for album_id, album_name in self.db.get_albums():
-            item = QListWidgetItem(f"{album_name}")
-            item.setData(Qt.ItemDataRole.UserRole, album_id)
-            self.album_list.addItem(item)
 
     def create_album(self):
         """Create a new album."""
@@ -166,7 +159,7 @@ class AlbumsTab(QWidget):
         reply = QMessageBox.question(self, "Confirm Delete",
                                    "This will delete all media in the album. Continue?",
                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             if self.db.delete_album(album_id):
                 if album_id == self.active_album_id:
