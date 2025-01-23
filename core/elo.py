@@ -1,4 +1,24 @@
 # core/elo.py
+import math
+
+import math
+
+class ReliabilityCalculator:
+    @staticmethod
+    def calculate_reliability(n: int, v: int) -> float:
+        if n <= 0 or v < 0:
+            return 0.0
+        exponent = -v / (n * math.log(n + 1))
+        return 100 * (1 - math.exp(exponent))
+
+    @staticmethod
+    def calculate_required_votes(n: int, target_reliability: float) -> int:
+        if target_reliability >= 100:
+            return 0
+        if n <= 0:
+            return 0
+        reliability_fraction = target_reliability / 100
+        return math.ceil(-math.log(1 - reliability_fraction) * n * math.log(n + 1))
 
 class Rating:
     """
