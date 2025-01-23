@@ -205,6 +205,9 @@ class RankingTab(QWidget):
         # Initialize thread variable
         self.loading_thread = None
 
+        self.pending_preview_action = None  # 'prev' or 'next'
+        self.pending_preview_page = None
+
         self.current_preview_index = -1
 
         self.current_filter = "all"  # Default filter
@@ -583,38 +586,28 @@ class RankingTab(QWidget):
         return self.current_page < total_pages
 
     def show_previous_preview(self):
-        """Show previous media in preview"""
         if self.current_preview_index > 0:
-            # Show previous media on current page
             self.current_preview_index -= 1
             _, path, _, _ = self.current_images[self.current_preview_index]
             self.show_preview(path)
         elif self.current_page > 1:
-            # Load previous page and show last media
-            self.current_page -= 1
+            # Store preview action and defer loading
+            self.pending_preview_action = 'prev'
+            self.pending_preview_page = self.current_page - 1
+            self.current_page = self.pending_preview_page
             self.refresh_rankings()
-            if self.current_images:
-                self.current_preview_index = len(self.current_images) - 1
-                _, path, _, _ = self.current_images[self.current_preview_index]
-                self.show_preview(path)
 
     def show_next_preview(self):
-        """Show next media in preview"""
         if self.current_preview_index < len(self.current_images) - 1:
-            # Show next media on current page
             self.current_preview_index += 1
             _, path, _, _ = self.current_images[self.current_preview_index]
             self.show_preview(path)
         else:
-            # Check if we can load next page
-            total_pages = math.ceil(self.total_images / self.per_page)
-            if self.current_page < total_pages:
-                self.current_page += 1
-                self.refresh_rankings()
-                if self.current_images:
-                    self.current_preview_index = 0
-                    _, path, _, _ = self.current_images[0]
-                    self.show_preview(path)
+            # Store preview action and defer loading
+            self.pending_preview_action = 'next'
+            self.pending_preview_page = self.current_page + 1
+            self.current_page = self.pending_preview_page
+            self.refresh_rankings()
 
     def change_columns(self, value):
         """Handle column count change"""
@@ -636,6 +629,10 @@ class RankingTab(QWidget):
 
     def refresh_rankings(self, force_refresh=True):
         """Refresh the rankings display."""
+        if not hasattr(self, 'pending_preview_page') or self.current_page != self.pending_preview_page:
+            self.pending_preview_action = None
+            self.pending_preview_page = None
+
         if not force_refresh and not self.new_votes_since_last_refresh and not self.new_files_since_last_refresh:
             return  # Skip refresh if no new votes or files and no forced refresh
 
@@ -732,7 +729,7 @@ class RankingTab(QWidget):
 
     def _on_all_media_loaded(self):
         """Handle completion of all media loading."""
-        # Adjust grid layout properties
+        # Existing grid layout adjustments
         self.grid_layout.setHorizontalSpacing(10)
         self.grid_layout.setVerticalSpacing(10)
 
@@ -747,6 +744,26 @@ class RankingTab(QWidget):
         # Reset flags and hide loading overlay
         self.new_votes_since_last_refresh = False
         self.loading_overlay.hide()
+
+        # New: Handle pending preview navigation after load
+        if self.pending_preview_action:
+            try:
+                if self.pending_preview_action == 'next':
+                    # Show first item of new page
+                    self.current_preview_index = 0
+                    _, path, _, _ = self.current_images[0]
+                    self.show_preview(path)
+                elif self.pending_preview_action == 'prev':
+                    # Show last item of new page
+                    self.current_preview_index = len(self.current_images) - 1
+                    _, path, _, _ = self.current_images[-1]
+                    self.show_preview(path)
+            except (IndexError, TypeError) as e:
+                logger.error(f"Preview navigation error: {e}")
+            finally:
+                # Clear pending actions regardless of success
+                self.pending_preview_action = None
+                self.pending_preview_page = None
 
     def invalidate_total_media_count_cache(self):
         """Invalidate the total media count cache."""
