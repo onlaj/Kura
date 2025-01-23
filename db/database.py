@@ -39,12 +39,13 @@ class Database:
         """Create necessary database tables if they don't exist."""
         # Albums table
         self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS albums (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+                CREATE TABLE IF NOT EXISTS albums (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    total_media INTEGER DEFAULT 0
+                )
+            """)
 
         # Media table with album support
         self.cursor.execute("""
@@ -177,6 +178,12 @@ class Database:
                 "INSERT INTO media (path, type, album_id, file_size) VALUES (?, ?, ?, ?)",
                 (normalized_path, media_type, album_id, file_size)
             )
+
+            # Increment total_media for the album
+            self.cursor.execute(
+                "UPDATE albums SET total_media = total_media + 1 WHERE id = ?",
+                (album_id,)
+            )
             self.conn.commit()
             return True
         except sqlite3.IntegrityError:
@@ -257,10 +264,12 @@ class Database:
         try:
             # Start transaction
             self.conn.execute("BEGIN")
-
-            # Get media path for file deletion
-            self.cursor.execute("SELECT path FROM media WHERE id = ?", (media_id,))
-            media_path = self.cursor.fetchone()
+            # Get media path and album_id
+            self.cursor.execute("SELECT path, album_id FROM media WHERE id = ?", (media_id,))
+            result = self.cursor.fetchone()
+            if not result:
+                return None
+            media_path, album_id = result
 
             # Delete related votes
             self.cursor.execute("""
@@ -274,6 +283,11 @@ class Database:
             # Recalculate all ratings (if requested)
             if recalculate:
                 self._recalculate_ratings()
+
+            self.cursor.execute(
+                "UPDATE albums SET total_media = total_media - 1 WHERE id = ?",
+                (album_id,)
+            )
 
             # Commit transaction
             self.conn.commit()
