@@ -1,3 +1,4 @@
+import logging
 import sys
 
 from PyQt6.QtWidgets import QApplication
@@ -10,10 +11,17 @@ from gui.upload_tab import UploadTab
 from gui.voting_tab import VotingTab
 from utils.config import setup_logging
 from gui.albums_tab import AlbumsTab
+logger = logging.getLogger(__name__)
 
+def excepthook(exc_type, exc_value, exc_tb):
+    logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
+    sys.exit(1)
+
+sys.excepthook = excepthook
 
 class Application:
     def __init__(self):
+        sys.excepthook = excepthook
         """Initialize the application and its components."""
         # Set up logging
         setup_logging()
