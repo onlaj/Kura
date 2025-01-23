@@ -4,8 +4,33 @@ import math
 import math
 
 class ReliabilityCalculator:
+    """
+        Provides reliability metrics for ELO-based ranking systems using exponential decay modeling.
+
+        The reliability model is based on the relationship between:
+        - n: Number of media items being ranked
+        - v: Total number of votes cast
+        - R: Reliability percentage (0-100%)
+
+        The formulas account for combinatorial complexity of ranking relationships
+        using natural logarithm scaling.
+
+        Theory:
+        Reliability grows asymptotically toward 100% with more votes, following the formula:
+        R = 100 * (1 - e^(-v/(n*ln(n+1))))
+    """
     @staticmethod
     def calculate_reliability(n: int, v: int) -> float:
+        """
+           Calculate current reliability percentage of the ranking system.
+
+           Args:
+               n: Number of media items in the system (n > 0)
+               v: Total number of votes cast (v >= 0)
+
+           Returns:
+               float: Reliability percentage between 0-100
+        """
         if n <= 0 or v < 0:
             return 0.0
         exponent = -v / (n * math.log(n + 1))
@@ -13,6 +38,16 @@ class ReliabilityCalculator:
 
     @staticmethod
     def calculate_required_votes(n: int, target_reliability: float) -> int:
+        """
+           Calculate votes needed to reach a desired reliability level.
+
+           Args:
+               n: Number of media items in the system (n > 0)
+               target_reliability: Desired reliability percentage (0 < R < 100)
+
+           Returns:
+               int: Minimum votes required (rounded up to nearest integer)
+           """
         if target_reliability >= 100:
             return 0
         if n <= 0:
