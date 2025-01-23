@@ -299,19 +299,38 @@ class VotingTab(QWidget):
 
     def update_reliability_info(self):
         """Update reliability information using cached values"""
-        current_reliability = ReliabilityCalculator.calculate_reliability(
-            self.total_media, self.total_votes
-        )
-        needed_votes = ReliabilityCalculator.calculate_required_votes(
-            self.total_media, 90
-        ) if self.total_media > 0 else 0
+        if self.total_media == 0:
+            current_reliability = 0.0
+            target = None
+        else:
+            current_reliability = ReliabilityCalculator.calculate_reliability(
+                self.total_media, self.total_votes
+            )
+            # Determine next target based on current reliability
+            if current_reliability < 90:
+                target = 90
+            elif current_reliability < 99:
+                target = 99
+            else:
+                target = None
 
-        self.reliability_label.setText(f"Current Reliability: {current_reliability:.1f}%")
-        self.required_votes_label.setText(
-            f"Votes to 90%: {max(0, needed_votes - self.total_votes)}"
-            if needed_votes > self.total_votes else
-            "90% Reliability Reached!"
-        )
+        # Update reliability labels
+        reliability_text = f"Current Reliability: {current_reliability:.1f}%"
+
+        if target:
+            needed_votes = ReliabilityCalculator.calculate_required_votes(
+                self.total_media, target
+            )
+            remaining = max(0, needed_votes - self.total_votes)
+            votes_text = f"Votes to {target}%: {remaining}"
+        else:
+            if self.total_media == 0:
+                votes_text = "Add media to calculate reliability"
+            else:
+                votes_text = "Maximum Reliability (99%) Reached!"
+
+        self.reliability_label.setText(reliability_text)
+        self.required_votes_label.setText(votes_text)
 
     def refresh_media_count(self):
         """Force refresh media count from database"""
