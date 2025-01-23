@@ -107,11 +107,13 @@ class Application:
         return self.db.get_pair_for_voting(album_id)
 
     def update_ratings(self, winner_id: int, loser_id: int,
-                       new_winner_rating: float, new_loser_rating: float):
+                       new_winner_rating: float, new_loser_rating: float,
+                       album_id: int):  # Add album_id parameter
         """Update ratings after a vote."""
         self.db.update_ratings(
             winner_id, loser_id,
-            new_winner_rating, new_loser_rating
+            new_winner_rating, new_loser_rating,
+            album_id  # Pass the album_id to database
         )
 
     def run(self):

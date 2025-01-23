@@ -27,7 +27,8 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_media_path ON media (path)",  # For filename sorting
             "CREATE INDEX IF NOT EXISTS idx_media_file_size ON media (file_size)",
             "CREATE INDEX IF NOT EXISTS idx_media_type ON media (type)",  # Already existed
-            "CREATE INDEX IF NOT EXISTS idx_media_album ON media (album_id)"  # For album filtering
+            "CREATE INDEX IF NOT EXISTS idx_media_album ON media (album_id)",  # For album filtering
+            "CREATE INDEX IF NOT EXISTS idx_votes_album ON votes (album_id)",
         ]
 
         for index in indices:
@@ -71,9 +72,11 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 winner_id INTEGER NOT NULL,
                 loser_id INTEGER NOT NULL,
+                album_id INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (winner_id) REFERENCES media (id),
-                FOREIGN KEY (loser_id) REFERENCES media (id)
+                FOREIGN KEY (loser_id) REFERENCES media (id),
+                FOREIGN KEY (album_id) REFERENCES albums (id)
             )
         """)
 
@@ -273,7 +276,8 @@ class Database:
             raise e
 
     def update_ratings(self, winner_id: int, loser_id: int,
-                       new_winner_rating: float, new_loser_rating: float):
+                       new_winner_rating: float, new_loser_rating: float,
+                       album_id: int):
         """
         Update ratings after a vote.
 
@@ -299,11 +303,11 @@ class Database:
                 WHERE id = ?
             """, (new_loser_rating, loser_id))
 
-            # Record the vote
+            # Record the vote with album_id
             self.cursor.execute("""
-                INSERT INTO votes (winner_id, loser_id)
-                VALUES (?, ?)
-            """, (winner_id, loser_id))
+                        INSERT INTO votes (winner_id, loser_id, album_id)
+                        VALUES (?, ?, ?)
+                    """, (winner_id, loser_id, album_id))
 
             # Get the ID of the inserted vote
             vote_id = self.cursor.lastrowid

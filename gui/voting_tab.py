@@ -317,7 +317,8 @@ class VotingTab(QWidget):
                 winner[0],  # winner_id
                 loser[0],  # loser_id
                 new_ratings['a'],  # new winner rating
-                new_ratings['b']  # new loser rating
+                new_ratings['b'],  # new loser rating
+                self.active_album_id  # new album_id parameter
             )
 
         # Notify RankingTab that there are new votes
