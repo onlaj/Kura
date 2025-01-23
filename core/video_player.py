@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import cv2
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor
@@ -57,6 +59,43 @@ class ClickInterceptWidget(QWidget):
 
 
 class VideoPlayer(QWidget):
+
+    @staticmethod
+    @lru_cache(maxsize=200)
+    def _get_video_thumbnail(file_path: str) -> QPixmap:
+        """Cached thumbnail generation with fallback handling"""
+        try:
+            cap = cv2.VideoCapture(file_path)
+            if not cap.isOpened():
+                logger.warning(f"Error: Could not open video {file_path}")
+                return QPixmap()
+
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if total_frames == 0:
+                logger.warning(f"Error: Video {file_path} has no frames")
+                cap.release()
+                return QPixmap()
+
+            middle_frame = total_frames // 2
+            cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
+            ret, frame = cap.read()
+            cap.release()
+
+            if not ret:
+                logger.warning(f"Error reading frame from {file_path}")
+                return QPixmap()
+
+            # Convert to QPixmap
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = frame_rgb.shape
+            bytes_per_line = ch * w
+            q_img = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+            return QPixmap.fromImage(q_img)
+
+        except Exception as e:
+            logger.error(f"Error generating thumbnail for {file_path}: {str(e)}")
+            return QPixmap()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -198,42 +237,25 @@ class VideoPlayer(QWidget):
         self.media_player.playbackStateChanged.connect(self.hide_thumbnail_on_play)
 
     def extract_and_display_thumbnail(self, path):
-        """Extract a thumbnail from the middle of the video and display it."""
-        cap = cv2.VideoCapture(path)
-        if not cap.isOpened():
-            logger.warning(f"Error: Could not open video {path}")
+        """Display cached thumbnail with error handling"""
+        pixmap = self._get_video_thumbnail(path)
+
+        if pixmap.isNull():
+            # Show error thumbnail
+            error_pixmap = QPixmap(400, 300)
+            error_pixmap.fill(Qt.GlobalColor.darkGray)
+            self.thumbnail_label.setPixmap(error_pixmap)
             return
 
-        # Get total number of frames
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames == 0:
-            logger.warning(f"Error: Video {path} has no frames")
-            return
-
-        # Set the frame position to the middle of the video
-        middle_frame = total_frames // 2
-        cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
-        ret, frame = cap.read()
-        if not ret:
-            logger.warning(f"Error: Could not read frame {middle_frame} from video {path}")
-            return
-
-        # Convert the frame to QImage
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        h, w, ch = frame_rgb.shape
-        bytes_per_line = ch * w
-        q_img = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-
-        # Convert QImage to QPixmap
-        pixmap = QPixmap.fromImage(q_img)
-
-        # Configure thumbnail label for proper scaling
+        # Configure label
         self.thumbnail_label.setMinimumSize(1, 1)
-        self.thumbnail_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.thumbnail_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
         self.thumbnail_label.setPixmap(pixmap)
         self.thumbnail_label.setScaledContents(True)
 
-        cap.release()
 
     def hide_thumbnail_on_play(self, state):
         """Hide the thumbnail and show the video widget when the video starts playing."""
