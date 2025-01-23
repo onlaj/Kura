@@ -14,6 +14,7 @@ class AlbumsTab(QWidget):
         self.active_album_id = 1  # Default album
         self.setup_ui()
         self.refresh_albums()
+        self._select_album_by_id(1)
 
     def setup_ui(self):
         """Set up the albums interface."""
@@ -118,6 +119,14 @@ class AlbumsTab(QWidget):
         self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
         self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
 
+    def _select_album_by_id(self, album_id: int):
+        """Select an album in the list by its ID."""
+        for index in range(self.album_list.count()):
+            item = self.album_list.item(index)
+            if item.data(Qt.ItemDataRole.UserRole) == album_id:
+                self.album_list.setCurrentItem(item)
+                break
+
     def create_album(self):
         """Create a new album and select it after creation."""
         name, ok = QInputDialog.getText(self, "Create Album", "Album name:")
@@ -178,6 +187,7 @@ class AlbumsTab(QWidget):
                     self.active_album_id = 1
                     self.album_changed.emit(1, "Default")
                 self.refresh_albums()
+                self._select_album_by_id(1)
             else:
                 QMessageBox.warning(self, "Error", "Could not delete album")
 
