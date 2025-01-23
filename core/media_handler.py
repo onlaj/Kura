@@ -201,22 +201,28 @@ class MediaHandler:
         logger.info(f"Creating video widget for: {video_path}")
         video_player = VideoPlayer()
         self.active_video_players.append(video_player)
+        # Auto-remove from list when player is destroyed
+        video_player.destroyed.connect(lambda: self.cleanup_player(video_player))
         try:
             video_player.set_source(video_path)
             logger.info(f"Successfully created video player for: {video_path}")
             return video_player, video_player.media_player
         except Exception as e:
             logger.warning(f"Error creating video player: {e}")
+            self.cleanup_player(video_player)
             raise
 
     def pause_all_videos(self):
-        logger.info("Stopping all active video players.")
-        """Stop all active video players."""
-        for player in self.active_video_players:
+        logger.info("Pausing all active video players.")
+        """Pause all active video players."""
+        # Iterate over a copy to prevent modification during iteration
+        for player in list(self.active_video_players):
             try:
-                player.pause()
-            except:
-                pass
+                player.pause()  # VideoPlayer.pause() already has its own safety
+            except Exception as e:
+                logger.debug(f"Could not pause player: {str(e)}")
+                # Silently ignore and attempt to clean up
+                self.cleanup_player(player)
 
     def stop_all_videos(self):
         logger.info("Stopping all active video players.")

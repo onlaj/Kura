@@ -309,9 +309,13 @@ class VideoPlayer(QWidget):
     def pause(self) -> None:
         """Attempt to pause the media playback, silently ignore any failures."""
         try:
-            self.media_player.pause()
-        except:
+            if self.media_player and self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                self.media_player.pause()
+        except RuntimeError:
+            # Handle case where underlying C++ object is deleted
             pass
+        except Exception as e:
+            logger.debug(f"Pause error: {str(e)}")
 
 
     @staticmethod
