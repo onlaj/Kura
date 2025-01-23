@@ -54,7 +54,9 @@ class Application:
             self.get_pair_for_voting,
             self.update_ratings,
             self.media_handler,
-            self.ranking_tab
+            self.ranking_tab,
+            self.get_total_media_count,  # Add these new parameters
+            self.get_total_votes
         )
 
         self.upload_tab = UploadTab(self.add_media_to_db, self.media_handler, self.ranking_tab)
@@ -66,6 +68,12 @@ class Application:
             self.upload_tab,
             self.ranking_tab
         )
+
+    def get_total_media_count(self, album_id: int) -> int:
+        return self.db.get_total_media_count(album_id)
+
+    def get_total_votes(self, album_id: int) -> int:
+        return self.db.get_total_votes(album_id)
 
     def on_album_changed(self, album_id: int, album_name: str):
         """Handle album changes."""

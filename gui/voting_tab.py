@@ -7,7 +7,7 @@ from PyQt6.QtGui import QMovie, QKeyEvent
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy)
 
-from core.elo import Rating
+from core.elo import Rating, ReliabilityCalculator
 from core.preview_handler import MediaPreview
 
 
@@ -129,7 +129,8 @@ class AspectRatioWidget(QWidget):
 
 
 class VotingTab(QWidget):
-    def __init__(self, get_pair_callback, update_ratings_callback, media_handler, ranking_tab):
+    def __init__(self, get_pair_callback, update_ratings_callback, media_handler,
+                 ranking_tab, get_total_media_count, get_total_votes):
         super().__init__()
         self.get_pair_callback = get_pair_callback
         self.update_ratings_callback = update_ratings_callback
@@ -145,6 +146,12 @@ class VotingTab(QWidget):
         self.cooldown_timer = QTimer(self)
         self.cooldown_timer.timeout.connect(self.end_cooldown)
         self.active_album_id = 1  # Default album
+
+        self.reliability_label = QLabel()
+        self.required_votes_label = QLabel()
+
+        self.get_total_media_count = get_total_media_count
+        self.get_total_votes = get_total_votes
 
         self.setup_ui()
 
@@ -181,6 +188,19 @@ class VotingTab(QWidget):
         self.skip_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.skip_button.clicked.connect(self.load_new_pair)
         layout.addWidget(self.skip_button)
+
+        #  Reliability info widgets
+        reliability_layout = QHBoxLayout()
+
+        self.reliability_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.reliability_label.setStyleSheet("color: #AAAAAA;")
+        reliability_layout.addWidget(self.reliability_label)
+
+        self.required_votes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.required_votes_label.setStyleSheet("color: #AAAAAA;")
+        reliability_layout.addWidget(self.required_votes_label)
+
+        layout.addLayout(reliability_layout)
 
         # Status label
         self.status_label = QLabel()
@@ -261,10 +281,28 @@ class VotingTab(QWidget):
         self.enable_voting()
         self.status_label.clear()
 
+        self.update_reliability_info()
+
     def set_active_album(self, album_id: int):
         """Set the active album and reload media pair."""
         self.active_album_id = album_id
         self.load_new_pair()
+
+    def update_reliability_info(self):
+        """Update reliability information display."""
+        total_media = self.get_total_media_count(self.active_album_id)
+        total_votes = self.get_total_votes(self.active_album_id)
+
+        current_reliability = ReliabilityCalculator.calculate_reliability(total_media, total_votes)
+        needed_votes = ReliabilityCalculator.calculate_required_votes(total_media, 90) if total_media > 0 else 0
+
+        self.reliability_label.setText(f"Current Reliability: {current_reliability:.1f}%")
+        self.required_votes_label.setText(
+            f"Votes to 90%: {max(0, needed_votes - total_votes)}"
+            if needed_votes > total_votes else
+            "90% Reliability Reached!"
+        )
+
 
     def show_preview(self, media_path, media_player = None):
         """Show media preview overlay"""
@@ -326,6 +364,8 @@ class VotingTab(QWidget):
 
         # Load new pair
         self.load_new_pair()
+
+        self.update_reliability_info()  # Add this line
 
     def end_cooldown(self):
         """End the cooldown period and revert button styles."""

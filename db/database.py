@@ -332,6 +332,11 @@ class Database:
             print(f"Error recording vote: {e}")
             raise e
 
+    def get_total_votes(self, album_id: int) -> int:
+        """Get total number of votes cast in an album."""
+        self.cursor.execute("SELECT COUNT(*) FROM votes WHERE album_id = ?", (album_id,))
+        return self.cursor.fetchone()[0]
+
     def get_total_media_count(self, active_album_id) -> int:
         """Get the total number of media items in the database."""
         self.cursor.execute("SELECT COUNT(*) FROM media WHERE album_id = ?", (active_album_id,))
