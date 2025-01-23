@@ -119,6 +119,11 @@ class MediaHandler:
         self.active_video_players = []
 
     @staticmethod
+    @lru_cache(maxsize=100)
+    def _load_pixmap_cached(image_path: str) -> QPixmap:
+        return QPixmap(image_path)
+
+    @staticmethod
     @lru_cache(maxsize=1000)
     def _get_aspect_ratio_cached(file_path: str) -> float:
         try:
@@ -184,8 +189,7 @@ class MediaHandler:
             return self._load_image(gif_path), None
 
     def _load_image(self, image_path: str):
-        """Load image and return QPixmap in ScalableLabel."""
-        pixmap = QPixmap(image_path)
+        pixmap = self._load_pixmap_cached(image_path)  # Cached pixmap
         if not pixmap.isNull():
             label = ScalableLabel()
             label.setPixmap(pixmap)
