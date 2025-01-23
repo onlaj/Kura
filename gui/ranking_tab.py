@@ -745,23 +745,25 @@ class RankingTab(QWidget):
         self.new_votes_since_last_refresh = False
         self.loading_overlay.hide()
 
-        # New: Handle pending preview navigation after load
+        # Handle pending preview navigation after load
         if self.pending_preview_action:
             try:
                 if self.pending_preview_action == 'next':
-                    # Show first item of new page
                     self.current_preview_index = 0
                     _, path, _, _ = self.current_images[0]
                     self.show_preview(path)
                 elif self.pending_preview_action == 'prev':
-                    # Show last item of new page
                     self.current_preview_index = len(self.current_images) - 1
                     _, path, _, _ = self.current_images[-1]
                     self.show_preview(path)
+
+                # Force focus back to preview
+                self.preview.raise_()
+                self.preview.activateWindow()
+                self.preview.setFocus()  # <-- Add this line
             except (IndexError, TypeError) as e:
                 logger.error(f"Preview navigation error: {e}")
             finally:
-                # Clear pending actions regardless of success
                 self.pending_preview_action = None
                 self.pending_preview_page = None
 
