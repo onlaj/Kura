@@ -118,13 +118,25 @@ class AlbumsTab(QWidget):
         self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
         self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
 
-
     def create_album(self):
-        """Create a new album."""
+        """Create a new album and select it after creation."""
         name, ok = QInputDialog.getText(self, "Create Album", "Album name:")
         if ok and name:
             if self.db.create_album(name):
-                self.refresh_albums()
+                # Get the ID of the newly created album
+                albums = self.db.get_albums()
+                new_album = next((a for a in albums if a[1] == name), None)
+
+                if new_album:
+                    new_id = new_album[0]
+                    self.refresh_albums()
+
+                    # Find and select the new album
+                    for index in range(self.album_list.count()):
+                        item = self.album_list.item(index)
+                        if item.data(Qt.ItemDataRole.UserRole) == new_id:
+                            self.album_list.setCurrentItem(item)
+                            break
             else:
                 QMessageBox.warning(self, "Error", "Album name already exists")
 
