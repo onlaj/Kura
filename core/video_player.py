@@ -306,8 +306,13 @@ class VideoPlayer(QWidget):
         """Stop video playback."""
         self.media_player.stop()
 
-    def pause(self):
-        self.media_player.pause()
+    def pause(self) -> None:
+        """Attempt to pause the media playback, silently ignore any failures."""
+        try:
+            self.media_player.pause()
+        except:
+            pass
+
 
     @staticmethod
     def format_time(milliseconds):
