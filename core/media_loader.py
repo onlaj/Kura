@@ -26,7 +26,7 @@ class ThreadedMediaLoader(QObject):
         self.task_queue = Queue()
         self.result_lock = Lock()
         self.active = False
-        self.thread_count = multiprocessing.cpu_count()
+        self.thread_count = max(1, multiprocessing.cpu_count() - 1)  # Leave 1 core for UI
         self.threads = []
 
     def load_media_batch(self, media_list):
