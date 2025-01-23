@@ -1,6 +1,8 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                            QListWidget, QListWidgetItem, QInputDialog, QMessageBox, QLabel)
+                             QListWidget, QListWidgetItem, QInputDialog, QMessageBox, QLabel, QGroupBox, QGridLayout)
 from PyQt6.QtCore import pyqtSignal, Qt
+
+from core.elo import ReliabilityCalculator
 
 
 class AlbumsTab(QWidget):
@@ -22,6 +24,9 @@ class AlbumsTab(QWidget):
         self.album_list.currentItemChanged.connect(self.on_album_selected)
         layout.addWidget(self.album_list)
 
+        # Create stats group first
+        self._setup_stats_section()
+
         # Buttons layout
         button_layout = QHBoxLayout()
 
@@ -41,6 +46,66 @@ class AlbumsTab(QWidget):
         button_layout.addWidget(self.btn_delete)
 
         layout.addLayout(button_layout)
+
+    def _setup_stats_section(self):
+        """Create statistics display group."""
+        self.stats_group = QGroupBox("Album Statistics")
+        stats_layout = QGridLayout()
+
+        # Initialize all labels
+        self.lbl_total_media = QLabel("Total Media: 0")
+        self.lbl_images = QLabel("Images: 0")
+        self.lbl_gifs = QLabel("GIFs: 0")
+        self.lbl_videos = QLabel("Videos: 0")
+        self.lbl_total_size = QLabel("Total Size: 0 MB")
+        self.lbl_total_votes = QLabel("Total Votes: 0")
+        self.lbl_reliability = QLabel("Reliability: 0%")
+        self.lbl_votes_needed = QLabel("Votes to 90%: 0")
+
+        # Add to layout
+        stats_layout.addWidget(QLabel("<b>Media Counts:</b>"), 0, 0)
+        stats_layout.addWidget(self.lbl_total_media, 1, 0)
+        stats_layout.addWidget(self.lbl_images, 2, 0)
+        stats_layout.addWidget(self.lbl_gifs, 3, 0)
+        stats_layout.addWidget(self.lbl_videos, 4, 0)
+
+        stats_layout.addWidget(QLabel("<b>Storage:</b>"), 0, 1)
+        stats_layout.addWidget(self.lbl_total_size, 1, 1)
+
+        stats_layout.addWidget(QLabel("<b>Voting:</b>"), 2, 1)
+        stats_layout.addWidget(self.lbl_total_votes, 3, 1)
+        stats_layout.addWidget(self.lbl_reliability, 4, 1)
+        stats_layout.addWidget(self.lbl_votes_needed, 5, 1)
+
+        self.stats_group.setLayout(stats_layout)
+        self.layout().insertWidget(1, self.stats_group)
+
+    def _update_stats_display(self):
+        """Update statistics for currently selected album."""
+        # Get media counts
+        media_counts = self.db.get_media_type_counts(self.active_album_id)
+        total_media = sum([media_counts['image'], media_counts['gif'], media_counts['video']])
+
+        # Get votes
+        total_votes = self.db.get_total_votes(self.active_album_id)
+
+        # Calculate reliability
+        reliability = ReliabilityCalculator.calculate_reliability(total_media, total_votes)
+        target = 99 if reliability >= 90 else 90
+        votes_needed = ReliabilityCalculator.calculate_required_votes(total_media, target) - total_votes
+
+        # Format size
+        total_size_mb = media_counts['total_size'] / (1024 * 1024)
+
+        # Update labels
+        self.lbl_total_media.setText(f"Total Media: {total_media}")
+        self.lbl_images.setText(f"Images: {media_counts['image']}")
+        self.lbl_gifs.setText(f"GIFs: {media_counts['gif']}")
+        self.lbl_videos.setText(f"Videos: {media_counts['video']}")
+        self.lbl_total_size.setText(f"Total Size: {total_size_mb:.2f} MB")
+        self.lbl_total_votes.setText(f"Total Votes: {total_votes}")
+        self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
+        self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
 
     def refresh_albums(self):
         """Refresh the albums list."""
@@ -109,3 +174,13 @@ class AlbumsTab(QWidget):
             album_id = current.data(Qt.ItemDataRole.UserRole)
             self.active_album_id = album_id
             self.album_changed.emit(album_id, current.text())
+            self._update_stats_display()  # Update stats when album changes
+
+    def refresh_albums(self):
+        """Refresh the albums list."""
+        self.album_list.clear()
+        for album_id, album_name in self.db.get_albums():
+            item = QListWidgetItem(f"{album_name}")
+            item.setData(Qt.ItemDataRole.UserRole, album_id)
+            self.album_list.addItem(item)
+        self._update_stats_display()  # Refresh stats after changes

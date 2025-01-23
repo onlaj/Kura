@@ -155,6 +155,14 @@ class Database:
             # Get the file size
             file_size = os.path.getsize(normalized_path)
 
+            ext = Path(file_path).suffix.lower()
+            if ext in ['.jpg', '.jpeg', '.png', '.webp']:
+                media_type = 'image'
+            elif ext == '.gif':
+                media_type = 'gif'
+            elif ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
+                media_type = 'video'
+
             # Check if the file already exists in the database
             self.cursor.execute(
                 "SELECT id FROM media WHERE path = ? AND album_id = ?",
@@ -341,6 +349,32 @@ class Database:
         """Get the total number of media items in the database."""
         self.cursor.execute("SELECT COUNT(*) FROM media WHERE album_id = ?", (active_album_id,))
         return self.cursor.fetchone()[0]
+
+    def get_media_type_counts(self, album_id: int) -> dict:
+        """Get media type counts and total size for an album."""
+        self.cursor.execute("""
+            SELECT 
+                type,
+                COUNT(*) as count,
+                SUM(file_size) as total_size
+            FROM media 
+            WHERE album_id = ?
+            GROUP BY type
+        """, (album_id,))
+
+        result = {
+            'image': 0,
+            'gif': 0,
+            'video': 0,
+            'total_size': 0
+        }
+
+        for row in self.cursor.fetchall():
+            media_type = row[0]
+            result[media_type] = row[1]
+            result['total_size'] += row[2]
+
+        return result
 
     def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all",
                           album_id: int = 1, sort_by: str = "rating", sort_order: str = "DESC") -> Tuple[
