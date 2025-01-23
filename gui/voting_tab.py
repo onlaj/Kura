@@ -152,6 +152,8 @@ class VotingTab(QWidget):
 
         self.get_total_media_count = get_total_media_count
         self.get_total_votes = get_total_votes
+        self.total_media = 0
+        self.total_votes = 0
 
         self.setup_ui()
 
@@ -286,23 +288,36 @@ class VotingTab(QWidget):
     def set_active_album(self, album_id: int):
         """Set the active album and reload media pair."""
         self.active_album_id = album_id
+        self._refresh_counts()
         self.load_new_pair()
 
-    def update_reliability_info(self):
-        """Update reliability information display."""
-        total_media = self.get_total_media_count(self.active_album_id)
-        total_votes = self.get_total_votes(self.active_album_id)
+    def _refresh_counts(self):
+        """Refresh media and vote counts from database"""
+        self.total_media = self.get_total_media_count(self.active_album_id)
+        self.total_votes = self.get_total_votes(self.active_album_id)
+        self.update_reliability_info()
 
-        current_reliability = ReliabilityCalculator.calculate_reliability(total_media, total_votes)
-        needed_votes = ReliabilityCalculator.calculate_required_votes(total_media, 90) if total_media > 0 else 0
+    def update_reliability_info(self):
+        """Update reliability information using cached values"""
+        current_reliability = ReliabilityCalculator.calculate_reliability(
+            self.total_media, self.total_votes
+        )
+        needed_votes = ReliabilityCalculator.calculate_required_votes(
+            self.total_media, 90
+        ) if self.total_media > 0 else 0
 
         self.reliability_label.setText(f"Current Reliability: {current_reliability:.1f}%")
         self.required_votes_label.setText(
-            f"Votes to 90%: {max(0, needed_votes - total_votes)}"
-            if needed_votes > total_votes else
+            f"Votes to 90%: {max(0, needed_votes - self.total_votes)}"
+            if needed_votes > self.total_votes else
             "90% Reliability Reached!"
         )
 
+    def refresh_media_count(self):
+        """Force refresh media count from database"""
+        self.total_media = self.get_total_media_count(self.active_album_id)
+        self.total_votes = self.get_total_votes(self.active_album_id)
+        self.update_reliability_info()
 
     def show_preview(self, media_path, media_player = None):
         """Show media preview overlay"""
@@ -361,6 +376,9 @@ class VotingTab(QWidget):
 
         # Notify RankingTab that there are new votes
         self.ranking_tab.set_new_votes_flag()
+
+        # Increment local counter
+        self.total_votes += vote_count
 
         # Load new pair
         self.load_new_pair()
