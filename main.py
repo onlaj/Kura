@@ -1,6 +1,7 @@
 import logging
 import sys
 
+from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication
 
 from core.media_handler import MediaHandler
@@ -18,6 +19,15 @@ def excepthook(exc_type, exc_value, exc_tb):
     sys.exit(1)
 
 sys.excepthook = excepthook
+
+def qt_message_handler(mode, context, message):
+    if mode == QtMsgType.QtFatalMsg:
+        logging.critical(f"Fatal Qt error: {message}")
+        sys.exit(1)
+    else:
+        logging.debug(f"Qt message: {message}")
+
+qInstallMessageHandler(qt_message_handler)
 
 class Application:
     def __init__(self):
