@@ -666,7 +666,15 @@ class RankingTab(QWidget):
         """Handle load start event."""
         self.loading_overlay.set_message("Loading media items...")
 
+    def _show_empty_state(self, message):
+        """Display a message when there's no data."""
+        self.grid_layout.addWidget(QLabel(message), 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.loading_overlay.hide()
+
     def _handle_loaded_media(self, rankings, total_filtered):
+        if self.active_album_id is None:
+            self._show_empty_state("No active album selected")
+            return
         """Handle the loaded media data."""
         # Clear existing grid first
         for i in reversed(range(self.grid_layout.count())):

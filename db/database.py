@@ -111,8 +111,6 @@ class Database:
 
     def delete_album(self, album_id: int) -> bool:
         """Delete an album and all its media."""
-        if album_id == 1:  # Default album can't be deleted
-            return False
         try:
             self.conn.execute("BEGIN")
             # Delete all votes involving media from this album
@@ -126,6 +124,10 @@ class Database:
             # Delete the album
             self.cursor.execute("DELETE FROM albums WHERE id = ?", (album_id,))
             self.conn.commit()
+
+            if album_id == 1:  # Default album can't be deleted
+                self._ensure_default_album()
+
             return True
         except:
             self.conn.rollback()

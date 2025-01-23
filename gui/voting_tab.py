@@ -256,33 +256,45 @@ class VotingTab(QWidget):
 
     def load_new_pair(self):
         """Load a new pair of media items for voting."""
-        # Stop any playing media
+        # Clear existing media first
         for frame in [self.left_frame, self.right_frame]:
-            if frame.media_player:
-                frame.media_player.stop()
-            if frame.gif_movie:
-                frame.gif_movie.stop()
+            if frame.media_widget:
+                if frame.media_player:
+                    frame.media_player.stop()
+                    frame.media_player.deleteLater()
+                if frame.gif_movie:
+                    frame.gif_movie.stop()
+                    frame.gif_movie.deleteLater()
+                frame.media_widget.deleteLater()
+                frame.media_widget = None
+                frame.media_player = None
+                frame.gif_movie = None
 
-        # Get new pair from database using active album
-        media_pair = self.get_pair_callback(self.active_album_id)  # Pass album_id
-        if not media_pair or None in media_pair:
-            self.status_label.setText("Not enough media items in this album")
+        # Clear file info labels
+        self.left_frame.file_info_label.clear()
+        self.right_frame.file_info_label.clear()
+
+        if not self.active_album_id:
+            self.status_label.setText("No active album selected")
             self.disable_voting()
             self.images_loaded = False
             return
 
-        # Store new pair
+        # Get new pair from database
+        media_pair = self.get_pair_callback(self.active_album_id)
+        if not media_pair or None in media_pair:
+            self.status_label.setText("No media items in this album")
+            self.disable_voting()
+            self.images_loaded = False
+            return
+
+        # Rest of existing loading logic...
         self.current_left, self.current_right = media_pair
         self.images_loaded = True
-
-        # Load media into frames
         self.load_media_to_frame(self.left_frame, self.current_left[1])
         self.load_media_to_frame(self.right_frame, self.current_right[1])
-
-        # Enable voting and clear status
         self.enable_voting()
         self.status_label.clear()
-
         self.update_reliability_info()
 
     def set_active_album(self, album_id: int):

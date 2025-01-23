@@ -81,6 +81,17 @@ class AlbumsTab(QWidget):
         self.layout().insertWidget(1, self.stats_group)
 
     def _update_stats_display(self):
+        if self.active_album_id is None:
+            self.lbl_total_media.setText("Total Media: 0")
+            self.lbl_images.setText("Images: 0")
+            self.lbl_gifs.setText("GIFs: 0")
+            self.lbl_videos.setText("Videos: 0")
+            self.lbl_total_size.setText("Total Size: 0 MB")
+            self.lbl_total_votes.setText("Total Votes: 0")
+            self.lbl_reliability.setText("Reliability: 0%")
+            self.lbl_votes_needed.setText("Add albums to view stats")
+            return
+
         """Update statistics for currently selected album."""
         # Get media counts
         media_counts = self.db.get_media_type_counts(self.active_album_id)
@@ -151,9 +162,6 @@ class AlbumsTab(QWidget):
             return
 
         album_id = current.data(Qt.ItemDataRole.UserRole)
-        if album_id == 1:
-            QMessageBox.warning(self, "Error", "Cannot delete Default album")
-            return
 
         reply = QMessageBox.question(self, "Confirm Delete",
                                    "This will delete all media in the album. Continue?",

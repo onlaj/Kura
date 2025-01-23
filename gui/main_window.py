@@ -48,8 +48,10 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self._handle_tab_change)
 
     def on_album_changed(self, album_id: int, album_name: str):
-        """Update the album label when active album changes."""
-        self.album_label.setText(f"Album: {album_name}")
+        if album_id == -1:
+            self.album_label.setText("No active album")
+        else:
+            self.album_label.setText(f"Album: {album_name}")
 
     def _handle_tab_change(self, index):
         """Handle tab changes."""
