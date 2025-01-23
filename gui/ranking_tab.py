@@ -178,6 +178,7 @@ class MediaFrame(QFrame):
 class RankingTab(QWidget):
     def __init__(self, get_rankings_callback, media_handler, delete_callback, db):
         super().__init__()
+        self.is_refreshing = False
         self.get_rankings_callback = get_rankings_callback
         self.media_handler = media_handler
         self.delete_callback = delete_callback
@@ -628,6 +629,8 @@ class RankingTab(QWidget):
         self.refresh_rankings()
 
     def refresh_rankings(self, force_refresh=True):
+        if self.is_refreshing:
+            return  # Prevent concurrent refreshes
         """Refresh the rankings display."""
         if not hasattr(self, 'pending_preview_page') or self.current_page != self.pending_preview_page:
             self.pending_preview_action = None
@@ -639,6 +642,8 @@ class RankingTab(QWidget):
         # Show loading overlay immediately
         self.loading_overlay.set_message("Loading media data...")
         self.loading_overlay.show()
+
+        self.is_refreshing = True
 
         # Create a loading thread
         self.loading_thread = LoadingThread(self.current_page, self.per_page)
@@ -661,6 +666,7 @@ class RankingTab(QWidget):
         except Exception as e:
             logger.error(f"Error loading rankings: {e}")
             self.loading_overlay.hide()
+            self.is_refreshing = False
 
     def _on_load_started(self):
         """Handle load start event."""
@@ -752,6 +758,7 @@ class RankingTab(QWidget):
         # Reset flags and hide loading overlay
         self.new_votes_since_last_refresh = False
         self.loading_overlay.hide()
+        self.is_refreshing = False
 
         # Handle pending preview navigation after load
         if self.pending_preview_action:
