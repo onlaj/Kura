@@ -249,7 +249,8 @@ class MediaPreview(QDialog):
                 self.thumbnail_media_player.setPosition(self.video_player.position())
             if self.video_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
                 if self.thumbnail_media_player:
-                    self.thumbnail_media_player.play()
+                    QTimer.singleShot(100,
+                                      lambda: self.thumbnail_media_player.play())
             self.video_player.stop()
         if self.gif_movie:
             self.gif_movie.stop()
