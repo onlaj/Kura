@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image
@@ -117,6 +118,15 @@ class MediaHandler:
         """Initialize the media handler."""
         self.active_video_players = []
 
+    @staticmethod
+    @lru_cache(maxsize=1000)
+    def _get_aspect_ratio_cached(file_path: str) -> float:
+        try:
+            with Image.open(file_path) as img:
+                return img.width / img.height
+        except Exception:
+            return 16 / 9  # Fallback
+
     def is_valid_media(self, file_path: str) -> bool:
         """Check if the file is a valid media file."""
         path = Path(file_path)
@@ -140,11 +150,7 @@ class MediaHandler:
         ext = os.path.splitext(file_path)[1].lower()
 
         # Get aspect ratio from image
-        try:
-            with Image.open(file_path) as img:
-                aspect_ratio = img.width / img.height
-        except:
-            aspect_ratio = 16/9  # Default aspect ratio
+        aspect_ratio = self._get_aspect_ratio_cached(file_path)  # Use cached
 
         # Handle different media types
         if ext == '.gif':
