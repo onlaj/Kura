@@ -2,8 +2,9 @@ import os
 import time
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QEvent
 from PyQt6.QtGui import QMovie, QKeyEvent
+from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy)
 
@@ -155,6 +156,11 @@ class VotingTab(QWidget):
         self.total_media = 0
         self.total_votes = 0
 
+        self.single_click_timer = QTimer(self)
+        self.single_click_timer.setSingleShot(True)
+        self.single_click_timer.timeout.connect(self.handle_video_single_click)
+        self.pending_video_click = None  # Stores (media_player, media_path)
+
         self.setup_ui()
 
 
@@ -213,6 +219,38 @@ class VotingTab(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocus()  # Ensure the widget has focus when the tab is opened
 
+    def handle_video_single_click(self):
+        """Handle single click on video (play/pause)."""
+        if self.pending_video_click:
+            media_player, _ = self.pending_video_click
+            if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                media_player.pause()
+            else:
+                media_player.play()
+            self.pending_video_click = None
+
+    def eventFilter(self, obj, event):
+        """Handle video widget events: single-click (play/pause) and double-click (preview)."""
+        if event.type() == QEvent.Type.MouseButtonPress:
+            if obj.property('is_video'):
+                # Store click info and start timer
+                self.pending_video_click = (
+                    obj.property('media_player'),
+                    obj.property('media_path')
+                )
+                self.single_click_timer.start(250)  # 250ms delay
+                return True
+        elif event.type() == QEvent.Type.MouseButtonDblClick:
+            if obj.property('is_video'):
+                # Cancel single-click timer and show preview
+                self.single_click_timer.stop()
+                media_player = obj.property('media_player')
+                media_path = obj.property('media_path')
+                self.show_preview(media_path, media_player)
+                self.pending_video_click = None
+                return True
+        return super().eventFilter(obj, event)
+
     def keyPressEvent(self, event: QKeyEvent):
         """Handle keyboard voting using arrow keys."""
         if event.key() == Qt.Key.Key_Left:
@@ -245,7 +283,12 @@ class VotingTab(QWidget):
                 frame.media_widget = media[0]
                 frame.media_player = media[1]
                 frame.layout.insertWidget(0, media[0])
-                media[0].mousePressEvent = lambda e, f=frame.media_player, p=media_path: self.show_preview(p, f)
+
+                # Set properties and install event filter
+                frame.media_widget.setProperty('is_video', True)
+                frame.media_widget.setProperty('media_player', frame.media_player)
+                frame.media_widget.setProperty('media_path', media_path)
+                frame.media_widget.installEventFilter(self)
 
         # Ensure the media widget expands to fill the frame
         if frame.media_widget:
