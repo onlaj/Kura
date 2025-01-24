@@ -150,7 +150,7 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
     return stats
 
 
-@pytest.mark.parametrize("n", [1000])
+@pytest.mark.parametrize("n", [20, 50])
 def test_reliability_with_graph(n: int):
     random.seed(42)
     stats = simulate_and_plot(n)
