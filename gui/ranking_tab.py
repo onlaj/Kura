@@ -2,8 +2,9 @@ import math
 import os
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread
-from PyQt6.QtGui import QMovie, QIcon
+from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread, QEvent
+from PyQt6.QtGui import QMovie, QIcon, QKeyEvent
+from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
@@ -233,6 +234,12 @@ class RankingTab(QWidget):
         self.threaded_loader.media_loaded.connect(self._handle_loaded_media_item)
         self.threaded_loader.all_media_loaded.connect(self._on_all_media_loaded)
 
+        # Add single-click timer for video handling
+        self.single_click_timer = QTimer(self)
+        self.single_click_timer.setSingleShot(True)
+        self.single_click_timer.timeout.connect(self.handle_video_single_click)
+        self.pending_video_click = None  # Stores (media_player, media_path)
+
     def setup_ui(self):
         """Setup the UI elements"""
         layout = QVBoxLayout(self)
@@ -383,6 +390,49 @@ class RankingTab(QWidget):
         self.current_page = 1  # Reset to first page
         self.refresh_rankings()
 
+    def close_preview(self):
+        """Handle preview closing"""
+        if self.preview.isVisible():
+            self.preview.close()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handle ESC key to close preview"""
+        if event.key() == Qt.Key.Key_Escape:
+            self.close_preview()
+        else:
+            super().keyPressEvent(event)
+
+    def handle_video_single_click(self):
+        """Handle single click on video (play/pause)."""
+        if self.pending_video_click:
+            media_player, _ = self.pending_video_click
+            if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                media_player.pause()
+            else:
+                media_player.play()
+            self.pending_video_click = None
+
+    def eventFilter(self, obj, event):
+        """Handle video widget events: single-click (play/pause) and double-click (preview)."""
+        if event.type() == QEvent.Type.MouseButtonPress:
+            if obj.property('is_video'):
+                # Store click info and start timer
+                self.pending_video_click = (
+                    obj.property('media_player'),
+                    obj.property('media_path')
+                )
+                self.single_click_timer.start(250)  # 250ms delay
+                return True
+        elif event.type() == QEvent.Type.MouseButtonDblClick:
+            if obj.property('is_video'):
+                # Cancel single-click timer and show preview
+                self.single_click_timer.stop()
+                media_player = obj.property('media_player')
+                media_path = obj.property('media_path')
+                self.show_preview(media_path, media_player)
+                self.pending_video_click = None
+                return True
+        return super().eventFilter(obj, event)
 
     def create_image_frame(self, rank, id, path, rating, votes, index, pre_loaded_widget=None):
         frame = MediaFrame()
@@ -401,7 +451,10 @@ class RankingTab(QWidget):
                 widget.mousePressEvent = lambda e, p=path: self.show_preview(p)
             else:  # Video
                 frame.video_player = player
-                widget.mousePressEvent = lambda e, f=frame.video_player, p=path: self.show_preview(p, f)
+                widget.setProperty('is_video', True)
+                widget.setProperty('media_player', frame.video_player)
+                widget.setProperty('media_path', path)
+                widget.installEventFilter(self)
 
         # Set file info
         file_name = os.path.basename(path)
@@ -565,7 +618,15 @@ class RankingTab(QWidget):
             if isinstance(media[1], QMovie):  # GIF
                 self.preview.show_media(media[0], gif_movie=media[1], enable_navigation=True, media_path=media_path)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1], enable_navigation=True, media_path=media_path, thumbnail_media_player=media_player)
+                self.preview.show_media(
+                    media[0],
+                    video_player=media[1],
+                    enable_navigation=True,
+                    media_path=media_path,
+                    thumbnail_media_player=media_player
+                )
+                # Add event filter to video preview
+                media[0].installEventFilter(self.preview)
 
         # Set up navigation callbacks
         self.preview.set_navigation_callbacks(
