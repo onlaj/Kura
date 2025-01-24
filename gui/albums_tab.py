@@ -103,7 +103,7 @@ class AlbumsTab(QWidget):
 
         # Calculate reliability
         reliability = ReliabilityCalculator.calculate_reliability(total_media, total_votes)
-        target = 99 if reliability >= 90 else 90
+        target = 94 if reliability >= 85 else 85
         votes_needed = ReliabilityCalculator.calculate_required_votes(total_media, target) - total_votes
 
         # Format size

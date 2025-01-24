@@ -319,10 +319,10 @@ class VotingTab(QWidget):
                 self.total_media, self.total_votes
             )
             # Determine next target based on current reliability
-            if current_reliability < 90:
-                target = 90
-            elif current_reliability < 99:
-                target = 99
+            if current_reliability < 85:
+                target = 85
+            elif current_reliability < 94:
+                target = 94
             else:
                 target = None
 
@@ -339,7 +339,7 @@ class VotingTab(QWidget):
             if self.total_media == 0:
                 votes_text = "Add media to calculate reliability"
             else:
-                votes_text = "Maximum Reliability (99%) Reached!"
+                votes_text = "Maximum Reliability (94%) Reached!"
 
         self.reliability_label.setText(reliability_text)
         self.required_votes_label.setText(votes_text)
