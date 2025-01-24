@@ -8,7 +8,7 @@ from PyQt6.QtGui import QPixmap, QMovie
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
 from core.video_player import VideoPlayer
-from gui.voting_tab import AspectRatioWidget
+from core.media_utils import AspectRatioWidget
 
 import logging
 

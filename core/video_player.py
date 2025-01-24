@@ -8,7 +8,7 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QSlider, QStyle, QSizePolicy, QLabel)
 
-from gui.voting_tab import AspectRatioWidget
+from core.media_utils import AspectRatioWidget
 
 
 import logging

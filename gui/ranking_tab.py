@@ -13,7 +13,7 @@ from core.media_loader import ThreadedMediaLoader
 from core.media_utils import set_file_info
 from core.preview_handler import MediaPreview
 from gui.loading_overlay import LoadingOverlay
-from gui.voting_tab import AspectRatioWidget
+from core.media_utils import AspectRatioWidget
 import logging
 
 logger = logging.getLogger(__name__)

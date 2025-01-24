@@ -2,7 +2,36 @@
 import os
 from datetime import datetime
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy
 
+
+class AspectRatioWidget(QWidget):
+    def __init__(self, widget, aspect_ratio=16/9, parent=None):
+        super().__init__(parent)
+        self.aspect_ratio = aspect_ratio
+        self.setLayout(QVBoxLayout())
+        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.layout().addWidget(widget)
+
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def resizeEvent(self, event):
+        width = self.width()
+        height = self.height()
+        target_aspect = self.aspect_ratio
+        current_aspect = width / height if height != 0 else 1
+
+        if current_aspect > target_aspect:
+            new_width = int(height * target_aspect)
+            offset = (width - new_width) // 2
+            self.layout().setContentsMargins(offset, 0, offset, 0)
+        else:
+            new_height = int(width / target_aspect)
+            offset = (height - new_height) // 2
+            self.layout().setContentsMargins(0, offset, 0, offset)
+
+        super().resizeEvent(event)
 
 def set_file_info(file_path, info_label, elide=False, max_width=150):
     """Set file information in the given label, optionally eliding the file name."""

@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from core.elo import Rating, ReliabilityCalculator
 from core.media_utils import set_file_info
 from core.preview_handler import MediaPreview
+from core.media_utils import AspectRatioWidget
 
 
 class MediaFrame(QFrame):
@@ -71,41 +72,6 @@ class MediaFrame(QFrame):
             self.vote_button.setText("Vote")
             self.double_vote_button.setStyleSheet("")
             self.double_vote_button.setText("Double Vote")
-
-
-class AspectRatioWidget(QWidget):
-    def __init__(self, widget, aspect_ratio=16 / 9, parent=None):
-        super().__init__(parent)
-        self.aspect_ratio = aspect_ratio
-        self.setLayout(QVBoxLayout())
-        self.layout().setContentsMargins(0, 0, 0, 0)
-        self.layout().addWidget(widget)
-
-        # The contained widget should expand in both directions
-        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-        # This widget should expand in both directions
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-    def resizeEvent(self, event):
-        width = self.width()
-        height = self.height()
-
-        target_aspect = self.aspect_ratio
-        current_aspect = width / height if height != 0 else 1
-
-        if current_aspect > target_aspect:
-            # Too wide - constrain width
-            new_width = int(height * target_aspect)
-            offset = (width - new_width) // 2
-            self.layout().setContentsMargins(offset, 0, offset, 0)
-        else:
-            # Too tall - constrain height
-            new_height = int(width / target_aspect)
-            offset = (height - new_height) // 2
-            self.layout().setContentsMargins(0, offset, 0, offset)
-
-        super().resizeEvent(event)
 
 
 class VotingTab(QWidget):
