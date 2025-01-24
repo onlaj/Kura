@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy)
 
 from core.elo import Rating, ReliabilityCalculator
+from core.media_utils import set_file_info
 from core.preview_handler import MediaPreview
 
 
@@ -56,29 +57,7 @@ class MediaFrame(QFrame):
         self.setMinimumSize(400, 400)  # Set a minimum size for the media container
 
     def set_file_info(self, file_path):
-        """Set the file information (name, size, modification date) in the label."""
-        if not os.path.exists(file_path):
-            self.file_info_label.setText("File not found: " + file_path)
-            return
-
-        # Get file name
-        file_name = os.path.basename(file_path)
-
-        # Get file size in KB/MB
-        file_size = os.path.getsize(file_path)
-        if file_size < 1024:
-            file_size_str = f"{file_size} B"
-        elif file_size < 1024 * 1024:
-            file_size_str = f"{file_size / 1024:.1f} KB"
-        else:
-            file_size_str = f"{file_size / (1024 * 1024):.1f} MB"
-
-        # Get modification date
-        mod_time = os.path.getmtime(file_path)
-        mod_date = datetime.fromtimestamp(mod_time).strftime("%Y-%m-%d %H:%M:%S")
-
-        # Set the label text
-        self.file_info_label.setText(f"{file_name} \n {file_size_str} | {mod_date}")
+        set_file_info(file_path, self.file_info_label)
 
     def set_cooldown_style(self, on_cooldown):
         """Set the button style when on cooldown."""
