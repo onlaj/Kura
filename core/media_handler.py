@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image
-from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QMovie
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
@@ -150,7 +150,7 @@ class MediaHandler:
         else:
             return 'unknown'
 
-    def load_media(self, file_path: str, target_size=None):
+    def load_media(self, file_path: str):
         """Load media file and return appropriate widget."""
         ext = os.path.splitext(file_path)[1].lower()
 

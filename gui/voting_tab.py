@@ -1,6 +1,4 @@
-import os
 import time
-from datetime import datetime
 
 from PyQt6.QtCore import Qt, QTimer, QEvent
 from PyQt6.QtGui import QMovie, QKeyEvent

@@ -1,14 +1,11 @@
 import math
 import os
-from datetime import datetime
-
 from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread, QEvent
 from PyQt6.QtGui import QMovie, QIcon, QKeyEvent
 from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
-
 from core.media_loader import ThreadedMediaLoader
 from core.media_utils import set_file_info
 from core.preview_handler import MediaPreview
@@ -17,7 +14,6 @@ from core.media_utils import AspectRatioWidget
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 class MediaLoader(QObject):
     """Helper class to handle media loading operations in the main thread."""
@@ -153,6 +149,7 @@ class MediaFrame(QFrame):
             self.gif_movie.setFileName("")  # Clear the file name
 
 
+# noinspection PyUnresolvedReferences
 class RankingTab(QWidget):
     def __init__(self, get_rankings_callback, media_handler, delete_callback, db):
         super().__init__()

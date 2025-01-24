@@ -1,5 +1,4 @@
 from functools import lru_cache
-
 import cv2
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor
@@ -9,12 +8,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QSlider, QStyle, QSizePolicy, QLabel)
 
 from core.media_utils import AspectRatioWidget
-
-
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 class ClickableSlider(QSlider):
     def __init__(self, orientation, parent=None):

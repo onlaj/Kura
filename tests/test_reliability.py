@@ -1,8 +1,8 @@
-import pytest
 import random
-import math
-import matplotlib.pyplot as plt
 from typing import List, Tuple
+import matplotlib.pyplot as plt
+import pytest
+
 from core.elo import ReliabilityCalculator, Rating
 
 
@@ -83,8 +83,8 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
                 current_diff = calc - real
                 if previous_diff is not None:
                     # Check if signs changed (crossing occurred)
-                    if (previous_diff < 0 and current_diff >= 0) or \
-                            (previous_diff > 0 and current_diff <= 0):
+                    if (previous_diff < 0 <= current_diff) or \
+                            (previous_diff > 0 >= current_diff):
                         # Linear interpolation to estimate crossing point
                         x0, y0_real = votes_data[-1], real_reliability[-1]
                         x1, y1_real = total_votes, real
