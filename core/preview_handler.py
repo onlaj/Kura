@@ -147,6 +147,12 @@ class MediaPreview(QDialog):
         # Store the last known position of the main window
         self.last_window_position = None
 
+        self.is_video_preview = False
+        self.single_click_timer = QTimer(self)
+        self.single_click_timer.setSingleShot(True)
+        self.single_click_timer.timeout.connect(self.handle_video_click)
+        self.pending_video_click = False
+
     def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False,
                    media_path=None, thumbnail_media_player=None):
         """Show media in the preview dialog"""
@@ -155,6 +161,12 @@ class MediaPreview(QDialog):
             if self.video_player:
                 self.video_player.stop()
             self.current_media.setParent(None)
+
+        if video_player:
+            self.is_video_preview = True
+            media_widget.installEventFilter(self)
+        else:
+            self.is_video_preview = False
 
         self.current_media = media_widget
         self.video_player = video_player
@@ -199,9 +211,19 @@ class MediaPreview(QDialog):
 
     def handle_click(self, event):
         """Handle click events on the preview"""
-        clicked_widget = self.childAt(event.position().toPoint())
-        if clicked_widget not in [self.prev_button, self.next_button]:
-            self.close()
+        if not self.is_video_preview:
+            clicked_widget = self.childAt(event.position().toPoint())
+            if clicked_widget not in [self.prev_button, self.next_button]:
+                self.close()
+
+    def handle_video_click(self):
+        """Handle single click on video preview (play/pause)"""
+        if self.pending_video_click and self.video_player:
+            if self.video_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                self.video_player.pause()
+            else:
+                self.video_player.play()
+        self.pending_video_click = False
 
     def open_in_system_app(self):
         """Open the current media file in the system's default application"""
@@ -254,6 +276,9 @@ class MediaPreview(QDialog):
             self.video_player.stop()
         if self.gif_movie:
             self.gif_movie.stop()
+
+        self.single_click_timer.stop()
+        self.pending_video_click = False
         super().close()
 
     def resizeEvent(self, event):
@@ -275,11 +300,17 @@ class MediaPreview(QDialog):
         super().showEvent(event)
 
     def eventFilter(self, obj, event):
-        """Event filter to detect main window resize events"""
-        if event.type() == QEvent.Type.Resize:  # Resize event (code 14)
-            # Update the preview window's geometry to match the main window
-            main_rect = self.parent().window().geometry()
-            self.setGeometry(main_rect)
+        """Handle video preview interactions"""
+        if self.is_video_preview:
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self.pending_video_click = True
+                self.single_click_timer.start(250)  # 250ms threshold for double-click
+                return True
+            elif event.type() == QEvent.Type.MouseButtonDblClick:
+                self.single_click_timer.stop()
+                self.pending_video_click = False
+                self.close()
+                return True
         return super().eventFilter(obj, event)
 
     def check_window_position(self):
