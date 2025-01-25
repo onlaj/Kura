@@ -1,8 +1,10 @@
+import os
 import sqlite3
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QInputDialog,
-                             QMessageBox, QLabel, QGroupBox, QGridLayout, QHeaderView, QComboBox, QFileDialog)
+                             QMessageBox, QLabel, QGroupBox, QGridLayout, QHeaderView, QComboBox, QFileDialog,
+                             QProgressDialog)
 from PyQt6.QtCore import pyqtSignal, Qt, QSortFilterProxyModel, QSize
 import math
 
@@ -66,10 +68,15 @@ class AlbumsTab(QWidget):
         self.btn_delete = QPushButton("Delete Album")
         self.btn_export = QPushButton("Export Album")
         self.btn_import = QPushButton("Import Album")
+        self.btn_relocate = QPushButton("Relocate Missing Files")
 
         button_layout.addWidget(self.btn_create)
         button_layout.addWidget(self.btn_rename)
         button_layout.addWidget(self.btn_delete)
+        button_layout.addWidget(self.btn_relocate)
+        self.btn_relocate.setToolTip(
+            "Locate missing media files by searching for matching filenames and file sizes in a directory of your choice"
+        )
         button_layout.addWidget(self.btn_export)
         button_layout.addWidget(self.btn_import)
 
@@ -84,6 +91,7 @@ class AlbumsTab(QWidget):
         self.btn_delete.clicked.connect(self.delete_album)
         self.btn_export.clicked.connect(self.export_album)
         self.btn_import.clicked.connect(self.import_album)
+        self.btn_relocate.clicked.connect(self.relocate_missing_files)
         self.album_table.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.items_per_page.currentTextChanged.connect(self.change_items_per_page)
         self.first_page_btn.clicked.connect(self.go_to_first_page)
@@ -307,6 +315,78 @@ class AlbumsTab(QWidget):
         self.lbl_total_votes.setText(f"Total Votes: {total_votes}")
         self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
         self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
+
+
+    def relocate_missing_files(self):
+        """Handle the file relocation process."""
+        missing = self.db.find_missing_media()
+        if not missing:
+            QMessageBox.information(self, "Info", "No missing files found")
+            return
+
+        # Get search directory
+        search_dir = QFileDialog.getExistingDirectory(
+            self, "Select Search Directory"
+        )
+        if not search_dir:
+            return
+
+        # Search for matches
+        total_fixed = 0
+        progress = QProgressDialog(
+            "Relocating files...",
+            "Cancel",
+            0,
+            len(missing),
+            self
+        )
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+
+        for i, media in enumerate(missing):
+            progress.setValue(i)
+            if progress.wasCanceled():
+                break
+
+            matches = []
+            target_name = media['filename']
+            target_size = media['file_size']
+
+            # Recursive search
+            for root, _, files in os.walk(search_dir):
+                for file in files:
+                    if file == target_name:
+                        full_path = os.path.join(root, file)
+                        try:
+                            if os.path.getsize(full_path) == target_size:
+                                matches.append(full_path)
+                        except OSError:
+                            continue
+
+            # Handle matches
+            if matches:
+                if len(matches) == 1:
+                    new_path = matches[0]
+                else:
+                    # Let user choose from multiple matches
+                    item, ok = QInputDialog.getItem(
+                        self,
+                        "Select File",
+                        f"Multiple matches found for {target_name}:",
+                        matches,
+                        0, False
+                    )
+                    new_path = item if ok else None
+
+                if new_path and self.db.update_media_path(media['id'], new_path):
+                    total_fixed += 1
+
+        progress.close()
+        QMessageBox.information(
+            self,
+            "Process Complete",
+            f"Updated paths for {total_fixed}/{len(missing)} missing files"
+        )
+        self.album_changed.emit(self.active_album_id, "")  # Refresh UI
 
     def export_album(self):
         selected = self.album_table.selectedItems()

@@ -400,6 +400,34 @@ class Database:
 
         return result
 
+    def find_missing_media(self) -> List[dict]:
+        """Find media entries where the file doesn't exist."""
+        self.cursor.execute("SELECT id, path, file_size FROM media")
+        missing = []
+        for media_id, path, file_size in self.cursor.fetchall():
+            if not os.path.exists(path):
+                missing.append({
+                    'id': media_id,
+                    'original_path': path,
+                    'filename': os.path.basename(path),
+                    'file_size': file_size
+                })
+        return missing
+
+    def update_media_path(self, media_id: int, new_path: str) -> bool:
+        """Update a media file's path."""
+        try:
+            normalized_path = str(Path(new_path).resolve())
+            self.cursor.execute(
+                "UPDATE media SET path = ? WHERE id = ?",
+                (normalized_path, media_id)
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error updating path: {e}")
+            return False
+
     def get_albums_page(self, page: int, per_page: int, sort_by: str = "name", sort_order: str = "ASC") -> Tuple[
         List[tuple], int]:
         valid_columns = {"id", "name", "total_media", "created_at"}
