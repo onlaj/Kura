@@ -62,7 +62,8 @@ class AlbumsTab(QWidget):
         control_layout.addStretch()
 
         # Buttons
-        button_layout = QHBoxLayout()
+        button_layout_top = QHBoxLayout()
+        button_layout_bottom = QHBoxLayout()
         self.btn_create = QPushButton("Create Album")
         self.btn_rename = QPushButton("Rename Album")
         self.btn_delete = QPushButton("Delete Album")
@@ -70,20 +71,21 @@ class AlbumsTab(QWidget):
         self.btn_import = QPushButton("Import Album")
         self.btn_relocate = QPushButton("Relocate Missing Files")
 
-        button_layout.addWidget(self.btn_create)
-        button_layout.addWidget(self.btn_rename)
-        button_layout.addWidget(self.btn_delete)
-        button_layout.addWidget(self.btn_relocate)
+        button_layout_top.addWidget(self.btn_create)
+        button_layout_top.addWidget(self.btn_rename)
+        button_layout_top.addWidget(self.btn_delete)
+        button_layout_bottom.addWidget(self.btn_relocate)
         self.btn_relocate.setToolTip(
             "Locate missing media files by searching for matching filenames and file sizes in a directory of your choice"
         )
-        button_layout.addWidget(self.btn_export)
-        button_layout.addWidget(self.btn_import)
+        button_layout_bottom.addWidget(self.btn_export)
+        button_layout_bottom.addWidget(self.btn_import)
 
 
 
         layout.addLayout(control_layout)
-        layout.addLayout(button_layout)
+        layout.addLayout(button_layout_top)
+        layout.addLayout(button_layout_bottom)
 
         # Signals
         self.btn_create.clicked.connect(self.create_album)
