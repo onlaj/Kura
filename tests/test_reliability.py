@@ -34,6 +34,33 @@ def compute_real_reliability(original_order: List[Media], current_order: List[Me
     return (correct / total) * 100 if total > 0 else 0.0
 
 
+# def compute_real_reliability(original_order: List[Media], current_order: List[Media]) -> float:
+#     """
+#     Calculate reliability based on how close media are to their objective positions.
+#
+#     Args:
+#         original_order: List of media sorted by objective score (descending).
+#         current_order: List of media sorted by ELO rating (descending).
+#
+#     Returns:
+#         Average percentage of positional accuracy across all media.
+#     """
+#     n = len(current_order)
+#     if n <= 1:
+#         return 100.0  # Single item is perfectly placed
+#
+#     total_percent = 0.0
+#     max_distance = n - 1  # Maximum possible position difference
+#
+#     for current_pos, media in enumerate(current_order):
+#         # Correct position is determined by the media's objective score ranking
+#         correct_pos = media.id  # Media IDs correspond to their objective rankings
+#         distance = abs(current_pos - correct_pos)
+#         individual_percent = 100.0 * (1.0 - distance / max_distance)
+#         total_percent += individual_percent
+#
+#     return total_percent / n
+
 def simulate_and_plot(n: int) -> Tuple[dict, str]:
     """Run simulation and generate comparison plot"""
     # Setup media
