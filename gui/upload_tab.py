@@ -12,6 +12,7 @@ class UploadTab(QWidget):
 
     def setup_ui(self):
         """Set up the upload interface."""
+        self.setAcceptDrops(True)
         layout = QVBoxLayout(self)
 
         # Create button layout
@@ -61,6 +62,53 @@ class UploadTab(QWidget):
         self.log_text.setReadOnly(True)
         layout.addWidget(self.log_text)
 
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        paths = [url.toLocalFile() for url in urls]
+
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.mov', '.mkv', '.webp', '.webm'}
+        all_files = []
+
+        for path in paths:
+            file_path = Path(path)
+            if file_path.is_file():
+                ext = file_path.suffix.lower()
+                if ext in allowed_exts:
+                    all_files.append(file_path)
+                else:
+                    self.log_text.append(f"Skipped (unsupported type): {file_path}")
+            elif file_path.is_dir():
+                extensions = self._get_selected_extensions()
+                media_files = self._collect_media_files_from_folder(str(file_path), extensions)
+                all_files.extend(media_files)
+
+        self.process_files(all_files)
+
+    # Helper methods extracted from add_folder
+    def _get_selected_extensions(self):
+        extensions = []
+        if self.images_checkbox.isChecked():
+            extensions.extend(['.jpg', '.jpeg', '.png', '.webp'])
+        if self.gifs_checkbox.isChecked():
+            extensions.append('.gif')
+        if self.videos_checkbox.isChecked():
+            extensions.extend(['.mp4', '.avi', '.mov', '.mkv', '.webm'])
+        return extensions
+
+    def _collect_media_files_from_folder(self, folder, extensions):
+        media_files = []
+        if self.recursive_checkbox.isChecked():
+            for ext in extensions:
+                media_files.extend(Path(folder).glob(f"**/*{ext}"))
+        else:
+            for ext in extensions:
+                media_files.extend(Path(folder).glob(f"*{ext}"))
+        return media_files
+
     def add_files(self):
         """Handle adding individual files."""
         file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.avi *.mov *.mkv *.webp *.webm)"
@@ -82,23 +130,11 @@ class UploadTab(QWidget):
         )
 
         if folder:
-            extensions = []
-            if self.images_checkbox.isChecked():
-                extensions.extend(['.jpg', '.jpeg', '.png', '.webp'])
-            if self.gifs_checkbox.isChecked():
-                extensions.append('.gif')
-            if self.videos_checkbox.isChecked():
-                extensions.extend(['.mp4', '.avi', '.mov', '.mkv', '.webm'])
-
-            media_files = []
-            if self.recursive_checkbox.isChecked():
-                for ext in extensions:
-                    media_files.extend(Path(folder).glob(f"**/*{ext}"))
-            else:
-                for ext in extensions:
-                    media_files.extend(Path(folder).glob(f"*{ext}"))
-
+            extensions = self._get_selected_extensions()
+            media_files = self._collect_media_files_from_folder(folder, extensions)
             self.process_files(media_files)
+
+        self.process_files(media_files)
 
     def process_files(self, files):
         """Process the selected files and add them to the database."""
