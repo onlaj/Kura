@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 
 from core.media_utils import AspectRatioWidget
 import logging
+from utils.config import DEFAULT_VOLUME
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,7 @@ class ClickInterceptWidget(QWidget):
 
 
 class VideoPlayer(QWidget):
+    default_volume = DEFAULT_VOLUME
 
     @staticmethod
     @lru_cache(maxsize=200)
@@ -187,7 +190,7 @@ class VideoPlayer(QWidget):
         # Volume slider (using the new ClickableSlider)
         self.volume_slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(70)
+        self.volume_slider.setValue(DEFAULT_VOLUME)
         self.volume_slider.setMaximumWidth(100)
         self.volume_slider.setMinimumHeight(20)
         self.volume_slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
@@ -216,7 +219,7 @@ class VideoPlayer(QWidget):
         self.media_player.durationChanged.connect(self.duration_changed)
 
         # Set initial volume
-        self.set_volume(70)
+        self.set_volume(DEFAULT_VOLUME)
 
 
     def set_source(self, path):
@@ -302,6 +305,8 @@ class VideoPlayer(QWidget):
         if self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.media_player.pause()
         else:
+            self.set_volume(DEFAULT_VOLUME)
+            self.volume_slider.setValue(DEFAULT_VOLUME)
             self.media_player.play()
 
     def update_play_button(self, state):
@@ -330,8 +335,10 @@ class VideoPlayer(QWidget):
         self.media_player.setPosition(position)
 
     def set_volume(self, volume):
-        """Set audio volume."""
+        """Set audio volume and update global default."""
         self.audio_output.setVolume(volume / 100.0)
+        global DEFAULT_VOLUME
+        DEFAULT_VOLUME = volume
 
     def stop(self):
         """Stop video playback."""

@@ -1,6 +1,7 @@
 # utils/config.py
 import logging
 
+DEFAULT_VOLUME = 50
 # Logging levels
 LOG_LEVEL = logging.INFO  # Default logging level
 
