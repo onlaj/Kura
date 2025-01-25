@@ -258,9 +258,7 @@ class VideoPlayer(QWidget):
         if state == QMediaPlayer.PlaybackState.PlayingState:
             self.thumbnail_label.hide()
             self.video_widget.show()  # Show video widget when playing
-        else:
-            self.video_widget.hide()  # Hide video widget when paused/stopped
-            self.thumbnail_label.show()
+
 
     def play_pause(self):
         """Toggle play/pause state."""
