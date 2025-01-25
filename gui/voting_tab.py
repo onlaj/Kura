@@ -1,8 +1,7 @@
 import time
 
-from PyQt6.QtCore import Qt, QTimer, QEvent
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QMovie, QKeyEvent
-from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy)
 

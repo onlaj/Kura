@@ -2,7 +2,6 @@ import math
 import os
 from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread, QEvent
 from PyQt6.QtGui import QMovie, QIcon, QKeyEvent
-from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
