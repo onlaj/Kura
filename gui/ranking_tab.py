@@ -219,6 +219,7 @@ class RankingTab(QWidget):
 
         # Control panel
         control_panel = QHBoxLayout()
+        control_panel_2 = QHBoxLayout()
 
         # Column selector
         control_panel.addWidget(QLabel("Columns:"))
@@ -279,25 +280,25 @@ class RankingTab(QWidget):
         self.first_page_button = QPushButton("<<")
         self.first_page_button.clicked.connect(self.go_to_first_page)
         self.first_page_button.setEnabled(False)
-        control_panel.addWidget(self.first_page_button)
+        control_panel_2.addWidget(self.first_page_button)
 
         # Previous button
         self.prev_button = QPushButton("Previous")
         self.prev_button.clicked.connect(self.prev_page)
         self.prev_button.setEnabled(False)
-        control_panel.addWidget(self.prev_button)
+        control_panel_2.addWidget(self.prev_button)
 
         # Next button
         self.next_button = QPushButton("Next")
         self.next_button.clicked.connect(self.next_page)
         self.next_button.setEnabled(False)
-        control_panel.addWidget(self.next_button)
+        control_panel_2.addWidget(self.next_button)
 
         # Last page button (>>)
         self.last_page_button = QPushButton(">>")
         self.last_page_button.clicked.connect(self.go_to_last_page)
         self.last_page_button.setEnabled(False)
-        control_panel.addWidget(self.last_page_button)
+        control_panel_2.addWidget(self.last_page_button)
 
         # Trash bin button
         self.trash_button = QPushButton()
@@ -305,21 +306,25 @@ class RankingTab(QWidget):
         self.trash_button.setToolTip("Delete selected items")
         self.trash_button.clicked.connect(self.delete_selected_items)
         self.trash_button.hide()
-        control_panel.addWidget(self.trash_button)
+        control_panel_2.addWidget(self.trash_button)
 
         # Uncheck button
         self.uncheck_button = QPushButton("Uncheck All")
         self.uncheck_button.clicked.connect(self.uncheck_all)
         self.uncheck_button.hide()
-        control_panel.addWidget(self.uncheck_button)
+        control_panel_2.addWidget(self.uncheck_button)
 
         # Select All button (always visible)
         self.select_all_button = QPushButton("Select All")
+        self.select_all_button.setToolTip(
+            "Select all items on current page"
+        )
         self.select_all_button.clicked.connect(self.select_all)
-        control_panel.addWidget(self.select_all_button)
+        control_panel_2.addWidget(self.select_all_button)
 
         control_panel.addStretch()
         layout.addLayout(control_panel)
+        layout.addLayout(control_panel_2)
 
         # Scroll area for images
         scroll_area = QScrollArea()
