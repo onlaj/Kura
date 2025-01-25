@@ -376,16 +376,6 @@ class RankingTab(QWidget):
         else:
             super().keyPressEvent(event)
 
-    def handle_video_single_click(self):
-        """Handle single click on video (play/pause)."""
-        if self.pending_video_click:
-            media_player, _ = self.pending_video_click
-            if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-                media_player.pause()
-            else:
-                media_player.play()
-            self.pending_video_click = None
-
     def eventFilter(self, obj, event):
         """Handle video widget events using shared utility."""
         handled = handle_video_events(

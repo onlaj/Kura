@@ -162,15 +162,7 @@ class VotingTab(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocus()  # Ensure the widget has focus when the tab is opened
 
-    def handle_video_single_click(self):
-        """Handle single click on video (play/pause)."""
-        if self.pending_video_click:
-            media_player, _ = self.pending_video_click
-            if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-                media_player.pause()
-            else:
-                media_player.play()
-            self.pending_video_click = None
+
 
     def eventFilter(self, obj, event):
         """Handle video widget events using shared utility."""
