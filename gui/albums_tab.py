@@ -1,6 +1,8 @@
+import sqlite3
+
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QInputDialog,
-                             QMessageBox, QLabel, QGroupBox, QGridLayout, QHeaderView, QComboBox)
+                             QMessageBox, QLabel, QGroupBox, QGridLayout, QHeaderView, QComboBox, QFileDialog)
 from PyQt6.QtCore import pyqtSignal, Qt, QSortFilterProxyModel, QSize
 import math
 
@@ -62,9 +64,16 @@ class AlbumsTab(QWidget):
         self.btn_create = QPushButton("Create Album")
         self.btn_rename = QPushButton("Rename Album")
         self.btn_delete = QPushButton("Delete Album")
+        self.btn_export = QPushButton("Export Album")
+        self.btn_import = QPushButton("Import Album")
+
         button_layout.addWidget(self.btn_create)
         button_layout.addWidget(self.btn_rename)
         button_layout.addWidget(self.btn_delete)
+        button_layout.addWidget(self.btn_export)
+        button_layout.addWidget(self.btn_import)
+
+
 
         layout.addLayout(control_layout)
         layout.addLayout(button_layout)
@@ -73,6 +82,8 @@ class AlbumsTab(QWidget):
         self.btn_create.clicked.connect(self.create_album)
         self.btn_rename.clicked.connect(self.rename_album)
         self.btn_delete.clicked.connect(self.delete_album)
+        self.btn_export.clicked.connect(self.export_album)
+        self.btn_import.clicked.connect(self.import_album)
         self.album_table.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.items_per_page.currentTextChanged.connect(self.change_items_per_page)
         self.first_page_btn.clicked.connect(self.go_to_first_page)
@@ -295,3 +306,66 @@ class AlbumsTab(QWidget):
         self.lbl_total_votes.setText(f"Total Votes: {total_votes}")
         self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
         self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
+
+    def export_album(self):
+        selected = self.album_table.selectedItems()
+        if not selected:
+            QMessageBox.warning(self, "Error", "Please select an album to export.")
+            return
+
+        row = selected[0].row()
+        album_id = self.album_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        album_name = self.album_table.item(row, 0).text()
+
+        # Get export path
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Album", f"{album_name}.db", "Database Files (*.db)"
+        )
+        if not file_path:
+            return
+
+        # Perform export
+        try:
+            from core.album_io import export_album
+            export_album(self.db, album_id, file_path)
+            QMessageBox.information(self, "Success", "Album exported successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
+
+    def import_album(self):
+        # Get import file
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Import Album", "", "Database Files (*.db)"
+        )
+        if not file_path:
+            return
+
+        # Check album name conflict
+        backup_conn = sqlite3.connect(file_path)
+        backup_cursor = backup_conn.cursor()
+        backup_cursor.execute("SELECT name FROM albums")
+        backup_name = backup_cursor.fetchone()[0]
+        backup_conn.close()
+
+        new_name = backup_name
+        existing = self.db.cursor.execute(
+            "SELECT id FROM albums WHERE name = ?",
+            (backup_name,)
+        ).fetchone()
+        if existing:
+            new_name, ok = QInputDialog.getText(
+                self, "Rename Album",
+                "This album already exists. Enter a new name:",
+                text=f"{backup_name} (Imported)"
+            )
+            if not ok or not new_name:
+                return
+
+        # Perform import
+        from core.album_io import import_album
+        success, message = import_album(self.db, file_path, new_name)
+        if success:
+            self.refresh_albums()
+            QMessageBox.information(self, "Success", message)
+        else:
+            QMessageBox.warning(self, "Error", message)

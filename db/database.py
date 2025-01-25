@@ -90,11 +90,20 @@ class Database:
         """)
         self.conn.commit()
 
-    def create_album(self, name: str) -> int:
+    def create_album(self, name: str, created_at: str = None) -> int:
         try:
-            self.cursor.execute("INSERT INTO albums (name) VALUES (?)", (name,))
+            if created_at:
+                self.cursor.execute(
+                    "INSERT INTO albums (name, created_at) VALUES (?, ?)",
+                    (name, created_at)
+                )
+            else:
+                self.cursor.execute(
+                    "INSERT INTO albums (name) VALUES (?)",
+                    (name,)
+                )
             self.conn.commit()
-            return self.cursor.lastrowid  # Return new ID
+            return self.cursor.lastrowid
         except sqlite3.IntegrityError:
             return None
 
