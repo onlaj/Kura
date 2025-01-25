@@ -49,7 +49,7 @@ class Application:
         self.media_handler = MediaHandler()
 
         # Create main window
-        self.main_window = MainWindow()
+        self.main_window = MainWindow(self.media_handler)
 
         self.active_album_id = 1  # Default album
 

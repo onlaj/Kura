@@ -3,7 +3,7 @@ from PyQt6.QtCore import Qt
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, media_handler):
         super().__init__()
         self.setWindowTitle("Rankify")
         self.resize(1280, 800)
@@ -28,6 +28,8 @@ class MainWindow(QMainWindow):
         self.tab_voting = None
         self.tab_upload = None
         self.tab_ranking = None
+
+        self.media_handler = media_handler
 
     def setup_tabs(self, albums_tab, voting_tab, upload_tab, ranking_tab):
         """Set up the application tabs."""
@@ -60,3 +62,5 @@ class MainWindow(QMainWindow):
             self.tab_voting.ensure_images_loaded()
         elif tab_name == "Ranking":
             self.tab_ranking.refresh_rankings(force_refresh=False)
+
+        self.media_handler.pause_all_videos()
