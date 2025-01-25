@@ -1,7 +1,7 @@
 from functools import lru_cache
 import cv2
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QPainterPath
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -233,15 +233,46 @@ class VideoPlayer(QWidget):
         self.media_player.playbackStateChanged.connect(self.hide_thumbnail_on_play)
 
     def extract_and_display_thumbnail(self, path):
-        """Display cached thumbnail with error handling"""
+        """Display cached thumbnail with play button overlay"""
         pixmap = self._get_video_thumbnail(path)
 
+        def add_play_button_overlay(base_pixmap):
+            """Helper to add play button overlay to any pixmap"""
+            composite = QPixmap(base_pixmap.size())
+            composite.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(composite)
+            painter.drawPixmap(0, 0, base_pixmap)
+
+            # Calculate sizes and positions
+            button_size = min(base_pixmap.width(), base_pixmap.height()) // 4
+            x_center = base_pixmap.width() // 2
+            y_center = base_pixmap.height() // 2
+
+            # Draw semi-transparent circle
+            painter.setBrush(QColor(255, 255, 255, 90))  # 70% opacity white
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(x_center - button_size // 2, y_center - button_size // 2, button_size, button_size)
+
+            # Draw play triangle
+            triangle_size = button_size // 2
+            path = QPainterPath()
+            path.moveTo(x_center - triangle_size // 3, y_center - triangle_size // 2)
+            path.lineTo(x_center - triangle_size // 3, y_center + triangle_size // 2)
+            path.lineTo(x_center + triangle_size // 2, y_center)
+            path.closeSubpath()
+            painter.setBrush(QColor(0, 0, 0, 100))  # 80% opacity black
+            painter.drawPath(path)
+            painter.end()
+            return composite
+
         if pixmap.isNull():
-            # Show error thumbnail
+            # Create error thumbnail with overlay
             error_pixmap = QPixmap(400, 300)
             error_pixmap.fill(Qt.GlobalColor.darkGray)
-            self.thumbnail_label.setPixmap(error_pixmap)
-            return
+            final_pixmap = add_play_button_overlay(error_pixmap)
+        else:
+            # Add overlay to valid thumbnail
+            final_pixmap = add_play_button_overlay(pixmap)
 
         # Configure label
         self.thumbnail_label.setMinimumSize(1, 1)
@@ -249,8 +280,14 @@ class VideoPlayer(QWidget):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding
         )
-        self.thumbnail_label.setPixmap(pixmap)
+        self.thumbnail_label.setPixmap(final_pixmap)
         self.thumbnail_label.setScaledContents(True)
+        self.thumbnail_label.mousePressEvent = self.on_thumbnail_clicked
+
+    def on_thumbnail_clicked(self, event):
+        """Handle thumbnail clicks to start playback"""
+        if self.media_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
+            self.media_player.play()
 
 
     def hide_thumbnail_on_play(self, state):
