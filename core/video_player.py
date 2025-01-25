@@ -290,7 +290,7 @@ class VideoPlayer(QWidget):
     def on_thumbnail_clicked(self, event):
         """Handle thumbnail clicks to start playback"""
         if self.media_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
-            self.media_player.play()
+            self.play_pause()
 
 
     def hide_thumbnail_on_play(self, state):
