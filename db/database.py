@@ -90,14 +90,13 @@ class Database:
         """)
         self.conn.commit()
 
-    def create_album(self, name: str) -> bool:
-        """Create a new album."""
+    def create_album(self, name: str) -> int:
         try:
             self.cursor.execute("INSERT INTO albums (name) VALUES (?)", (name,))
             self.conn.commit()
-            return True
+            return self.cursor.lastrowid  # Return new ID
         except sqlite3.IntegrityError:
-            return False
+            return None
 
     def rename_album(self, album_id: int, new_name: str) -> bool:
         """Rename an album."""
@@ -391,6 +390,26 @@ class Database:
             result['total_size'] += row[2]
 
         return result
+
+    def get_albums_page(self, page: int, per_page: int, sort_by: str = "name", sort_order: str = "ASC") -> Tuple[
+        List[tuple], int]:
+        valid_columns = {"id", "name", "total_media", "created_at"}
+        sort_by = sort_by if sort_by in valid_columns else "name"
+        sort_order = sort_order.upper() if sort_order.upper() in ("ASC", "DESC") else "ASC"
+
+        offset = (page - 1) * per_page
+        query = f"""
+            SELECT id, name, total_media, created_at
+            FROM albums
+            ORDER BY {sort_by} {sort_order}
+            LIMIT ? OFFSET ?
+        """
+        self.cursor.execute(query, (per_page, offset))
+        albums = self.cursor.fetchall()
+
+        self.cursor.execute("SELECT COUNT(*) FROM albums")
+        total = self.cursor.fetchone()[0]
+        return albums, total
 
     def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all",
                           album_id: int = 1, sort_by: str = "rating", sort_order: str = "DESC") -> Tuple[

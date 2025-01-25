@@ -1,6 +1,8 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QListWidget, QListWidgetItem, QInputDialog, QMessageBox, QLabel, QGroupBox, QGridLayout)
-from PyQt6.QtCore import pyqtSignal, Qt
+                             QTableWidget, QTableWidgetItem, QInputDialog,
+                             QMessageBox, QLabel, QGroupBox, QGridLayout, QHeaderView, QComboBox)
+from PyQt6.QtCore import pyqtSignal, Qt, QSortFilterProxyModel, QSize
+import math
 
 from core.elo import ReliabilityCalculator
 
@@ -11,42 +13,217 @@ class AlbumsTab(QWidget):
     def __init__(self, db):
         super().__init__()
         self.db = db
-        self.active_album_id = 1  # Default album
+        self.active_album_id = 1
+        self.current_page = 1
+        self.per_page = 10
+        self.sort_by = "created_at"
+        self.sort_order = "ASC"
+        self.total_albums = 0
         self.setup_ui()
-        self.refresh_albums()
         self._select_album_by_id(1)
+        self.refresh_albums()
 
     def setup_ui(self):
-        """Set up the albums interface."""
         layout = QVBoxLayout(self)
 
-        # Create album list
-        self.album_list = QListWidget()
-        self.album_list.currentItemChanged.connect(self.on_album_selected)
-        layout.addWidget(self.album_list)
+        # Album Table
+        self.album_table = QTableWidget()
+        self.album_table.setColumnCount(3)
+        self.album_table.setHorizontalHeaderLabels(["Name", "Media Count", "Created At"])
+        self.album_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.album_table.horizontalHeader().setSortIndicatorShown(True)
+        self.album_table.horizontalHeader().sectionClicked.connect(self.on_header_clicked)
+        self.album_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.album_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        layout.addWidget(self.album_table)
 
-        # Create stats group first
-        self._setup_stats_section()
+        # Pagination Controls
+        control_layout = QHBoxLayout()
+        self.first_page_btn = QPushButton("<<")
+        self.prev_btn = QPushButton("Previous")
+        self.next_btn = QPushButton("Next")
+        self.last_page_btn = QPushButton(">>")
+        self.page_label = QLabel("Page 1")
+        self.items_per_page = QComboBox()
+        self.items_per_page.addItems(["10", "25", "50", "100"])
+        self.items_per_page.setCurrentText("10")
 
-        # Buttons layout
+        control_layout.addWidget(self.first_page_btn)
+        control_layout.addWidget(self.prev_btn)
+        control_layout.addWidget(self.next_btn)
+        control_layout.addWidget(self.last_page_btn)
+        control_layout.addWidget(QLabel("Items per page:"))
+        control_layout.addWidget(self.items_per_page)
+        control_layout.addWidget(self.page_label)
+        control_layout.addStretch()
+
+        # Buttons
         button_layout = QHBoxLayout()
-
-        # Create album button
         self.btn_create = QPushButton("Create Album")
-        self.btn_create.clicked.connect(self.create_album)
-        button_layout.addWidget(self.btn_create)
-
-        # Rename album button
         self.btn_rename = QPushButton("Rename Album")
-        self.btn_rename.clicked.connect(self.rename_album)
-        button_layout.addWidget(self.btn_rename)
-
-        # Delete album button
         self.btn_delete = QPushButton("Delete Album")
-        self.btn_delete.clicked.connect(self.delete_album)
+        button_layout.addWidget(self.btn_create)
+        button_layout.addWidget(self.btn_rename)
         button_layout.addWidget(self.btn_delete)
 
+        layout.addLayout(control_layout)
         layout.addLayout(button_layout)
+
+        # Signals
+        self.btn_create.clicked.connect(self.create_album)
+        self.btn_rename.clicked.connect(self.rename_album)
+        self.btn_delete.clicked.connect(self.delete_album)
+        self.album_table.selectionModel().selectionChanged.connect(self.on_selection_changed)
+        self.items_per_page.currentTextChanged.connect(self.change_items_per_page)
+        self.first_page_btn.clicked.connect(self.go_to_first_page)
+        self.prev_btn.clicked.connect(self.prev_page)
+        self.next_btn.clicked.connect(self.next_page)
+        self.last_page_btn.clicked.connect(self.go_to_last_page)
+
+        self._setup_stats_section()
+
+    def on_header_clicked(self, logical_index):
+        columns = ["name", "total_media", "created_at"]
+        if logical_index >= len(columns):
+            return
+        new_sort = columns[logical_index]
+        if new_sort == self.sort_by:
+            self.sort_order = "DESC" if self.sort_order == "ASC" else "ASC"
+        else:
+            self.sort_by = new_sort
+            self.sort_order = "ASC"
+        self.refresh_albums()
+
+    def refresh_albums(self):
+        albums, total = self.db.get_albums_page(
+            self.current_page, self.per_page, self.sort_by, self.sort_order
+        )
+        self.total_albums = total
+        self.album_table.setRowCount(0)
+
+        for album in albums:
+            row = self.album_table.rowCount()
+            self.album_table.insertRow(row)
+            album_id, name, media_count, created = album
+            name_item = QTableWidgetItem(name)
+            name_item.setData(Qt.ItemDataRole.UserRole, album_id)
+            self.album_table.setItem(row, 0, name_item)
+            self.album_table.setItem(row, 1, QTableWidgetItem(str(media_count)))
+            self.album_table.setItem(row, 2, QTableWidgetItem(created))
+
+        total_pages = math.ceil(total / self.per_page) if self.per_page else 1
+        self.page_label.setText(f"Page {self.current_page} of {total_pages} (Total: {total})")
+        self.first_page_btn.setEnabled(self.current_page > 1)
+        self.prev_btn.setEnabled(self.current_page > 1)
+        self.next_btn.setEnabled(self.current_page < total_pages)
+        self.last_page_btn.setEnabled(self.current_page < total_pages)
+        self._update_stats_display()
+        self._select_album_by_id(self.active_album_id)
+
+    def on_selection_changed(self):
+        selected = self.album_table.selectedItems()
+        if selected:
+            row = selected[0].row()
+            album_id = self.album_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            album_name = self.album_table.item(row, 0).text()
+            self.active_album_id = album_id
+            self.album_changed.emit(album_id, album_name)
+            self._update_stats_display()
+
+    def change_items_per_page(self, text):
+        self.per_page = int(text)
+        self.current_page = 1
+        self.refresh_albums()
+
+    def go_to_first_page(self):
+        self.current_page = 1
+        self.refresh_albums()
+
+    def prev_page(self):
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.refresh_albums()
+
+    def next_page(self):
+        total_pages = math.ceil(self.total_albums / self.per_page)
+        if self.current_page < total_pages:
+            self.current_page += 1
+            self.refresh_albums()
+
+    def go_to_last_page(self):
+        self.current_page = math.ceil(self.total_albums / self.per_page)
+        self.refresh_albums()
+
+    def _select_album_by_id(self, album_id: int):
+        """Select an album in the table by its ID."""
+        for row in range(self.album_table.rowCount()):
+            item = self.album_table.item(row, 0)  # Name column contains the ID in UserRole
+            if item.data(Qt.ItemDataRole.UserRole) == album_id:
+                self.album_table.setCurrentCell(row, 0)
+                self.album_table.scrollToItem(item)  # Ensure visibility
+                break
+
+    def create_album(self):
+        """Create a new album and select it after creation."""
+        name, ok = QInputDialog.getText(self, "Create Album", "Album name:")
+        if ok and name:
+            # Create album and get its ID
+            new_id = self.db.create_album(name)  # Modified database method should return ID
+            if new_id:
+                # Refresh with sorting by creation date descending
+                self.sort_by = "created_at"
+                self.sort_order = "DESC"
+                self.current_page = 1
+                self.refresh_albums()
+                self._select_album_by_id(new_id)
+            else:
+                QMessageBox.warning(self, "Error", "Album name already exists")
+
+    def rename_album(self):
+        selected = self.album_table.selectedItems()
+        if not selected:
+            return
+        row = selected[0].row()
+        album_id = self.album_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        if album_id == 1:
+            QMessageBox.warning(self, "Error", "Cannot rename Default album")
+            return
+
+        name, ok = QInputDialog.getText(self, "Rename Album", "New name:")
+        if ok and name:
+            if self.db.rename_album(album_id, name):
+                self.refresh_albums()
+                if album_id == self.active_album_id:
+                    self.album_changed.emit(album_id, name)
+            else:
+                QMessageBox.warning(self, "Error", "Album name already exists")
+
+    def delete_album(self):
+        """Delete the selected album and switch to default."""
+        selected = self.album_table.selectedItems()
+        if not selected:
+            return
+
+        row = selected[0].row()
+        album_id = self.album_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+
+        if album_id == 1:
+            QMessageBox.warning(self, "Error", "Cannot delete Default album")
+            return
+
+        # Confirm deletion
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            "This will delete all media in the album. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            if self.db.delete_album(album_id):
+                # Switch to default album
+                self._select_album_by_id(1)
+                self.refresh_albums()
+
 
     def _setup_stats_section(self):
         """Create statistics display group."""
@@ -118,92 +295,3 @@ class AlbumsTab(QWidget):
         self.lbl_total_votes.setText(f"Total Votes: {total_votes}")
         self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
         self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
-
-    def _select_album_by_id(self, album_id: int):
-        """Select an album in the list by its ID."""
-        for index in range(self.album_list.count()):
-            item = self.album_list.item(index)
-            if item.data(Qt.ItemDataRole.UserRole) == album_id:
-                self.album_list.setCurrentItem(item)
-                break
-
-    def create_album(self):
-        """Create a new album and select it after creation."""
-        name, ok = QInputDialog.getText(self, "Create Album", "Album name:")
-        if ok and name:
-            if self.db.create_album(name):
-                # Get the ID of the newly created album
-                albums = self.db.get_albums()
-                new_album = next((a for a in albums if a[1] == name), None)
-
-                if new_album:
-                    new_id = new_album[0]
-                    self.refresh_albums()
-
-                    # Find and select the new album
-                    for index in range(self.album_list.count()):
-                        item = self.album_list.item(index)
-                        if item.data(Qt.ItemDataRole.UserRole) == new_id:
-                            self.album_list.setCurrentItem(item)
-                            break
-            else:
-                QMessageBox.warning(self, "Error", "Album name already exists")
-
-    def rename_album(self):
-        """Rename the selected album."""
-        current = self.album_list.currentItem()
-        if not current:
-            return
-
-        album_id = current.data(Qt.ItemDataRole.UserRole)
-        if album_id == 1:
-            QMessageBox.warning(self, "Error", "Cannot rename Default album")
-            return
-
-        name, ok = QInputDialog.getText(self, "Rename Album", "New name:")
-        if ok and name:
-            if self.db.rename_album(album_id, name):
-                self.refresh_albums()
-                if album_id == self.active_album_id:
-                    self.album_changed.emit(album_id, name)
-            else:
-                QMessageBox.warning(self, "Error", "Album name already exists")
-
-    def delete_album(self):
-        """Delete the selected album."""
-        current = self.album_list.currentItem()
-        if not current:
-            return
-
-        album_id = current.data(Qt.ItemDataRole.UserRole)
-
-        reply = QMessageBox.question(self, "Confirm Delete",
-                                   "This will delete all media in the album. Continue?",
-                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            if self.db.delete_album(album_id):
-                if album_id == self.active_album_id:
-                    self.active_album_id = 1
-                    self.album_changed.emit(1, "Default")
-                self.refresh_albums()
-                self._select_album_by_id(1)
-            else:
-                QMessageBox.warning(self, "Error", "Could not delete album")
-
-    def on_album_selected(self, current, previous):
-        """Handle album selection."""
-        if current:
-            album_id = current.data(Qt.ItemDataRole.UserRole)
-            self.active_album_id = album_id
-            self.album_changed.emit(album_id, current.text())
-            self._update_stats_display()  # Update stats when album changes
-
-    def refresh_albums(self):
-        """Refresh the albums list."""
-        self.album_list.clear()
-        for album_id, album_name in self.db.get_albums():
-            item = QListWidgetItem(f"{album_name}")
-            item.setData(Qt.ItemDataRole.UserRole, album_id)
-            self.album_list.addItem(item)
-        self._update_stats_display()  # Refresh stats after changes
