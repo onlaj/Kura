@@ -196,11 +196,12 @@ class AlbumsTab(QWidget):
             return
         row = selected[0].row()
         album_id = self.album_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        old_name = self.album_table.item(row, 0).text()
         if album_id == 1:
             QMessageBox.warning(self, "Error", "Cannot rename Default album")
             return
 
-        name, ok = QInputDialog.getText(self, "Rename Album", "New name:")
+        name, ok = QInputDialog.getText(self, "Rename Album", "New name:", text=old_name)
         if ok and name:
             if self.db.rename_album(album_id, name):
                 self.refresh_albums()
