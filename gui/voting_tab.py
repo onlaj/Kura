@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy)
 
 from core.elo import Rating, ReliabilityCalculator
-from core.media_utils import set_file_info
+from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
 from core.media_utils import AspectRatioWidget
 
@@ -101,8 +101,8 @@ class VotingTab(QWidget):
 
         self.single_click_timer = QTimer(self)
         self.single_click_timer.setSingleShot(True)
-        self.single_click_timer.timeout.connect(self.handle_video_single_click)
-        self.pending_video_click = None  # Stores (media_player, media_path)
+        self.single_click_timer.timeout.connect(lambda: handle_video_single_click(self.pending_video_click))
+        self.pending_video_click = []  # Stores (media_player, media_path)
 
         self.setup_ui()
 
@@ -173,25 +173,15 @@ class VotingTab(QWidget):
             self.pending_video_click = None
 
     def eventFilter(self, obj, event):
-        """Handle video widget events: single-click (play/pause) and double-click (preview)."""
-        if event.type() == QEvent.Type.MouseButtonPress:
-            if obj.property('is_video'):
-                # Store click info and start timer
-                self.pending_video_click = (
-                    obj.property('media_player'),
-                    obj.property('media_path')
-                )
-                self.single_click_timer.start(250)  # 250ms delay
-                return True
-        elif event.type() == QEvent.Type.MouseButtonDblClick:
-            if obj.property('is_video'):
-                # Cancel single-click timer and show preview
-                self.single_click_timer.stop()
-                media_player = obj.property('media_player')
-                media_path = obj.property('media_path')
-                self.show_preview(media_path, media_player)
-                self.pending_video_click = None
-                return True
+        """Handle video widget events using shared utility."""
+        handled = handle_video_events(
+            event, obj,
+            self.single_click_timer,
+            self.pending_video_click,
+            self.show_preview
+        )
+        if handled:
+            return True
         return super().eventFilter(obj, event)
 
     def keyPressEvent(self, event: QKeyEvent):

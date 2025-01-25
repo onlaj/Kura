@@ -1,9 +1,40 @@
 # core/media_utils.py
 import os
 from datetime import datetime
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy
 
+
+def handle_video_events(event, obj, single_click_timer, pending_video_click, show_preview_callback):
+    """Handle video-related mouse events (to be called from eventFilter)."""
+    if event.type() == QEvent.Type.MouseButtonPress:
+        if obj.property('is_video'):
+            pending_video_click[:] = [
+                obj.property('media_player'),
+                obj.property('media_path')
+            ]
+            single_click_timer.start(250)
+            return True
+    elif event.type() == QEvent.Type.MouseButtonDblClick:
+        if obj.property('is_video'):
+            single_click_timer.stop()
+            media_player = obj.property('media_player')
+            media_path = obj.property('media_path')
+            show_preview_callback(media_path, media_player)
+            pending_video_click.clear()
+            return True
+    return False
+
+def handle_video_single_click(pending_video_click):
+    """Handle video play/pause logic (to be called from single-click timer)."""
+    if pending_video_click:
+        media_player, _ = pending_video_click
+        if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            media_player.pause()
+        else:
+            media_player.play()
+        pending_video_click.clear()
 
 class AspectRatioWidget(QWidget):
     def __init__(self, widget, aspect_ratio=16/9, parent=None):
