@@ -24,6 +24,7 @@ class HistoryTab(QWidget):
         self.active_album_id = 1
         self.sort_by = "timestamp"
         self.sort_order = "DESC"
+        self.per_page = 10
         self.search_query = None
         self._is_programmatic_change = False
 
@@ -44,6 +45,14 @@ class HistoryTab(QWidget):
         # Add spacer before pagination controls
         control_layout.addStretch()
 
+
+        control_layout.addWidget(QLabel("Items per page:"))
+        self.items_per_page = QComboBox()
+        self.items_per_page.addItems(["10", "20", "50", "100"])
+        self.items_per_page.setCurrentText("10")
+        self.items_per_page.currentTextChanged.connect(self.change_items_per_page)
+        control_layout.addWidget(self.items_per_page)
+
         control_layout.addWidget(QLabel("Page:"))
         self.page_input = QLineEdit()
         self.page_input.setFixedWidth(50)
@@ -56,8 +65,6 @@ class HistoryTab(QWidget):
         self.go_button.clicked.connect(self.go_to_page)
         self.go_button.hide()
         control_layout.addWidget(self.go_button)
-
-
 
         # Existing pagination buttons
         self.first_page_btn = QPushButton("<<")
@@ -193,6 +200,12 @@ class HistoryTab(QWidget):
 
         return super().eventFilter(obj, event)
 
+    def change_items_per_page(self, value):
+        """Handle changes to items per page selection"""
+        self.per_page = int(value)
+        self.current_page = 1  # Reset to first page when changing page size
+        self.load_data()
+
     def on_page_input_changed(self):
         """Handle page input changes"""
         if not self._is_programmatic_change and self.page_input.text().strip():
@@ -273,11 +286,10 @@ class HistoryTab(QWidget):
         self.load_data()
 
     def get_total_pages(self):
-        """Calculate total pages based on current filters"""
         _, total = self.db.get_vote_history_page(
             self.active_album_id,
             1,  # Any page number since we just need total count
-            self.per_page,
+            self.per_page,  # Use the current per_page value
             self.sort_by,
             self.sort_order,
             self.search_query
