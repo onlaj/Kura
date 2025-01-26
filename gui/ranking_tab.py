@@ -55,7 +55,7 @@ class MediaFrame(QFrame):
         # Media container with fixed maximum height
         self.media_container = QWidget()
         self.media_container.setMinimumSize(200, 200)  # Minimum size for thumbnails
-        self.media_container.setMaximumHeight(200)  # Add maximum height constraint
+        self.media_container.setMaximumHeight(300)  # Add maximum height constraint
         self.media_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed  # Change to Fixed to prevent vertical stretching
@@ -632,6 +632,20 @@ class RankingTab(QWidget):
     def change_columns(self, value):
         """Handle column count change"""
         self.columns = int(value)
+
+        # Clear existing stretch factors
+        for col in range(self.grid_layout.columnCount()):
+            self.grid_layout.setColumnStretch(col, 0)
+
+        # Set new stretch factors
+        for col in range(self.columns):
+            self.grid_layout.setColumnStretch(col, 1)
+
+        # Force full layout recalculation
+        self.grid_container.updateGeometry()
+        self.grid_layout.update()
+        self.update()
+
         self.refresh_rankings()
 
     def change_items_per_page(self, value):
