@@ -128,13 +128,13 @@ class UploadTab(QWidget):
             self,
             "Select folder containing media files"
         )
-
+        media_files = None
         if folder:
             extensions = self._get_selected_extensions()
             media_files = self._collect_media_files_from_folder(folder, extensions)
             self.process_files(media_files)
-
-        self.process_files(media_files)
+        if media_files:
+            self.process_files(media_files)
 
     def process_files(self, files):
         """Process the selected files and add them to the database."""
