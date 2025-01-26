@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QApplication
 
 from core.media_handler import MediaHandler
 from db.database import Database
+from gui.history_tab import HistoryTab
 from gui.main_window import MainWindow
 from gui.ranking_tab import RankingTab
 from gui.upload_tab import UploadTab
@@ -51,6 +52,8 @@ class Application:
         # Create main window
         self.main_window = MainWindow(self.media_handler)
 
+        self.history_tab = HistoryTab(self.db, self.media_handler)
+
         self.active_album_id = 1  # Default album
 
         # Initialize tabs
@@ -84,7 +87,8 @@ class Application:
             self.albums_tab,
             self.voting_tab,
             self.upload_tab,
-            self.ranking_tab
+            self.ranking_tab,
+            self.history_tab
         )
 
     def get_total_media_count(self, album_id: int) -> int:
@@ -99,6 +103,7 @@ class Application:
         self.voting_tab.set_active_album(album_id)  # Update VotingTab
         self.ranking_tab.set_active_album(album_id)  # Update RankingTab
         self.main_window.on_album_changed(album_id, album_name)  # Update window title
+        self.history_tab.set_active_album(album_id)
 
     def add_media_to_db(self, file_path: str, media_type: str) -> bool:
         """Add media file to database if valid."""

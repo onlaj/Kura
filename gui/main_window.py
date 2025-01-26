@@ -31,12 +31,13 @@ class MainWindow(QMainWindow):
 
         self.media_handler = media_handler
 
-    def setup_tabs(self, albums_tab, voting_tab, upload_tab, ranking_tab):
+    def setup_tabs(self, albums_tab, voting_tab, upload_tab, ranking_tab, history_tab):
         """Set up the application tabs."""
         self.tab_albums = albums_tab
         self.tab_voting = voting_tab
         self.tab_upload = upload_tab
         self.tab_ranking = ranking_tab
+        self.tab_history = history_tab
 
         # Connect album change signal
         self.tab_albums.album_changed.connect(self.on_album_changed)
@@ -45,6 +46,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.tab_voting, "Voting")
         self.tab_widget.addTab(self.tab_upload, "Upload")
         self.tab_widget.addTab(self.tab_ranking, "Ranking")
+        self.tab_widget.addTab(self.tab_history, "Votes history")
 
         # Connect tab changed signal
         self.tab_widget.currentChanged.connect(self._handle_tab_change)

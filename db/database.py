@@ -515,6 +515,47 @@ class Database:
         self.cursor.execute(formatted_query, params)
         return self.cursor.fetchall(), total_items
 
+    def get_vote_history_page(self, album_id: int, page: int, per_page: int,
+                              sort_by: str = "timestamp", sort_order: str = "DESC",
+                              search_query: str = None) -> Tuple[List[tuple], int]:
+        """Get paginated vote history with sorting and filtering."""
+        valid_sort = {
+            "timestamp": "v.timestamp",
+            "winner": "winner_path",
+            "loser": "loser_path"
+        }
+        sort_column = valid_sort.get(sort_by, "v.timestamp")
+
+        base_query = """
+            SELECT 
+                v.id,
+                v.timestamp,
+                winner.path as winner_path,
+                loser.path as loser_path
+            FROM votes v
+            JOIN media winner ON v.winner_id = winner.id
+            JOIN media loser ON v.loser_id = loser.id
+            WHERE v.album_id = ?
+        """
+        params = [album_id]
+
+        if search_query:
+            base_query += " AND (winner.path LIKE ? OR loser.path LIKE ?)"
+            params.extend([f"%{search_query}%", f"%{search_query}%"])
+
+        # Get total count
+        count_query = f"SELECT COUNT(*) FROM ({base_query})"
+        self.cursor.execute(count_query, params)
+        total = self.cursor.fetchone()[0]
+
+        # Add sorting and pagination
+        base_query += f" ORDER BY {sort_column} {sort_order} LIMIT ? OFFSET ?"
+        offset = (page - 1) * per_page
+        params.extend([per_page, offset])
+
+        self.cursor.execute(base_query, params)
+        return self.cursor.fetchall(), total
+
     def get_pair_for_voting(self, album_id: int = 1) -> Tuple[Optional[tuple], Optional[tuple]]:
         """
         Get two media items for voting: one least voted and one random.
