@@ -38,37 +38,31 @@ class HistoryTab(QWidget):
         self.search_input.textChanged.connect(self.on_search_changed)
         control_layout.addWidget(self.search_input)
 
-        # Sort
-        self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["Date", "Winner", "Loser"])
-        self.sort_combo.currentTextChanged.connect(self.on_sort_changed)
-        control_layout.addWidget(QLabel("Sort by:"))
-        control_layout.addWidget(self.sort_combo)
-
-        # Order
-        self.order_combo = QComboBox()
-        self.order_combo.addItems(["Descending", "Ascending"])
-        self.order_combo.currentTextChanged.connect(self.on_order_changed)
-        control_layout.addWidget(QLabel("Order:"))
-        control_layout.addWidget(self.order_combo)
-
-        # Pagination
+        # Pagination controls
+        self.first_page_btn = QPushButton("<<")
+        self.first_page_btn.clicked.connect(self.go_to_first_page)
         self.prev_btn = QPushButton("Previous")
         self.prev_btn.clicked.connect(self.prev_page)
         self.next_btn = QPushButton("Next")
         self.next_btn.clicked.connect(self.next_page)
+        self.last_page_btn = QPushButton(">>")
+        self.last_page_btn.clicked.connect(self.go_to_last_page)
         self.page_label = QLabel()
 
+        control_layout.addWidget(self.first_page_btn)
         control_layout.addWidget(self.prev_btn)
         control_layout.addWidget(self.next_btn)
+        control_layout.addWidget(self.last_page_btn)
         control_layout.addWidget(self.page_label)
 
         layout.addLayout(control_layout)
 
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Date", "Winner", "Loser", "Result"])
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Date", "Winner", "Loser"])
+        self.table.horizontalHeader().setSortIndicatorShown(True)
+        self.table.horizontalHeader().sectionClicked.connect(self.on_header_clicked)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().hide()
@@ -78,6 +72,7 @@ class HistoryTab(QWidget):
         layout.addWidget(self.table)
 
         self.load_data()
+
 
     def load_data(self):
         self.table.setRowCount(0)
@@ -105,14 +100,13 @@ class HistoryTab(QWidget):
             loser_item = self.create_media_item(row[3])
             self.table.setItem(idx, 2, loser_item)
 
-            # Result
-            self.table.setItem(idx, 3, QTableWidgetItem("Winner selected"))
-
         # Update pagination
         total_pages = max(1, (total + self.per_page - 1) // self.per_page)
         self.page_label.setText(f"Page {self.current_page} of {total_pages}")
         self.prev_btn.setEnabled(self.current_page > 1)
         self.next_btn.setEnabled(self.current_page < total_pages)
+        self.first_page_btn.setEnabled(self.current_page > 1)
+        self.last_page_btn.setEnabled(self.current_page < total_pages)
 
     def create_media_item(self, path):
         item = QTableWidgetItem(os.path.basename(path))
@@ -163,3 +157,44 @@ class HistoryTab(QWidget):
     def set_active_album(self, album_id: int):
         self.active_album_id = album_id
         self.load_data()
+
+    def on_header_clicked(self, logical_index):
+        sort_mapping = {
+            0: "timestamp",
+            1: "winner",
+            2: "loser"
+        }
+        new_sort_by = sort_mapping.get(logical_index, "timestamp")
+
+        if self.sort_by == new_sort_by:
+            self.sort_order = "DESC" if self.sort_order == "ASC" else "ASC"
+        else:
+            self.sort_by = new_sort_by
+            self.sort_order = "DESC"
+
+        self.table.horizontalHeader().setSortIndicator(
+            logical_index,
+            Qt.SortOrder.DescendingOrder if self.sort_order == "DESC" else Qt.SortOrder.AscendingOrder
+        )
+        self.load_data()
+
+    # New navigation methods
+    def go_to_first_page(self):
+        self.current_page = 1
+        self.load_data()
+
+    def go_to_last_page(self):
+        self.current_page = self.get_total_pages()
+        self.load_data()
+
+    def get_total_pages(self):
+        self.table.horizontalHeader().setSortIndicatorShown(True)
+        _, total = self.db.get_vote_history_page(
+            self.active_album_id,
+            self.current_page,
+            self.per_page,
+            self.sort_by,
+            self.sort_order,
+            self.search_query
+        )
+        return max(1, (total + self.per_page - 1) // self.per_page)
