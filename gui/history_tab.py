@@ -1,10 +1,12 @@
 # gui/history_tab.py
 import logging
 import os
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QEvent
+from PyQt6.QtGui import QMovie
+from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QHeaderView, QLineEdit,
-                             QComboBox, QPushButton, QLabel, QAbstractItemView)
+                             QComboBox, QPushButton, QLabel, QAbstractItemView, QMessageBox)
 from core.preview_handler import MediaPreview
 from core.media_handler import MediaHandler
 
@@ -23,6 +25,7 @@ class HistoryTab(QWidget):
         self.sort_by = "timestamp"
         self.sort_order = "DESC"
         self.search_query = None
+        self._is_programmatic_change = False
 
         self.setup_ui()
 
@@ -38,7 +41,25 @@ class HistoryTab(QWidget):
         self.search_input.textChanged.connect(self.on_search_changed)
         control_layout.addWidget(self.search_input)
 
-        # Pagination controls
+        # Add spacer before pagination controls
+        control_layout.addStretch()
+
+        control_layout.addWidget(QLabel("Page:"))
+        self.page_input = QLineEdit()
+        self.page_input.setFixedWidth(50)
+        self.page_input.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.page_input.textChanged.connect(self.on_page_input_changed)
+        control_layout.addWidget(self.page_input)
+
+        self.go_button = QPushButton("Go")
+        self.go_button.setFixedWidth(40)
+        self.go_button.clicked.connect(self.go_to_page)
+        self.go_button.hide()
+        control_layout.addWidget(self.go_button)
+
+
+
+        # Existing pagination buttons
         self.first_page_btn = QPushButton("<<")
         self.first_page_btn.clicked.connect(self.go_to_first_page)
         self.prev_btn = QPushButton("Previous")
@@ -49,6 +70,7 @@ class HistoryTab(QWidget):
         self.last_page_btn.clicked.connect(self.go_to_last_page)
         self.page_label = QLabel()
 
+        # Add widgets to layout
         control_layout.addWidget(self.first_page_btn)
         control_layout.addWidget(self.prev_btn)
         control_layout.addWidget(self.next_btn)
@@ -108,6 +130,10 @@ class HistoryTab(QWidget):
         self.first_page_btn.setEnabled(self.current_page > 1)
         self.last_page_btn.setEnabled(self.current_page < total_pages)
 
+        self._is_programmatic_change = True
+        self.page_input.setText(str(self.current_page))
+        self._is_programmatic_change = False
+
     def create_media_item(self, path):
         item = QTableWidgetItem(os.path.basename(path))
         item.setData(Qt.ItemDataRole.UserRole, path)
@@ -121,11 +147,74 @@ class HistoryTab(QWidget):
         media = self.media_handler.load_media(path)
         self.media_handler.pause_all_videos()
 
+        # Store references to the media player
+        media_player = None
+        widget = None
+
         if isinstance(media, tuple):
             widget, player = media
-            self.preview.show_media(widget, media_path=path)
+            if hasattr(player, 'play'):  # Video player
+                media_player = player
+            elif isinstance(player, QMovie):  # GIF
+                media_player = player
+
+        # Install event filter for video controls
+        if widget and media_player:
+            widget.installEventFilter(self)
+            widget.setProperty('media_player', media_player)
+            widget.setProperty('media_path', path)
+
+        self.preview.show_media(widget if widget else media,
+                                media_path=path,
+                                video_player=media_player)
+
+    def eventFilter(self, obj, event):
+        """Handle video widget events in preview"""
+        if event.type() == QEvent.Type.MouseButtonPress:
+            media_player = obj.property('media_player')
+            preview = self.preview
+
+            if event.button() == Qt.MouseButton.LeftButton:
+                # Single click - toggle play/pause
+                if event.type() == QEvent.Type.MouseButtonPress:
+                    if media_player:
+                        if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                            media_player.pause()
+                        else:
+                            media_player.play()
+                        return True
+
+            # Double click - stop and close
+            elif event.type() == QEvent.Type.MouseButtonDblClick:
+                if media_player:
+                    media_player.stop()
+                self.preview.close()
+                return True
+
+        return super().eventFilter(obj, event)
+
+    def on_page_input_changed(self):
+        """Handle page input changes"""
+        if not self._is_programmatic_change and self.page_input.text().strip():
+            self.go_button.show()
         else:
-            self.preview.show_media(media, media_path=path)
+            self.go_button.hide()
+
+    def go_to_page(self):
+        """Navigate to specified page"""
+        try:
+            page_number = int(self.page_input.text())
+            total_pages = self.get_total_pages()
+
+            if 1 <= page_number <= total_pages:
+                self.current_page = page_number
+                self.load_data()
+                self.go_button.hide()
+            else:
+                QMessageBox.warning(self, "Invalid Page",
+                                    f"Please enter a page number between 1 and {total_pages}.")
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid page number.")
 
     def on_sort_changed(self, text):
         sort_map = {
@@ -134,10 +223,6 @@ class HistoryTab(QWidget):
             "Loser": "loser"
         }
         self.sort_by = sort_map.get(text, "timestamp")
-        self.load_data()
-
-    def on_order_changed(self, text):
-        self.sort_order = "DESC" if text == "Descending" else "ASC"
         self.load_data()
 
     def on_search_changed(self, text):
@@ -188,10 +273,10 @@ class HistoryTab(QWidget):
         self.load_data()
 
     def get_total_pages(self):
-        self.table.horizontalHeader().setSortIndicatorShown(True)
+        """Calculate total pages based on current filters"""
         _, total = self.db.get_vote_history_page(
             self.active_album_id,
-            self.current_page,
+            1,  # Any page number since we just need total count
             self.per_page,
             self.sort_by,
             self.sort_order,
