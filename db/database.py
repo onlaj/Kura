@@ -556,6 +556,20 @@ class Database:
         self.cursor.execute(base_query, params)
         return self.cursor.fetchall(), total
 
+    def delete_votes(self, vote_ids: List[int]):
+        """Delete multiple votes and recalculate ratings once"""
+        try:
+            self.conn.execute("BEGIN")
+            # Delete votes
+            self.cursor.executemany("DELETE FROM votes WHERE id = ?", [(vid,) for vid in vote_ids])
+            # Recalculate ratings
+            self._recalculate_ratings()
+            self.conn.commit()
+            return True
+        except Exception as e:
+            self.conn.rollback()
+            raise e
+
     def get_pair_for_voting(self, album_id: int = 1) -> Tuple[Optional[tuple], Optional[tuple]]:
         """
         Get two media items for voting: one least voted and one random.

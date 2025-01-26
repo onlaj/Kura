@@ -6,7 +6,7 @@ from PyQt6.QtGui import QMovie
 from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QHeaderView, QLineEdit,
-                             QComboBox, QPushButton, QLabel, QAbstractItemView, QMessageBox)
+                             QComboBox, QPushButton, QLabel, QAbstractItemView, QMessageBox, QCheckBox)
 from core.preview_handler import MediaPreview
 from core.media_handler import MediaHandler
 
@@ -28,6 +28,9 @@ class HistoryTab(QWidget):
         self.search_query = None
         self._is_programmatic_change = False
 
+        self.selected_votes = set()
+        self.current_vote_ids = []  # Track vote IDs on current page
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -35,6 +38,22 @@ class HistoryTab(QWidget):
 
         # Controls
         control_layout = QHBoxLayout()
+
+        # Add selection controls
+        control_layout.addWidget(QLabel("Selection:"))
+
+        self.select_all_btn = QPushButton("Select All")
+        self.select_all_btn.clicked.connect(self.select_all_on_page)
+        control_layout.addWidget(self.select_all_btn)
+
+        self.unselect_all_btn = QPushButton("Unselect All")
+        self.unselect_all_btn.clicked.connect(self.unselect_all)
+        self.unselect_all_btn.hide()  # Start hidden
+        control_layout.addWidget(self.unselect_all_btn)
+
+        self.delete_selected_btn = QPushButton("Delete Selected")
+        self.delete_selected_btn.clicked.connect(self.delete_selected_votes)
+        control_layout.addWidget(self.delete_selected_btn)
 
         # Search
         self.search_input = QLineEdit()
@@ -88,8 +107,8 @@ class HistoryTab(QWidget):
 
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Date", "Winner", "Loser"])
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["", "Date", "Winner", "Loser"])
         self.table.horizontalHeader().setSortIndicatorShown(True)
         self.table.horizontalHeader().sectionClicked.connect(self.on_header_clicked)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -97,6 +116,7 @@ class HistoryTab(QWidget):
         self.table.verticalHeader().hide()
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.cellDoubleClicked.connect(self.show_history_preview)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
 
         layout.addWidget(self.table)
 
@@ -105,6 +125,7 @@ class HistoryTab(QWidget):
 
     def load_data(self):
         self.table.setRowCount(0)
+        self.current_vote_ids = []
         history, total = self.db.get_vote_history_page(
             self.active_album_id,
             self.current_page,
@@ -114,20 +135,27 @@ class HistoryTab(QWidget):
             self.search_query
         )
 
-        for row in history:
-            idx = self.table.rowCount()
-            self.table.insertRow(idx)
+        for row_idx, row in enumerate(history):
+            self.table.insertRow(row_idx)
+            vote_id = row[0]
+            self.current_vote_ids.append(vote_id)
 
-            # Date
-            self.table.setItem(idx, 0, QTableWidgetItem(str(row[1])))
+            # Checkbox column
+            checkbox = QCheckBox()
+            checkbox.setChecked(vote_id in self.selected_votes)
+            checkbox.stateChanged.connect(lambda state, vid=vote_id: self.update_selected_votes(state, vid))
+            self.table.setCellWidget(row_idx, 0, checkbox)
 
-            # Winner
-            winner_item = self.create_media_item(row[2])
-            self.table.setItem(idx, 1, winner_item)
+            # Date column
+            self.table.setItem(row_idx, 1, QTableWidgetItem(str(row[1])))
 
-            # Loser
-            loser_item = self.create_media_item(row[3])
-            self.table.setItem(idx, 2, loser_item)
+            # Winner column
+            winner_item = self.create_media_item(row[2])  # Adjusted index for winner path
+            self.table.setItem(row_idx, 2, winner_item)
+
+            # Loser column
+            loser_item = self.create_media_item(row[3])  # Adjusted index for loser path
+            self.table.setItem(row_idx, 3, loser_item)
 
         # Update pagination
         total_pages = max(1, (total + self.per_page - 1) // self.per_page)
@@ -140,6 +168,7 @@ class HistoryTab(QWidget):
         self._is_programmatic_change = True
         self.page_input.setText(str(self.current_page))
         self._is_programmatic_change = False
+        self.update_selected_buttons()
 
     def create_media_item(self, path):
         item = QTableWidgetItem(os.path.basename(path))
@@ -147,7 +176,7 @@ class HistoryTab(QWidget):
         return item
 
     def show_history_preview(self, row, col):
-        if col not in [1, 2]:  # Only preview for winner/loser columns
+        if col not in [2, 3]:  # Only preview for winner/loser columns
             return
 
         path = self.table.item(row, col).data(Qt.ItemDataRole.UserRole)
@@ -199,6 +228,81 @@ class HistoryTab(QWidget):
                 return True
 
         return super().eventFilter(obj, event)
+
+    def update_selected_votes(self, state, vote_id):
+        if state == Qt.CheckState.Checked.value:
+            self.selected_votes.add(vote_id)
+        else:
+            self.selected_votes.discard(vote_id)
+
+        # Update buttons visibility
+        self.unselect_all_btn.setVisible(len(self.selected_votes) > 0)
+        self.delete_selected_btn.setVisible(len(self.selected_votes) > 0)
+
+    def unselect_all(self):
+        """Deselect all votes across all pages"""
+        self.selected_votes.clear()
+        self.update_checkboxes()
+
+        # Update buttons visibility
+        self.unselect_all_btn.hide()
+        self.delete_selected_btn.hide()
+
+    def select_all_on_page(self):
+        for vote_id in self.current_vote_ids:
+            self.selected_votes.add(vote_id)
+        self.update_checkboxes()
+        self.update_selected_buttons()
+
+    def update_selected_buttons(self):
+        """Update visibility of selection-related buttons"""
+        has_selections = len(self.selected_votes) > 0
+        self.unselect_all_btn.setVisible(has_selections)
+        self.delete_selected_btn.setVisible(has_selections)
+
+    def update_checkboxes(self):
+        for row in range(self.table.rowCount()):
+            checkbox = self.table.cellWidget(row, 0)
+            if checkbox:  # Add null check
+                vote_id = self.current_vote_ids[row]
+                checkbox.setChecked(vote_id in self.selected_votes)
+
+    def delete_selected_votes(self):
+        if not self.selected_votes:
+            return
+
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Delete {len(self.selected_votes)} votes? This will recalculate all ratings.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                # Start transaction
+                self.db.conn.execute("BEGIN")
+
+                # Delete selected votes
+                self.db.cursor.executemany(
+                    "DELETE FROM votes WHERE id = ?",
+                    [(vid,) for vid in self.selected_votes]
+                )
+
+                # Recalculate ratings once
+                self.db._recalculate_ratings()
+
+                self.db.conn.commit()
+
+                # Clear selection and refresh
+                self.selected_votes.clear()
+                self.load_data()
+                # Refresh ranking tab if needed
+                if hasattr(self.parent(), 'ranking_tab'):
+                    self.parent().ranking_tab.refresh_rankings()
+
+            except Exception as e:
+                self.db.conn.rollback()
+                QMessageBox.critical(self, "Error", f"Failed to delete votes: {str(e)}")
 
     def change_items_per_page(self, value):
         """Handle changes to items per page selection"""
@@ -258,9 +362,9 @@ class HistoryTab(QWidget):
 
     def on_header_clicked(self, logical_index):
         sort_mapping = {
-            0: "timestamp",
-            1: "winner",
-            2: "loser"
+            1: "timestamp",
+            2: "winner",
+            3: "loser"
         }
         new_sort_by = sort_mapping.get(logical_index, "timestamp")
 
