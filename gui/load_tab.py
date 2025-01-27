@@ -2,7 +2,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTextEdit, QFileDialog, QCheckBox, QGroupBox, QFormLayout)
 
-class UploadTab(QWidget):
+class LoadTab(QWidget):
     def __init__(self, db_callback, media_handler, ranking_tab):
         super().__init__()
         self.db_callback = db_callback
@@ -11,7 +11,7 @@ class UploadTab(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        """Set up the upload interface."""
+        """Set up the load interface."""
         self.setAcceptDrops(True)
         layout = QVBoxLayout(self)
 
@@ -31,7 +31,7 @@ class UploadTab(QWidget):
         layout.addLayout(button_layout)
 
         # Create options group box
-        options_group = QGroupBox("Folder Upload Options")
+        options_group = QGroupBox("Folder Load Options")
         options_layout = QFormLayout()
 
         # Recursive search checkbox
@@ -153,7 +153,7 @@ class UploadTab(QWidget):
             f"\nSummary: Added {added} files, Skipped {skipped} files\n"
         )
 
-        # Notify RankingTab that new files have been uploaded
+        # Notify RankingTab that new files have been loaded
         if added > 0:
             self.ranking_tab.set_new_files_flag()
 

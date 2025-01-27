@@ -340,7 +340,7 @@ class RankingTab(QWidget):
 
 
     def set_new_files_flag(self):
-        """Set the flag indicating that new files have been uploaded."""
+        """Set the flag indicating that new files have been loaded."""
         self.new_files_since_last_refresh = True
 
 

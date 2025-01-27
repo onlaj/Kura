@@ -26,16 +26,16 @@ class MainWindow(QMainWindow):
         # Initialize tabs (will be set by Application class)
         self.tab_albums = None
         self.tab_voting = None
-        self.tab_upload = None
+        self.tab_load = None
         self.tab_ranking = None
 
         self.media_handler = media_handler
 
-    def setup_tabs(self, albums_tab, voting_tab, upload_tab, ranking_tab, history_tab):
+    def setup_tabs(self, albums_tab, voting_tab, load_tab, ranking_tab, history_tab):
         """Set up the application tabs."""
         self.tab_albums = albums_tab
         self.tab_voting = voting_tab
-        self.tab_upload = upload_tab
+        self.tab_load = load_tab
         self.tab_ranking = ranking_tab
         self.tab_history = history_tab
 
@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
 
         self.tab_widget.addTab(self.tab_albums, "Albums")
         self.tab_widget.addTab(self.tab_voting, "Voting")
-        self.tab_widget.addTab(self.tab_upload, "Upload")
+        self.tab_widget.addTab(self.tab_load, "Load")
         self.tab_widget.addTab(self.tab_ranking, "Ranking")
         self.tab_widget.addTab(self.tab_history, "Votes history")
 

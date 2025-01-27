@@ -9,7 +9,7 @@ from db.database import Database
 from gui.history_tab import HistoryTab
 from gui.main_window import MainWindow
 from gui.ranking_tab import RankingTab
-from gui.upload_tab import UploadTab
+from gui.load_tab import LoadTab
 from gui.voting_tab import VotingTab
 from utils.config import setup_logging
 from gui.albums_tab import AlbumsTab
@@ -80,7 +80,7 @@ class Application:
             self.get_total_votes
         )
 
-        self.upload_tab = UploadTab(self.add_media_to_db, self.media_handler, self.ranking_tab)
+        self.upload_tab = LoadTab(self.add_media_to_db, self.media_handler, self.ranking_tab)
 
         # Set up tabs in main window
         self.main_window.setup_tabs(
