@@ -1,16 +1,18 @@
+import logging
 import math
 import os
-from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread, QEvent
+
+from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread
 from PyQt6.QtGui import QMovie, QIcon, QKeyEvent
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
+
 from core.media_loader import ThreadedMediaLoader
+from core.media_utils import AspectRatioWidget
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
 from gui.loading_overlay import LoadingOverlay
-from core.media_utils import AspectRatioWidget
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +214,8 @@ class RankingTab(QWidget):
         self.single_click_timer.setSingleShot(True)
         self.single_click_timer.timeout.connect(lambda: handle_video_single_click(self.pending_video_click))
         self.pending_video_click = []  # Stores (media_player, media_path)
+
+        self.deletion_errors = []
 
     def setup_ui(self):
         """Setup the UI elements"""
@@ -484,62 +488,6 @@ class RankingTab(QWidget):
                     widget.checkbox.hide()
         self.update_buttons_visibility()
 
-    def delete_selected_items(self):
-        """Delete selected items."""
-        if not self.checked_items:
-            return
-
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setText(f"Are you sure you want to delete {len(self.checked_items)} item(s)?")
-        msg.setWindowTitle("Confirm Delete")
-
-        # Add a checkbox for permanent file deletion
-        delete_file_checkbox = QCheckBox("Also permanently delete files", msg)
-        delete_file_checkbox.setChecked(False)  # Unchecked by default
-        msg.setCheckBox(delete_file_checkbox)
-
-        # Add standard buttons
-        msg.setStandardButtons(
-            QMessageBox.StandardButton.Yes |
-            QMessageBox.StandardButton.Cancel
-        )
-
-        # Show the dialog and wait for user input
-        result = msg.exec()
-
-        if result == QMessageBox.StandardButton.Yes:
-            try:
-                delete_files = delete_file_checkbox.isChecked()
-                for media_id in list(self.checked_items):
-                    # Delete the media from the database and get the file path
-                    file_path = self.delete_callback(media_id, recalculate=False)  # Disable recalculation
-
-                    if delete_files and file_path and os.path.exists(file_path):
-                        # Release any resources using the file
-                        for i in range(self.grid_layout.count()):
-                            item = self.grid_layout.itemAt(i)
-                            if item and item.widget():
-                                widget = item.widget()
-                                if hasattr(widget, 'cleanup'):
-                                    widget.cleanup()  # Release resources
-
-                        try:
-                            os.remove(file_path)  # Delete the file from the system
-                            logger.info(f"File deleted from disk: {file_path}")
-                        except Exception as e:
-                            logger.info(f"Error deleting file {file_path}: {e}")
-
-                # Recalculate ratings once after all deletions are complete
-                self.db._recalculate_ratings()
-
-                # Clear the set of checked items and uncheck all checkboxes
-                self.uncheck_all()  # Call uncheck_all after deletion
-
-                # Refresh the rankings display
-                self.refresh_rankings()
-            except Exception as e:
-                self.show_error(f"Error deleting items: {str(e)}")
 
     def release_file_resources(self, file_path: str):
         """Release any resources (e.g., video players) using the file."""
@@ -829,50 +777,149 @@ class RankingTab(QWidget):
         """Set the flag indicating that there are new votes."""
         self.new_votes_since_last_refresh = True
 
-    def confirm_delete(self, image_id, image_path):
-        """Show delete confirmation dialog with a checkbox to delete the file permanently."""
+    def _cleanup_media_resources(self, file_path: str):
+        """Release all resources associated with a media file."""
+        for i in range(self.grid_layout.count()):
+            item = self.grid_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'cleanup'):
+                    widget.cleanup()
+
+                # Close preview if it's showing this file
+                if self.preview.isVisible() and hasattr(self.preview, 'current_media_path'):
+                    if self.preview.current_media_path == file_path:
+                        self.preview.close()
+
+    def _delete_file(self, file_path: str) -> bool:
+        """
+        Attempt to delete a file from disk.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            if os.path.exists(file_path):
+                self._cleanup_media_resources(file_path)
+                os.remove(file_path)
+                logger.info(f"File deleted from disk: {file_path}")
+                return True
+            else:
+                logger.warning(f"File not found: {file_path}")
+                return False
+        except Exception as e:
+            logger.error(f"Error deleting file {file_path}: {e}")
+            self.deletion_errors.append((file_path, str(e)))
+            return False
+
+    def _show_deletion_errors(self):
+        """Show error dialog for failed deletions."""
+        if self.deletion_errors:
+            error_msg = "Failed to delete the following files:\n\n"
+            for file_path, error in self.deletion_errors:
+                error_msg += f"• {os.path.basename(file_path)}: {error}\n"
+
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle("Deletion Errors")
+            msg.setText(error_msg)
+            msg.exec()
+            self.deletion_errors.clear()
+
+    def _handle_media_deletion(self, media_id: int, file_path: str, delete_file: bool, recalculate: bool = True):
+        """
+        Handle the deletion of a media item.
+        Returns True if the database deletion was successful.
+        """
+        try:
+            # Delete from database
+            self.delete_callback(media_id, recalculate=recalculate)
+
+            # Delete file if requested
+            if delete_file:
+                self._delete_file(file_path)
+
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting media {media_id}: {e}")
+            self.deletion_errors.append((file_path, str(e)))
+            return False
+
+    def confirm_delete(self, media_id: int, file_path: str):
+        """Show delete confirmation dialog for a single item."""
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setText(f"Are you sure you want to delete:\n{os.path.basename(image_path)}?")
+        msg.setText(f"Are you sure you want to delete:\n{os.path.basename(file_path)}?")
         msg.setWindowTitle("Confirm Delete")
 
-        # Add a checkbox for permanent file deletion
-        delete_file_checkbox = QCheckBox("Also permanently delete files", msg)
-        delete_file_checkbox.setChecked(False)  # Unchecked by default
+        delete_file_checkbox = QCheckBox("Also permanently delete file from disk", msg)
+        delete_file_checkbox.setChecked(False)
         msg.setCheckBox(delete_file_checkbox)
 
-        # Add standard buttons
         msg.setStandardButtons(
             QMessageBox.StandardButton.Yes |
             QMessageBox.StandardButton.No
         )
 
-        # Show the dialog and wait for user input
-        result = msg.exec()
+        if msg.exec() == QMessageBox.StandardButton.Yes:
+            self._handle_media_deletion(media_id, file_path, delete_file_checkbox.isChecked())
+            self._show_deletion_errors()
+            self.refresh_rankings()
 
-        if result == QMessageBox.StandardButton.Yes:
+    def delete_selected_items(self):
+        """Delete multiple selected items."""
+        if not self.checked_items:
+            return
+
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(f"Are you sure you want to delete {len(self.checked_items)} item(s)?")
+        msg.setWindowTitle("Confirm Delete")
+
+        delete_file_checkbox = QCheckBox("Also permanently delete files from disk", msg)
+        delete_file_checkbox.setChecked(False)
+        msg.setCheckBox(delete_file_checkbox)
+
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Yes |
+            QMessageBox.StandardButton.Cancel
+        )
+
+        if msg.exec() == QMessageBox.StandardButton.Yes:
+            delete_files = delete_file_checkbox.isChecked()
+            success_count = 0
+
             try:
-                # Release any resources using the file
-                self.release_file_resources(image_path)
+                for media_id in list(self.checked_items):
+                    # Get file path from database before deletion
+                    file_path = self.db.get_media_path(media_id)
+                    if self._handle_media_deletion(media_id, file_path, delete_files, recalculate=False):
+                        success_count += 1
+                        self.checked_items.discard(media_id)
 
-                # Delete the entry from the database
-                self.delete_callback(image_id)
+                # Recalculate ratings once after all deletions
+                self.db._recalculate_ratings()
 
-                # If the checkbox is checked, delete the file from the hard drive
-                if delete_file_checkbox.isChecked():
-                    if os.path.exists(image_path):
-                        try:
-                            os.remove(image_path)  # Delete the file from the system
-                            logger.info(f"File deleted from disk: {image_path}")
-                        except Exception as e:
-                            logger.warning(f"Error deleting file {image_path}: {e}")
-                    else:
-                        logger.info(f"File not found: {image_path}")
+                # Show any errors that occurred
+                self._show_deletion_errors()
 
-                # Refresh the rankings
+                # Show success message
+                if success_count > 0:
+                    QMessageBox.information(
+                        self,
+                        "Deletion Complete",
+                        f"Successfully deleted {success_count} item(s)."
+                    )
+
+                # Refresh the display
+                self.uncheck_all()
                 self.refresh_rankings()
+
             except Exception as e:
-                self.show_error(f"Error deleting image: {str(e)}")
+                logger.error(f"Error in batch deletion: {e}")
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"An error occurred during deletion: {str(e)}"
+                )
 
     def show_error(self, message):
         """Show error dialog"""

@@ -414,6 +414,12 @@ class Database:
                 })
         return missing
 
+    def get_media_path(self, media_id: int) -> Optional[str]:
+        """Get the file path for a media item by its ID."""
+        self.cursor.execute("SELECT path FROM media WHERE id = ?", (media_id,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None
+
     def update_media_path(self, media_id: int, new_path: str) -> bool:
         """Update a media file's path."""
         try:
