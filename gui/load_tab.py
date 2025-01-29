@@ -70,7 +70,7 @@ class LoadTab(QWidget):
         urls = event.mimeData().urls()
         paths = [url.toLocalFile() for url in urls]
 
-        allowed_exts = {'.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.mov', '.mkv', '.webp', '.webm'}
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.gif', '.mp4', '.m4v', '.wmv', '.avi', '.mov', '.mkv', '.webp', '.webm'}
         all_files = []
 
         for path in paths:
@@ -96,7 +96,7 @@ class LoadTab(QWidget):
         if self.gifs_checkbox.isChecked():
             extensions.append('.gif')
         if self.videos_checkbox.isChecked():
-            extensions.extend(['.mp4', '.avi', '.mov', '.mkv', '.webm'])
+            extensions.extend(['.mp4', '.m4v', '.wmv', '.avi', '.mov', '.mkv', '.webm'])
         return extensions
 
     def _collect_media_files_from_folder(self, folder, extensions):
@@ -111,7 +111,7 @@ class LoadTab(QWidget):
 
     def add_files(self):
         """Handle adding individual files."""
-        file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.avi *.mov *.mkv *.webp *.webm)"
+        file_filter = "Media files (*.jpg *.jpeg *.png *.gif *.mp4 *.m4v *.wmv *.avi *.mov *.mkv *.webp *.webm)"
 
         filenames, _ = QFileDialog.getOpenFileNames(
             self,

@@ -112,7 +112,7 @@ class ScalableMovie(QLabel):
 
 class MediaHandler:
     VALID_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-    VALID_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}
+    VALID_VIDEO_EXTENSIONS = {'.mp4', '.m4v', '.wmv', '.avi', '.mov', '.mkv', '.webm'}
 
     def __init__(self):
         """Initialize the media handler."""
@@ -145,7 +145,7 @@ class MediaHandler:
             return 'image'
         elif ext == '.gif':
             return 'gif'
-        elif ext in ['.mp4', '.avi', '.mov', '.mkv', '.webm']:
+        elif ext in ['.mp4', '.avi', '.m4v', '.wmv', '.mov', '.mkv', '.webm']:
             return 'video'
         else:
             return 'unknown'
@@ -162,7 +162,7 @@ class MediaHandler:
             widget, movie = self._load_gif(file_path)
         elif ext in ['.jpg', '.jpeg', '.png', '.webp']:
             widget = self._load_image(file_path)
-        elif ext in ['.mp4', '.avi', '.mov', '.mkv', '.webm']:
+        elif ext in ['.mp4', '.avi', '.m4v', '.wmv', '.mov', '.mkv', '.webm']:
             widget, player = self._create_video_widget(file_path)
         else:
             return None
@@ -172,7 +172,7 @@ class MediaHandler:
             wrapped_widget = AspectRatioWidget(widget, aspect_ratio)
             if ext == '.gif':
                 return wrapped_widget, movie
-            elif ext in ['.mp4', '.avi', '.mov', '.mkv', '.webm']:
+            elif ext in ['.mp4', '.avi', '.m4v', '.wmv', '.mov', '.mkv', '.webm']:
                 return wrapped_widget, player
             return wrapped_widget
         return None

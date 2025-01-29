@@ -171,7 +171,7 @@ class Database:
                 media_type = 'image'
             elif ext == '.gif':
                 media_type = 'gif'
-            elif ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
+            elif ext in ['.mp4', '.avi', '.m4v', '.wmv', '.mov', '.mkv', '.webm']:
                 media_type = 'video'
 
             # Check if the file already exists in the database
