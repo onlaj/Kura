@@ -329,6 +329,7 @@ class Database:
             loser_id: ID of the losing media
             new_winner_rating: New rating for the winner
             new_loser_rating: New rating for the loser
+            :param album_id:
         """
         try:
             self.conn.execute("BEGIN")

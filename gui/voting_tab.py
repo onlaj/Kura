@@ -83,7 +83,6 @@ class PreloadPair(QObject):
 
     def load_pair(self, left_data, right_data):
         """Load media pair in memory"""
-        print("Loading pair in the background")
         self.left_data = left_data
         self.right_data = right_data
         if left_data and right_data:

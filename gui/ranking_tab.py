@@ -489,22 +489,22 @@ class RankingTab(QWidget):
         self.update_buttons_visibility()
 
 
-    def release_file_resources(self, file_path: str):
-        """Release any resources (e.g., video players) using the file."""
-        for i in range(self.grid_layout.count()):
-            item = self.grid_layout.itemAt(i)
-            if item and item.widget():
-                widget = item.widget()
-                if hasattr(widget, 'video_player') and widget.video_player:
-                    # Stop and release the video player if it's using the file
-                    if widget.video_player.source() == file_path:
-                        widget.video_player.stop()
-                        widget.video_player.setSource(QUrl())  # Clear the source
-                if hasattr(widget, 'gif_movie') and widget.gif_movie:
-                    # Stop and release the GIF movie if it's using the file
-                    if widget.gif_movie.fileName() == file_path:
-                        widget.gif_movie.stop()
-                        widget.gif_movie.setFileName("")  # Clear the file name
+    # def release_file_resources(self, file_path: str):
+    #     """Release any resources (e.g., video players) using the file."""
+    #     for i in range(self.grid_layout.count()):
+    #         item = self.grid_layout.itemAt(i)
+    #         if item and item.widget():
+    #             widget = item.widget()
+    #             if hasattr(widget, 'video_player') and widget.video_player:
+    #                 # Stop and release the video player if it's using the file
+    #                 if widget.video_player.source() == file_path:
+    #                     widget.video_player.stop()
+    #                     widget.video_player.setSource(QUrl())  # Clear the source
+    #             if hasattr(widget, 'gif_movie') and widget.gif_movie:
+    #                 # Stop and release the GIF movie if it's using the file
+    #                 if widget.gif_movie.fileName() == file_path:
+    #                     widget.gif_movie.stop()
+    #                     widget.gif_movie.setFileName("")  # Clear the file name
 
     def show_preview(self, media_path, media_player = None):
         """Show media preview overlay with navigation"""
