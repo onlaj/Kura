@@ -152,6 +152,8 @@ class VotingTab(QWidget):
         self.delayed_preload_timer.setSingleShot(True)
         self.delayed_preload_timer.timeout.connect(self._start_preload)
 
+        self.history_tab = None
+
         self.setup_ui()
 
 
@@ -210,6 +212,9 @@ class VotingTab(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocus()  # Ensure the widget has focus when the tab is opened
 
+    def set_history_tab(self, history_tab):
+        """Set reference to history tab"""
+        self.history_tab = history_tab
 
 
     def eventFilter(self, obj, event):
@@ -471,6 +476,9 @@ class VotingTab(QWidget):
         # Start cooldown timer
         self.cooldown_timer.start(int(self.vote_cooldown * 1000))
         self.update_reliability_info()
+
+        if self.history_tab:
+            self.history_tab.set_needs_refresh()
 
     def end_cooldown(self):
         """End the cooldown period and revert button styles."""

@@ -64,5 +64,7 @@ class MainWindow(QMainWindow):
             self.tab_voting.ensure_images_loaded()
         elif tab_name == "Ranking":
             self.tab_ranking.refresh_rankings(force_refresh=False)
+        elif tab_name == "Votes history":
+            self.tab_history.refresh_if_needed()
 
         self.media_handler.pause_all_videos()

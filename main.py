@@ -80,6 +80,9 @@ class Application:
             self.get_total_votes
         )
 
+        # Set history tab reference in voting tab
+        self.voting_tab.set_history_tab(self.history_tab)
+
         self.upload_tab = LoadTab(self.add_media_to_db, self.media_handler, self.ranking_tab)
 
         # Set up tabs in main window

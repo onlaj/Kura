@@ -30,6 +30,7 @@ class HistoryTab(QWidget):
 
         self.selected_votes = set()
         self.current_vote_ids = []  # Track vote IDs on current page
+        self._needs_refresh = False  # Flag for tracking refresh need
 
         self.setup_ui()
 
@@ -121,6 +122,16 @@ class HistoryTab(QWidget):
         layout.addWidget(self.table)
 
         self.load_data()
+
+    def set_needs_refresh(self):
+        """Mark that the history needs to be refreshed"""
+        self._needs_refresh = True
+
+    def refresh_if_needed(self):
+        """Refresh the data only if needed"""
+        if self._needs_refresh:
+            self.load_data()
+            self._needs_refresh = False
 
 
     def load_data(self):
