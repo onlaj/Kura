@@ -147,6 +147,11 @@ class VotingTab(QWidget):
         self.preload_timer.setSingleShot(True)
         self.preload_timer.timeout.connect(self._finish_preload)
 
+        # Add delayed preload timer
+        self.delayed_preload_timer = QTimer(self)
+        self.delayed_preload_timer.setSingleShot(True)
+        self.delayed_preload_timer.timeout.connect(self._start_preload)
+
         self.setup_ui()
 
 
@@ -283,14 +288,20 @@ class VotingTab(QWidget):
         self.current_pair.load_pair(*media_pair)
         self._display_current_pair()
 
-        # Start preloading next pair
-        self._start_preload()
+        # Schedule preload with a delay
+        self.delayed_preload_timer.start(100)
 
     def _start_preload(self):
-        """Start preloading next pair"""
+        """Start preloading next pair in the background"""
         media_pair = self.get_pair_callback(self.active_album_id)
         if media_pair and None not in media_pair:
-            self.next_pair.load_pair(*media_pair)
+            # Use a new timer to enable voting once preload is complete
+            QTimer.singleShot(0, lambda: self._do_preload(media_pair))
+
+    def _do_preload(self, media_pair):
+        """Actually perform the preload"""
+        self.next_pair.load_pair(*media_pair)
+        self.enable_voting()
 
     def _display_current_pair(self):
         """Display current pair in frames"""
@@ -423,7 +434,7 @@ class VotingTab(QWidget):
         self.left_frame.set_cooldown_style(True)
         self.right_frame.set_cooldown_style(True)
 
-        # Determine winner and loser
+        # Process vote
         if vote == "left":
             winner = self.current_pair.left_data
             loser = self.current_pair.right_data
@@ -431,10 +442,10 @@ class VotingTab(QWidget):
             winner = self.current_pair.right_data
             loser = self.current_pair.left_data
 
-        # Process vote
         rating = Rating(winner[2], loser[2], Rating.WIN, Rating.LOST)
         new_ratings = rating.get_new_ratings()
 
+        # Update database
         for _ in range(vote_count):
             self.update_ratings_callback(
                 winner[0], loser[0], 
@@ -445,15 +456,20 @@ class VotingTab(QWidget):
         self.ranking_tab.set_new_votes_flag()
         self.total_votes += vote_count
 
-        # Switch to preloaded pair and start new preload
-        self.current_pair.cleanup()
-        self.current_pair, self.next_pair = self.next_pair, self.current_pair
-        self._display_current_pair()
-        self._start_preload()
+        # Switch to preloaded pair IMMEDIATELY
+        if self.next_pair.is_loaded:
+            self.current_pair.cleanup()
+            self.current_pair, self.next_pair = self.next_pair, self.current_pair
+            self._display_current_pair()
+            
+            # Schedule preload with a slight delay to ensure UI remains responsive
+            self.delayed_preload_timer.start(100)  # 100ms delay
+        else:
+            # If next pair isn't loaded, load new pair immediately
+            self.load_new_pair()
         
         # Start cooldown timer
         self.cooldown_timer.start(int(self.vote_cooldown * 1000))
-        
         self.update_reliability_info()
 
     def end_cooldown(self):
