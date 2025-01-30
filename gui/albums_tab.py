@@ -427,11 +427,16 @@ class AlbumsTab(QWidget):
             return
 
         # Check album name conflict
-        backup_conn = sqlite3.connect(file_path)
-        backup_cursor = backup_conn.cursor()
-        backup_cursor.execute("SELECT name FROM albums")
-        backup_name = backup_cursor.fetchone()[0]
-        backup_conn.close()
+        try:
+            backup_conn = sqlite3.connect(file_path)
+            backup_cursor = backup_conn.cursor()
+            backup_cursor.execute("SELECT name FROM albums")
+            backup_name = backup_cursor.fetchone()[0]
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Error", f"Failed to read backup file: {str(e)}")
+            return
+        finally:
+            backup_conn.close()
 
         new_name = backup_name
         existing = self.db.cursor.execute(
