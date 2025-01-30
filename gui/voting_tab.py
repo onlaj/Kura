@@ -1,6 +1,6 @@
 import time
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QObject
 from PyQt6.QtGui import QMovie, QKeyEvent
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy)
@@ -71,6 +71,44 @@ class MediaFrame(QFrame):
             self.double_vote_button.setText("Double Vote")
 
 
+class PreloadPair(QObject):
+    def __init__(self, media_handler):
+        super().__init__()
+        self.media_handler = media_handler
+        self.left_data = None  # (id, path, rating)
+        self.right_data = None
+        self.left_media = None  # Loaded media widget
+        self.right_media = None
+        self.is_loaded = False
+
+    def load_pair(self, left_data, right_data):
+        """Load media pair in memory"""
+        print("Loading pair in the background")
+        self.left_data = left_data
+        self.right_data = right_data
+        if left_data and right_data:
+            self.left_media = self.media_handler.load_media(left_data[1])
+            self.right_media = self.media_handler.load_media(right_data[1])
+            self.is_loaded = True
+        else:
+            self.is_loaded = False
+
+    def cleanup(self):
+        """Clean up loaded media"""
+        for media in [self.left_media, self.right_media]:
+            if isinstance(media, tuple):
+                if media[1].__class__.__name__ == 'QMediaPlayer':
+                    media[1].stop()
+                elif media[1].__class__.__name__ == 'QMovie':
+                    media[1].stop()
+                media[0].deleteLater()
+            elif media:
+                media.deleteLater()
+        self.left_media = None
+        self.right_media = None
+        self.is_loaded = False
+
+
 class VotingTab(QWidget):
     def __init__(self, get_pair_callback, update_ratings_callback, media_handler,
                  ranking_tab, get_total_media_count, get_total_votes):
@@ -102,6 +140,12 @@ class VotingTab(QWidget):
         self.single_click_timer.setSingleShot(True)
         self.single_click_timer.timeout.connect(lambda: handle_video_single_click(self.pending_video_click))
         self.pending_video_click = []  # Stores (media_player, media_path)
+
+        self.current_pair = PreloadPair(media_handler)
+        self.next_pair = PreloadPair(media_handler)
+        self.preload_timer = QTimer(self)
+        self.preload_timer.setSingleShot(True)
+        self.preload_timer.timeout.connect(self._finish_preload)
 
         self.setup_ui()
 
@@ -222,8 +266,72 @@ class VotingTab(QWidget):
         frame.set_file_info(media_path)
 
     def load_new_pair(self):
-        """Load a new pair of media items for voting."""
-        # Clear existing media first
+        """Load initial pairs"""
+        if not self.active_album_id:
+            self.status_label.setText("No active album selected")
+            self.disable_voting()
+            return
+
+        # Get first pair
+        media_pair = self.get_pair_callback(self.active_album_id)
+        if not media_pair or None in media_pair:
+            self.status_label.setText("No media items in this album")
+            self.disable_voting()
+            return
+
+        # Load current pair
+        self.current_pair.load_pair(*media_pair)
+        self._display_current_pair()
+
+        # Start preloading next pair
+        self._start_preload()
+
+    def _start_preload(self):
+        """Start preloading next pair"""
+        media_pair = self.get_pair_callback(self.active_album_id)
+        if media_pair and None not in media_pair:
+            self.next_pair.load_pair(*media_pair)
+
+    def _display_current_pair(self):
+        """Display current pair in frames"""
+        if not self.current_pair.is_loaded:
+            return
+
+        # Clear existing media
+        self._clear_frames()
+
+        # Set up left frame
+        if isinstance(self.current_pair.left_media, tuple):
+            self.left_frame.media_widget = self.current_pair.left_media[0]
+            if isinstance(self.current_pair.left_media[1], QMovie):
+                self.left_frame.gif_movie = self.current_pair.left_media[1]
+            else:
+                self.left_frame.media_player = self.current_pair.left_media[1]
+        else:
+            self.left_frame.media_widget = self.current_pair.left_media
+
+        # Set up right frame
+        if isinstance(self.current_pair.right_media, tuple):
+            self.right_frame.media_widget = self.current_pair.right_media[0]
+            if isinstance(self.current_pair.right_media[1], QMovie):
+                self.right_frame.gif_movie = self.current_pair.right_media[1]
+            else:
+                self.right_frame.media_player = self.current_pair.right_media[1]
+        else:
+            self.right_frame.media_widget = self.current_pair.right_media
+
+        # Add widgets to frames
+        self.left_frame.layout.insertWidget(0, self.left_frame.media_widget)
+        self.right_frame.layout.insertWidget(0, self.right_frame.media_widget)
+
+        # Set file info
+        self.left_frame.set_file_info(self.current_pair.left_data[1])
+        self.right_frame.set_file_info(self.current_pair.right_data[1])
+
+        self.images_loaded = True
+
+    def _clear_frames(self):
+        """Clear media from frames"""
         for frame in [self.left_frame, self.right_frame]:
             if frame.media_widget:
                 if frame.media_player:
@@ -236,33 +344,6 @@ class VotingTab(QWidget):
                 frame.media_widget = None
                 frame.media_player = None
                 frame.gif_movie = None
-
-        # Clear file info labels
-        self.left_frame.file_info_label.clear()
-        self.right_frame.file_info_label.clear()
-
-        if not self.active_album_id:
-            self.status_label.setText("No active album selected")
-            self.disable_voting()
-            self.images_loaded = False
-            return
-
-        # Get new pair from database
-        media_pair = self.get_pair_callback(self.active_album_id)
-        if not media_pair or None in media_pair:
-            self.status_label.setText("No media items in this album")
-            self.disable_voting()
-            self.images_loaded = False
-            return
-
-        # Rest of existing loading logic...
-        self.current_left, self.current_right = media_pair
-        self.images_loaded = True
-        self.load_media_to_frame(self.left_frame, self.current_left[1])
-        self.load_media_to_frame(self.right_frame, self.current_right[1])
-        self.enable_voting()
-        self.status_label.clear()
-        self.update_reliability_info()
 
     def set_active_album(self, album_id: int):
         """Set the active album and reload media pair."""
@@ -331,57 +412,49 @@ class VotingTab(QWidget):
 
     def handle_vote(self, vote, vote_count):
         """Handle voting for a media item."""
-        # Check cooldown
+        if not self.current_pair.is_loaded:
+            return
+
         current_time = time.time()
         if current_time - self.last_vote_time < self.vote_cooldown:
             return
 
         self.last_vote_time = current_time
-
-        # Apply cooldown styling
         self.left_frame.set_cooldown_style(True)
         self.right_frame.set_cooldown_style(True)
 
-        # Start cooldown timer
-        self.cooldown_timer.start(int(self.vote_cooldown * 1000))
-
         # Determine winner and loser
         if vote == "left":
-            winner = self.current_left
-            loser = self.current_right
+            winner = self.current_pair.left_data
+            loser = self.current_pair.right_data
         else:
-            winner = self.current_right
-            loser = self.current_left
+            winner = self.current_pair.right_data
+            loser = self.current_pair.left_data
 
-        # Calculate new ratings
-        rating = Rating(
-            winner[2],  # winner's current rating
-            loser[2],  # loser's current rating
-            Rating.WIN,
-            Rating.LOST
-        )
+        # Process vote
+        rating = Rating(winner[2], loser[2], Rating.WIN, Rating.LOST)
         new_ratings = rating.get_new_ratings()
 
-        # Update database
         for _ in range(vote_count):
             self.update_ratings_callback(
-                winner[0],  # winner_id
-                loser[0],  # loser_id
-                new_ratings['a'],  # new winner rating
-                new_ratings['b'],  # new loser rating
-                self.active_album_id  # new album_id parameter
+                winner[0], loser[0], 
+                new_ratings['a'], new_ratings['b'],
+                self.active_album_id
             )
 
-        # Notify RankingTab that there are new votes
         self.ranking_tab.set_new_votes_flag()
-
-        # Increment local counter
         self.total_votes += vote_count
 
-        # Load new pair
-        self.load_new_pair()
-
-        self.update_reliability_info()  # Add this line
+        # Switch to preloaded pair and start new preload
+        self.current_pair.cleanup()
+        self.current_pair, self.next_pair = self.next_pair, self.current_pair
+        self._display_current_pair()
+        self._start_preload()
+        
+        # Start cooldown timer
+        self.cooldown_timer.start(int(self.vote_cooldown * 1000))
+        
+        self.update_reliability_info()
 
     def end_cooldown(self):
         """End the cooldown period and revert button styles."""
@@ -405,3 +478,8 @@ class VotingTab(QWidget):
         self.left_frame.vote_button.setEnabled(False)
         self.right_frame.vote_button.setEnabled(False)
         self.skip_button.setEnabled(False)
+
+    def _finish_preload(self):
+        """Called when preload is complete"""
+        if self.next_pair.is_loaded:
+            self.enable_voting()
