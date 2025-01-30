@@ -221,17 +221,13 @@ class AlbumsTab(QWidget):
                 QMessageBox.warning(self, "Error", "Album name already exists")
 
     def delete_album(self):
-        """Delete the selected album and switch to default."""
+        """Delete the selected album. If it's the default album, create a new one."""
         selected = self.album_table.selectedItems()
         if not selected:
             return
 
         row = selected[0].row()
         album_id = self.album_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
-
-        if album_id == 1:
-            QMessageBox.warning(self, "Error", "Cannot delete Default album")
-            return
 
         # Confirm deletion
         reply = QMessageBox.question(
@@ -241,10 +237,17 @@ class AlbumsTab(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
+            was_default = album_id == 1
+
+            # Delete the album
             if self.db.delete_album(album_id):
-                # Switch to default album
-                self._select_album_by_id(1)
+                # If we were on the deleted album, switch to the new default
+                if album_id == self.active_album_id:
+                    self._select_album_by_id(1)
+
                 self.refresh_albums()
+            else:
+                QMessageBox.warning(self, "Error", "Failed to delete album")
 
 
     def _setup_stats_section(self):

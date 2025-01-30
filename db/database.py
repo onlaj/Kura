@@ -119,27 +119,38 @@ class Database:
             return False
 
     def delete_album(self, album_id: int) -> bool:
-        """Delete an album and all its media."""
+        """Delete an album and all its media. If deleting the default album (id=1), creates a new one."""
         try:
+            was_default = album_id == 1
+
             self.conn.execute("BEGIN")
+
             # Delete all votes involving media from this album
             self.cursor.execute("""
                 DELETE FROM votes WHERE winner_id IN 
                 (SELECT id FROM media WHERE album_id = ?)
                 OR loser_id IN (SELECT id FROM media WHERE album_id = ?)
             """, (album_id, album_id))
+
             # Delete all media in the album
             self.cursor.execute("DELETE FROM media WHERE album_id = ?", (album_id,))
+
             # Delete the album
             self.cursor.execute("DELETE FROM albums WHERE id = ?", (album_id,))
+
+            # If we just deleted the default album, create a new one
+            if was_default:
+                self.cursor.execute("""
+                    INSERT INTO albums (id, name, created_at)
+                    VALUES (1, 'Default', datetime('now'))
+                """)
+
             self.conn.commit()
-
-            if album_id == 1:  # Default album can't be deleted
-                self._ensure_default_album()
-
             return True
-        except:
+
+        except Exception as e:
             self.conn.rollback()
+            print(f"Error deleting album: {e}")
             return False
 
     def get_albums(self) -> List[tuple]:
