@@ -34,32 +34,6 @@ def compute_real_reliability(original_order: List[Media], current_order: List[Me
     return (correct / total) * 100 if total > 0 else 0.0
 
 
-# def compute_real_reliability(original_order: List[Media], current_order: List[Media]) -> float:
-#     """
-#     Calculate reliability based on how close media are to their objective positions.
-#
-#     Args:
-#         original_order: List of media sorted by objective score (descending).
-#         current_order: List of media sorted by ELO rating (descending).
-#
-#     Returns:
-#         Average percentage of positional accuracy across all media.
-#     """
-#     n = len(current_order)
-#     if n <= 1:
-#         return 100.0  # Single item is perfectly placed
-#
-#     total_percent = 0.0
-#     max_distance = n - 1  # Maximum possible position difference
-#
-#     for current_pos, media in enumerate(current_order):
-#         # Correct position is determined by the media's objective score ranking
-#         correct_pos = media.id  # Media IDs correspond to their objective rankings
-#         distance = abs(current_pos - correct_pos)
-#         individual_percent = 100.0 * (1.0 - distance / max_distance)
-#         total_percent += individual_percent
-#
-#     return total_percent / n
 
 def simulate_and_plot(n: int) -> Tuple[dict, str]:
     """Run simulation and generate comparison plot"""
@@ -80,7 +54,19 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
         min_votes = min(m.vote_count for m in shuffled)
         candidates = [m for m in shuffled if m.vote_count == min_votes]
         media_a = random.choice(candidates)
-        media_b = random.choice([m for m in shuffled if m != media_a])
+        # Calculate current reliability BEFORE vote occurs
+        current_reliability = ReliabilityCalculator.calculate_reliability(n, total_votes)
+
+        # Select media_b based on reliability
+        if current_reliability >= 85:
+            # Find media with similar ratings (±100)
+            eligible = [m for m in shuffled
+                        if m != media_a
+                        and abs(m.elo - media_a.elo) <= 100]
+            media_b = random.choice(eligible) if eligible else \
+                random.choice([m for m in shuffled if m != media_a])
+        else:
+            media_b = random.choice([m for m in shuffled if m != media_a])
 
         # Determine winner
         if media_a.objective_score > media_b.objective_score:
@@ -88,8 +74,11 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
         else:
             winner, loser = media_b, media_a
 
-        # Update ELO
-        rating = Rating(winner.elo, loser.elo, Rating.WIN, Rating.LOST)
+        # Calculate K-factor based on current reliability
+        k_factor = 32 if current_reliability < 85 else 16
+
+        # Update ELO with dynamic K-factor
+        rating = Rating(winner.elo, loser.elo, Rating.WIN, Rating.LOST, k_factor)
         new_ratings = rating.get_new_ratings()
         winner.elo = new_ratings['a']
         loser.elo = new_ratings['b']
