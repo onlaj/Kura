@@ -316,32 +316,40 @@ class VotingTab(QWidget):
         self._clear_frames()
 
         # Set up left frame
-        if isinstance(self.current_pair.left_media, tuple):
-            self.left_frame.media_widget = self.current_pair.left_media[0]
-            if isinstance(self.current_pair.left_media[1], QMovie):
-                self.left_frame.gif_movie = self.current_pair.left_media[1]
+        left_media = self.current_pair.left_media
+        if isinstance(left_media, tuple):
+            self.left_frame.media_widget = left_media[0]
+            if isinstance(left_media[1], QMovie):
+                self.left_frame.gif_movie = left_media[1]
             else:
-                self.left_frame.media_player = self.current_pair.left_media[1]
+                self.left_frame.media_player = left_media[1]
         else:
-            self.left_frame.media_widget = self.current_pair.left_media
+            self.left_frame.media_widget = left_media
+
+        # Add widget to left frame and set click handler
+        self.left_frame.layout.insertWidget(0, self.left_frame.media_widget)
+        left_path = self.current_pair.left_data[1]
+        self.left_frame.media_widget.mousePressEvent = lambda e, p=left_path: self.show_preview(p)
 
         # Set up right frame
-        if isinstance(self.current_pair.right_media, tuple):
-            self.right_frame.media_widget = self.current_pair.right_media[0]
-            if isinstance(self.current_pair.right_media[1], QMovie):
-                self.right_frame.gif_movie = self.current_pair.right_media[1]
+        right_media = self.current_pair.right_media
+        if isinstance(right_media, tuple):
+            self.right_frame.media_widget = right_media[0]
+            if isinstance(right_media[1], QMovie):
+                self.right_frame.gif_movie = right_media[1]
             else:
-                self.right_frame.media_player = self.current_pair.right_media[1]
+                self.right_frame.media_player = right_media[1]
         else:
-            self.right_frame.media_widget = self.current_pair.right_media
+            self.right_frame.media_widget = right_media
 
-        # Add widgets to frames
-        self.left_frame.layout.insertWidget(0, self.left_frame.media_widget)
+        # Add widget to right frame and set click handler
         self.right_frame.layout.insertWidget(0, self.right_frame.media_widget)
+        right_path = self.current_pair.right_data[1]
+        self.right_frame.media_widget.mousePressEvent = lambda e, p=right_path: self.show_preview(p)
 
         # Set file info
-        self.left_frame.set_file_info(self.current_pair.left_data[1])
-        self.right_frame.set_file_info(self.current_pair.right_data[1])
+        self.left_frame.set_file_info(left_path)
+        self.right_frame.set_file_info(right_path)
 
         self.images_loaded = True
 
