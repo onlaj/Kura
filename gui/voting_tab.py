@@ -446,7 +446,12 @@ class VotingTab(QWidget):
             winner = self.current_pair.right_data
             loser = self.current_pair.left_data
 
-        rating = Rating(winner[2], loser[2], Rating.WIN, Rating.LOST)
+        n = self.total_media
+        v = self.total_votes
+        current_reliability = ReliabilityCalculator.calculate_reliability(n, v)
+        k_factor = 32 if current_reliability < 85 else 16
+
+        rating = Rating(winner[2], loser[2], Rating.WIN, Rating.LOST, k_factor)
         new_ratings = rating.get_new_ratings()
 
         # Update database

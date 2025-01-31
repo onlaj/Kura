@@ -4,6 +4,8 @@ import sqlite3
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+from core.elo import ReliabilityCalculator
+
 
 class Database:
     def __init__(self, db_path: str = "media_ratings.db"):
@@ -209,62 +211,61 @@ class Database:
             return False
 
     def _recalculate_ratings(self):
-        """Recalculate all ratings based on vote history."""
         print("RECALCULATING SCORES")
         from core.elo import Rating
 
-        # Reset all ratings to default
-        self.cursor.execute("""
-            UPDATE media 
-            SET rating = 1200, votes = 0
-        """)
+        # Reset all ratings
+        self.cursor.execute("UPDATE media SET rating = 1200, votes = 0")
+        self.conn.commit()
 
-        # Get all votes ordered by timestamp
-        self.cursor.execute("""
-            SELECT winner_id, loser_id 
-            FROM votes 
-            ORDER BY timestamp ASC
-        """)
-        votes = self.cursor.fetchall()
+        # Process votes per album
+        albums = self.get_albums()
+        for album in albums:
+            album_id = album[0]
+            media_count = self.get_total_media_count(album_id)
 
-        print(f"Processing {len(votes)} votes...")
+            self.cursor.execute("""
+                SELECT winner_id, loser_id 
+                FROM votes 
+                WHERE album_id = ?
+                ORDER BY timestamp ASC
+            """, (album_id,))
+            votes = self.cursor.fetchall()
 
-        # Create a dictionary to track current ratings
-        self.cursor.execute("SELECT id, rating FROM media")
-        ratings = {row[0]: 1200 for row in self.cursor.fetchall()}
+            ratings = {row[0]: 1200 for row in
+                       self.cursor.execute("SELECT id FROM media WHERE album_id = ?", (album_id,))}
 
-        # Process each vote
-        for winner_id, loser_id in votes:
-            if winner_id in ratings and loser_id in ratings:
-                # Calculate new ratings
+            # Process each vote with historical context
+            for idx, (winner_id, loser_id) in enumerate(votes):
+                if winner_id not in ratings or loser_id not in ratings:
+                    continue
+
+                v = idx + 1
+                reliability = ReliabilityCalculator.calculate_reliability(media_count, v)
+                k_factor = 32 if reliability < 85 else 16
+
                 rating = Rating(
                     ratings[winner_id],
                     ratings[loser_id],
                     Rating.WIN,
-                    Rating.LOST
+                    Rating.LOST,
+                    k_factor
                 )
                 new_ratings = rating.get_new_ratings()
-
-                # Update our tracking dictionary
                 ratings[winner_id] = new_ratings['a']
                 ratings[loser_id] = new_ratings['b']
 
-                # Update vote counts in database
                 self.cursor.execute("""
                     UPDATE media 
                     SET votes = votes + 1 
                     WHERE id IN (?, ?)
                 """, (winner_id, loser_id))
 
-        print("Updating final ratings in database...")
-
-        # Update all final ratings in the database
-        for media_id, final_rating in ratings.items():
-            self.cursor.execute("""
-                UPDATE media 
-                SET rating = ? 
-                WHERE id = ?
-            """, (final_rating, media_id))
+            # Update final ratings
+            for media_id, rating in ratings.items():
+                self.cursor.execute("""
+                    UPDATE media SET rating = ? WHERE id = ?
+                """, (rating, media_id))
 
         self.conn.commit()
         print("Recalculation complete!")
@@ -596,28 +597,44 @@ class Database:
             Tuple of (least voted media, random media), where each is a tuple of
             (id, path, rating, votes) or None if not enough media items exist
         """
+        # Get current reliability
+        media_count = self.get_total_media_count(album_id)
+        total_votes = self.get_total_votes(album_id)
+        reliability = ReliabilityCalculator.calculate_reliability(media_count, total_votes)
+
+
         self.cursor.execute("""
-            SELECT id, path, rating, votes 
-            FROM media 
-            WHERE album_id = ?
-            ORDER BY votes ASC, RANDOM() 
-            LIMIT 1
-        """, (album_id,))
+                SELECT id, path, rating, votes 
+                FROM media 
+                WHERE album_id = ?
+                ORDER BY votes ASC, RANDOM() 
+                LIMIT 1
+            """, (album_id,))
         least_voted = self.cursor.fetchone()
 
         if not least_voted:
             return None, None
 
-        self.cursor.execute("""
-            SELECT id, path, rating, votes 
-            FROM media 
-            WHERE id != ? AND album_id = ?
-            ORDER BY RANDOM() 
-            LIMIT 1
-        """, (least_voted[0], album_id))
-        random_media = self.cursor.fetchone()
+        if reliability >= 85:
+            self.cursor.execute("""
+                    SELECT id, path, rating, votes 
+                    FROM media 
+                    WHERE id != ? 
+                    AND album_id = ?
+                    AND ABS(rating - ?) <= 100
+                    ORDER BY RANDOM()
+                    LIMIT 1
+                """, (least_voted[0], album_id, least_voted[2]))
+        else:
+            self.cursor.execute("""
+                    SELECT id, path, rating, votes 
+                    FROM media 
+                    WHERE id != ? AND album_id = ?
+                    ORDER BY RANDOM() 
+                    LIMIT 1
+                """, (least_voted[0], album_id))
 
-        return least_voted, random_media
+        return least_voted, self.cursor.fetchone()
 
     def close(self):
         """Close the database connection."""

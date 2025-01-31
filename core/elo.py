@@ -66,7 +66,7 @@ class Rating:
     DRAW = 0.5
     LOST = 0
 
-    def __init__(self, rating_a: float, rating_b: float, score_a: float, score_b: float):
+    def __init__(self, rating_a: float, rating_b: float, score_a: float, score_b: float, k_factor: int):
         """
         Initialize and calculate new ratings based on input scores.
 
@@ -76,6 +76,7 @@ class Rating:
             score_a: Score of player A (1 for win, 0.5 for draw, 0 for loss)
             score_b: Score of player B (1 for win, 0.5 for draw, 0 for loss)
         """
+        self.k_factor = k_factor
         self._rating_a = rating_a
         self._rating_b = rating_b
         self._score_a = score_a
@@ -157,10 +158,7 @@ class Rating:
         Returns:
             Dictionary containing new ratings for both players
         """
-        new_rating_a = rating_a + (self.KFACTOR * (score_a - expected_a))
-        new_rating_b = rating_b + (self.KFACTOR * (score_b - expected_b))
+        new_rating_a = rating_a + (self.k_factor * (score_a - expected_a))
+        new_rating_b = rating_b + (self.k_factor * (score_b - expected_b))
 
-        return {
-            'a': new_rating_a,
-            'b': new_rating_b
-        }
+        return {'a': new_rating_a, 'b': new_rating_b}
