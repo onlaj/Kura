@@ -3,6 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image
+from PIL.ImageQt import ImageQt
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QMovie
 from PyQt6.QtWidgets import QLabel, QSizePolicy
@@ -189,7 +190,20 @@ class MediaHandler:
             return self._load_image(gif_path), None
 
     def _load_image(self, image_path: str):
-        pixmap = self._load_pixmap_cached(image_path)  # Cached pixmap
+        # Original QPixmap approach
+        pixmap = self._load_pixmap_cached(image_path)
+
+        # Fallback using Pillow if QPixmap fails
+        if pixmap.isNull():
+            try:
+                with Image.open(image_path) as img:
+                    qimage = ImageQt(img.convert("RGBA"))
+                    pixmap = QPixmap.fromImage(qimage)
+                    logger.info(f"Loaded via PIL fallback: {image_path}")
+            except Exception as e:
+                logger.error(f"PIL fallback failed: {str(e)}")
+                return None
+
         if not pixmap.isNull():
             label = ScalableLabel()
             label.setPixmap(pixmap)
