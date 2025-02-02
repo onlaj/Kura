@@ -1,6 +1,6 @@
 # Reliability Threshold Justification for ELO-Based Ranking System  
 **Author**: Onlaj  
-**Version**: 2.0  
+**Version**: 2.1 
 
 ---
 
