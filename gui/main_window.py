@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt
 class MainWindow(QMainWindow):
     def __init__(self, media_handler):
         super().__init__()
-        self.setWindowTitle("Rankify")
+        self.setWindowTitle("Kura")
         self.resize(1280, 800)
 
         # Create central widget and layout
