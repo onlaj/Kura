@@ -113,8 +113,9 @@ class Application:
         if self.media_handler.is_valid_media(file_path):
             result = self.db.add_media(file_path, media_type, self.active_album_id)
             if result:
-                self.ranking_tab.invalidate_total_media_count_cache()  # Invalidate cache
+                self.ranking_tab.invalidate_total_media_count_cache()
                 self.voting_tab.refresh_media_count()
+                self.albums_tab.refresh_albums()  # Add this line
             return result
         return False
 
@@ -122,8 +123,9 @@ class Application:
         """Delete media from database and return the file path."""
         try:
             file_path = self.db.delete_media(media_id, recalculate=recalculate)
-            self.ranking_tab.invalidate_total_media_count_cache()  # Invalidate cache
+            self.ranking_tab.invalidate_total_media_count_cache()
             self.voting_tab.refresh_media_count()
+            self.albums_tab.refresh_albums()  # Add this line
             return file_path
         except Exception as e:
             print(f"Error deleting media: {e}")
