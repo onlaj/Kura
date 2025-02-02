@@ -13,12 +13,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
-        # Create album label
-        self.album_label = QLabel("Album: Default")
-        self.album_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.album_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
-        layout.addWidget(self.album_label)
-
         # Create tab widget
         self.tab_widget = QTabWidget()
         layout.addWidget(self.tab_widget)
@@ -52,10 +46,10 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self._handle_tab_change)
 
     def on_album_changed(self, album_id: int, album_name: str):
-        if album_id == -1:
-            self.album_label.setText("No active album")
+        if album_id <= 1:
+            self.setWindowTitle("Kura")
         else:
-            self.album_label.setText(f"Album: {album_name}")
+            self.setWindowTitle(f"Kura • {album_name}")
 
     def _handle_tab_change(self, index):
         """Handle tab changes."""
