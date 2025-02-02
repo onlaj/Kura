@@ -7,7 +7,9 @@
 ## 1. Introduction  
 This document outlines the rationale for selecting **85%** and **94%** as critical reliability thresholds in the ELO-based media ranking system. These thresholds are derived from empirical testing and reflect fundamental properties of pairwise ranking systems under combinatorial constraints. Test results and analyses are included to validate these benchmarks.  
 
-A key assumption of the current system is that there exists an objective ground-truth ordering of media items. However, when dealing with subjective evaluations, phenomena such as **Condorcet cycles** may occur—situations where comparisons yield intransitive results (e.g., A > B, B > C, yet C > A). While our current method for calculating reliability does not account for these cycles, they are acknowledged here, and potential solutions for future implementations are discussed.
+**Key Updates**:  
+- Added results from improved system with dynamic K-factors and smart pairing  
+- Refined threshold explanations based on new performance data  
 
 ---
 
@@ -68,25 +70,6 @@ The **94%** threshold remains critical due to:
 
 ---
 
-## 3.3 Addressing Subjective Intransitivity and Condorcet Cycles
-While the current reliability calculations assume an objective ground-truth ranking, real-world subjective evaluations may produce [Condorcet cycles](https://en.wikipedia.org/wiki/Condorcet_paradox), where preferences are intransitive (e.g., A > B, B > C, C > A). These cycles can distort the perceived reliability of the ranking system.
-
-**Potential future improvements to address this include:**
-
-* **Intransitivity Detection:**
-Track and quantify occurrences of cyclic comparisons. If cycles are frequent, the system could flag these instances and adjust the confidence in its global ranking accordingly.
-
-
-* **Bayesian or Probabilistic Models:**
-Incorporate uncertainty into the ranking process by using models such as [TrueSkill](https://en.wikipedia.org/wiki/TrueSkill). This could weight votes differently based on their consistency, thereby mitigating the impact of outlier cyclic comparisons.
-
-
-* **Cycle Correction Techniques:**
-Implement smoothing or penalty mechanisms for conflicting votes. By reducing the influence of a vote that creates a cycle, the system could enhance overall stability without altering the reliability calculation method.
-
-
----
-
 ## 4. Practical Implications  
 
 1. **85% Threshold**:  
@@ -100,24 +83,21 @@ Implement smoothing or penalty mechanisms for conflicting votes. By reducing the
 ---
 
 ## 5. Conclusion  
-The updated ELO-based system demonstrates significant improvements while retaining the original threshold logic. The 85% and 94% benchmarks are validated through empirical testing. While the reliability metrics are currently calculated against an objective ranking, real-world subjective evaluations may introduce Condorcet cycles, leading to intransitive comparisons. Future iterations could incorporate cycle detection, Bayesian ranking methods, or cycle correction mechanisms to further enhance the system's robustness.
+The updated system demonstrates significant improvements while retaining the original threshold logic. The 85% and 94% benchmarks remain valid but now reflect enhanced system capabilities through:  
+- Dynamic parameter adjustments  
+- Context-aware pair selection  
+- Reduced asymptotic error rates  
 
 ---
 
 ## Version History  
-
-### v2.1 (Current)
-- Added discussion on subjective intransitivity and Condorcet cycles
-- Mentioned potential future improvements for handling cyclic inconsistencies
-- Maintained current reliability calculation while discussing practical implications for subjective data
-
-### [v2.0](reliability_thresholds_v2.md)  
+### v2.0 (Current)  
 - Added dynamic K-factor implementation details  
 - Incorporated smart pairing logic analysis  
 - Updated test results with 3-4% real reliability gains  
 - Refined practical implications for system tuning  
 
-### [v1.0](reliability_thresholds_v1.md)  
+### [v1.0 (Previous Version)](reliability_thresholds_v1.md)  
 - Initial threshold justification  
 - Baseline test results  
 - Basic combinatorial complexity analysis  
