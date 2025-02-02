@@ -288,9 +288,12 @@ class VotingTab(QWidget):
         # Get first pair
         media_pair = self.get_pair_callback(self.active_album_id)
         if not media_pair or None in media_pair:
+            self._clear_frames()
             self.status_label.setText("No media items in this album")
             self.disable_voting()
             return
+
+        self.status_label.setText("")
 
         # Load current pair
         self.current_pair.load_pair(*media_pair)
