@@ -366,6 +366,10 @@ class VotingTab(QWidget):
         else:
             self.right_frame.file_info_label.setText(f"Failed to load: {right_path}")
 
+        # Set file info
+        self.left_frame.set_file_info(left_path)
+        self.right_frame.set_file_info(right_path)
+
         self.images_loaded = True
 
     def _clear_frames(self):
