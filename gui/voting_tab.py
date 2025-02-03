@@ -54,6 +54,8 @@ class MediaFrame(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(400, 400)  # Set a minimum size for the media container
 
+        self.default_style = self.styleSheet()
+
     def set_file_info(self, file_path):
         set_file_info(file_path, self.file_info_label)
 
@@ -69,6 +71,15 @@ class MediaFrame(QFrame):
             self.vote_button.setText("Vote")
             self.double_vote_button.setStyleSheet("")
             self.double_vote_button.setText("Double Vote")
+
+    def flash_winner(self):
+        """Create a subtle flash effect for winning media"""
+        self.setStyleSheet("QFrame { background-color: rgba(255, 255, 255, 30); }")
+        QTimer.singleShot(150, self.reset_style)
+        
+    def reset_style(self):
+        """Reset frame style after flash"""
+        self.setStyleSheet(self.default_style)
 
 
 class PreloadPair(QObject):
@@ -450,13 +461,15 @@ class VotingTab(QWidget):
         self.left_frame.set_cooldown_style(True)
         self.right_frame.set_cooldown_style(True)
 
-        # Process vote
+        # Flash the winning frame
         if vote == "left":
             winner = self.current_pair.left_data
             loser = self.current_pair.right_data
+            self.left_frame.flash_winner()
         else:
             winner = self.current_pair.right_data
             loser = self.current_pair.left_data
+            self.right_frame.flash_winner()
 
         n = self.total_media
         v = self.total_votes
@@ -477,17 +490,8 @@ class VotingTab(QWidget):
         self.ranking_tab.set_new_votes_flag()
         self.total_votes += vote_count
 
-        # Switch to preloaded pair IMMEDIATELY
-        if self.next_pair.is_loaded:
-            self.current_pair.cleanup()
-            self.current_pair, self.next_pair = self.next_pair, self.current_pair
-            self._display_current_pair()
-            
-            # Schedule preload with a slight delay to ensure UI remains responsive
-            self.delayed_preload_timer.start(100)  # 100ms delay
-        else:
-            # If next pair isn't loaded, load new pair immediately
-            self.load_new_pair()
+        # Delay the pair replacement
+        QTimer.singleShot(150, self._replace_current_pair)
         
         # Start cooldown timer
         self.cooldown_timer.start(int(self.vote_cooldown * 1000))
@@ -495,6 +499,19 @@ class VotingTab(QWidget):
 
         if self.history_tab:
             self.history_tab.set_needs_refresh()
+
+    def _replace_current_pair(self):
+        """Replace current pair with preloaded pair"""
+        if self.next_pair.is_loaded:
+            self.current_pair.cleanup()
+            self.current_pair, self.next_pair = self.next_pair, self.current_pair
+            self._display_current_pair()
+            
+            # Schedule preload with a slight delay
+            self.delayed_preload_timer.start(100)
+        else:
+            # If next pair isn't loaded, load new pair
+            self.load_new_pair()
 
     def end_cooldown(self):
         """End the cooldown period and revert button styles."""
