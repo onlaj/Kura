@@ -2,6 +2,7 @@ import logging
 import sys
 
 from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from core.media_handler import MediaHandler
@@ -13,7 +14,13 @@ from gui.load_tab import LoadTab
 from gui.voting_tab import VotingTab
 from utils.config import setup_logging
 from gui.albums_tab import AlbumsTab
+
 logger = logging.getLogger(__name__)
+
+# Add icon on taskabr
+import ctypes
+myappid = u'mycompany.myproduct.subproduct.version' # arbitrary string
+ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 def excepthook(exc_type, exc_value, exc_tb):
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
@@ -42,6 +49,10 @@ class Application:
 
         # Set application style
         self.app.setStyle('Fusion')
+
+        # Set application icon
+        icon_path = 'docs/logo.png'
+        self.app.setWindowIcon(QIcon(icon_path))
 
         # Initialize database
         self.db = Database()
