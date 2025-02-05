@@ -295,76 +295,47 @@ class VotingTab(QWidget):
         # Clear existing media
         self._clear_frames()
 
-        # --- Left Frame ---
-        left_media = self.current_pair.left_media
+        def setup_frame(frame, media, path):
+            """Helper function to set up a single frame with its media"""
+            if not media:
+                frame.file_info_label.setText(f"Failed to load: {path}")
+                frame.media_widget = None
+                return
+
+            if isinstance(media, tuple):
+                frame.media_widget = media[0]
+
+                if isinstance(media[1], QMovie):  # GIF
+                    frame.gif_movie = media[1]
+                    frame.layout.insertWidget(0, media[0])
+                    media[0].mousePressEvent = lambda e, p=path: self.show_preview(p)
+                else:  # Video
+                    frame.media_player = media[1]
+                    frame.layout.insertWidget(0, media[0])
+
+                    # Set video-specific properties
+                    frame.media_widget.setProperty('is_video', True)
+                    frame.media_widget.setProperty('media_player', frame.media_player)
+                    frame.media_widget.setProperty('media_path', path)
+                    frame.media_widget.installEventFilter(self)
+            else:
+                frame.media_widget = media
+
+            if frame.media_widget:
+                frame.layout.insertWidget(0, frame.media_widget)
+                frame.media_widget.mousePressEvent = lambda e, p=path: self.show_preview(p)
+            else:
+                frame.file_info_label.setText(f"Failed to load: {path}")
+
+            frame.set_file_info(path)
+
+        # Set up left frame
         left_path = self.current_pair.left_data[1] if self.current_pair.left_data else ""
+        setup_frame(self.left_frame, self.current_pair.left_media, left_path)
 
-        if isinstance(left_media, tuple):
-            self.left_frame.media_widget = left_media[0] if left_media else None
-            if isinstance(left_media[1], QMovie):  # GIF
-                print("3")
-                self.left_frame.media_widget = left_media[0]
-                self.left_frame.gif_movie = left_media[1]
-                self.left_frame.layout.insertWidget(0, left_media[0])
-                left_media[0].mousePressEvent = lambda e, p=left_path: self.show_preview(p)
-            else:  # Video
-                print("4")
-                self.left_frame.media_widget = left_media[0]
-                self.left_frame.media_player = left_media[1]
-                self.left_frame.layout.insertWidget(0, left_media[0])
-
-                # Set properties and install event filter
-                self.left_frame.media_widget.setProperty('is_video', True)
-                self.left_frame.media_widget.setProperty('media_player', self.left_frame.media_player)
-                self.left_frame.media_widget.setProperty('media_path', left_path)
-                print("Installing event filter")
-                self.left_frame.media_widget.installEventFilter(self)
-        else:
-            self.left_frame.media_widget = left_media
-
-        # Only set click handler if widget exists
-        if self.left_frame.media_widget:
-            self.left_frame.layout.insertWidget(0, self.left_frame.media_widget)
-            self.left_frame.media_widget.mousePressEvent = lambda e, p=left_path: self.show_preview(p)
-        else:
-            self.left_frame.file_info_label.setText(f"Failed to load: {left_path}")
-
-        # --- Right Frame ---
-        right_media = self.current_pair.right_media
+        # Set up right frame
         right_path = self.current_pair.right_data[1] if self.current_pair.right_data else ""
-
-        if isinstance(right_media, tuple):
-            self.right_frame.media_widget = right_media[0] if right_media else None
-            if isinstance(right_media[1], QMovie):  # GIF
-                print("3")
-                self.right_frame.media_widget = right_media[0]
-                self.right_frame.gif_movie = right_media[1]
-                self.right_frame.layout.insertWidget(0, right_media[0])
-                right_media[0].mousePressEvent = lambda e, p=right_path: self.show_preview(p)
-            else:  # Video
-                print("4")
-                self.right_frame.media_widget = right_media[0]
-                self.right_frame.media_player = right_media[1]
-                self.right_frame.layout.insertWidget(0, right_media[0])
-
-                # Set properties and install event filter
-                self.right_frame.media_widget.setProperty('is_video', True)
-                self.right_frame.media_widget.setProperty('media_player', self.right_frame.media_player)
-                self.right_frame.media_widget.setProperty('media_path', right_path)
-                print("Installing event filter")
-                self.right_frame.media_widget.installEventFilter(self)
-        else:
-            self.right_frame.media_widget = right_media
-
-        if self.right_frame.media_widget:
-            self.right_frame.layout.insertWidget(0, self.right_frame.media_widget)
-            self.right_frame.media_widget.mousePressEvent = lambda e, p=right_path: self.show_preview(p)
-        else:
-            self.right_frame.file_info_label.setText(f"Failed to load: {right_path}")
-
-        # Set file info
-        self.left_frame.set_file_info(left_path)
-        self.right_frame.set_file_info(right_path)
+        setup_frame(self.right_frame, self.current_pair.right_media, right_path)
 
         self.images_loaded = True
 
