@@ -250,44 +250,6 @@ class VotingTab(QWidget):
         elif event.key() == Qt.Key.Key_Right:
             self.handle_vote("right", 1)  # Regular vote for right image
 
-    def load_media_to_frame(self, frame, media_path):
-        if frame.media_widget:
-            if frame.media_player:
-                frame.media_player.stop()
-            frame.media_widget.deleteLater()
-            frame.media_widget = None
-            frame.media_player = None
-
-        media = self.media_handler.load_media(media_path)
-
-        if isinstance(media, AspectRatioWidget):
-            frame.media_widget = media
-            frame.layout.insertWidget(0, media)
-            # Add click handler
-            media.mousePressEvent = lambda e, p=media_path: self.show_preview(p)
-        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
-            if isinstance(media[1], QMovie):  # GIF
-                frame.media_widget = media[0]
-                frame.gif_movie = media[1]
-                frame.layout.insertWidget(0, media[0])
-                media[0].mousePressEvent = lambda e, p=media_path: self.show_preview(p)
-            else:  # Video
-                frame.media_widget = media[0]
-                frame.media_player = media[1]
-                frame.layout.insertWidget(0, media[0])
-
-                # Set properties and install event filter
-                frame.media_widget.setProperty('is_video', True)
-                frame.media_widget.setProperty('media_player', frame.media_player)
-                frame.media_widget.setProperty('media_path', media_path)
-                frame.media_widget.installEventFilter(self)
-
-        # Ensure the media widget expands to fill the frame
-        if frame.media_widget:
-            frame.media_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-        # Set file information in the label
-        frame.set_file_info(media_path)
 
     def load_new_pair(self):
         """Load initial pairs"""
@@ -339,7 +301,24 @@ class VotingTab(QWidget):
 
         if isinstance(left_media, tuple):
             self.left_frame.media_widget = left_media[0] if left_media else None
-            # Handle GIF/Video components...
+            if isinstance(left_media[1], QMovie):  # GIF
+                print("3")
+                self.left_frame.media_widget = left_media[0]
+                self.left_frame.gif_movie = left_media[1]
+                self.left_frame.layout.insertWidget(0, left_media[0])
+                left_media[0].mousePressEvent = lambda e, p=left_path: self.show_preview(p)
+            else:  # Video
+                print("4")
+                self.left_frame.media_widget = left_media[0]
+                self.left_frame.media_player = left_media[1]
+                self.left_frame.layout.insertWidget(0, left_media[0])
+
+                # Set properties and install event filter
+                self.left_frame.media_widget.setProperty('is_video', True)
+                self.left_frame.media_widget.setProperty('media_player', self.left_frame.media_player)
+                self.left_frame.media_widget.setProperty('media_path', left_path)
+                print("Installing event filter")
+                self.left_frame.media_widget.installEventFilter(self)
         else:
             self.left_frame.media_widget = left_media
 
@@ -356,7 +335,24 @@ class VotingTab(QWidget):
 
         if isinstance(right_media, tuple):
             self.right_frame.media_widget = right_media[0] if right_media else None
-            # Handle GIF/Video components...
+            if isinstance(right_media[1], QMovie):  # GIF
+                print("3")
+                self.right_frame.media_widget = right_media[0]
+                self.right_frame.gif_movie = right_media[1]
+                self.right_frame.layout.insertWidget(0, right_media[0])
+                right_media[0].mousePressEvent = lambda e, p=right_path: self.show_preview(p)
+            else:  # Video
+                print("4")
+                self.right_frame.media_widget = right_media[0]
+                self.right_frame.media_player = right_media[1]
+                self.right_frame.layout.insertWidget(0, right_media[0])
+
+                # Set properties and install event filter
+                self.right_frame.media_widget.setProperty('is_video', True)
+                self.right_frame.media_widget.setProperty('media_player', self.right_frame.media_player)
+                self.right_frame.media_widget.setProperty('media_path', right_path)
+                print("Installing event filter")
+                self.right_frame.media_widget.installEventFilter(self)
         else:
             self.right_frame.media_widget = right_media
 
