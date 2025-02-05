@@ -11,7 +11,7 @@ class MediaPreview(QDialog):
         # Set window flags for a proper dialog window
         self.thumbnail_media_player = None
         self.setWindowFlags(Qt.WindowType.Window |
-                          Qt.WindowType.FramelessWindowHint)
+                            Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         # Main layout
@@ -43,14 +43,14 @@ class MediaPreview(QDialog):
         """)
         self.prev_button.setFixedWidth(50)
         self.prev_button.setSizePolicy(QSizePolicy.Policy.Fixed,
-                                     QSizePolicy.Policy.Expanding)
+                                       QSizePolicy.Policy.Expanding)
         self.prev_button.hide()
 
         self.next_button = QPushButton("→")
         self.next_button.setStyleSheet(self.prev_button.styleSheet())
         self.next_button.setFixedWidth(50)
         self.next_button.setSizePolicy(QSizePolicy.Policy.Fixed,
-                                     QSizePolicy.Policy.Expanding)
+                                       QSizePolicy.Policy.Expanding)
         self.next_button.hide()
 
         # Content widget
@@ -182,7 +182,7 @@ class MediaPreview(QDialog):
 
         # Set size policy to expand in both directions
         media_widget.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                 QSizePolicy.Policy.Expanding)
+                                   QSizePolicy.Policy.Expanding)
 
         # Add the media widget to the content layout
         self.content_layout.addWidget(media_widget)

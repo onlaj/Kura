@@ -16,6 +16,7 @@ from gui.loading_overlay import LoadingOverlay
 
 logger = logging.getLogger(__name__)
 
+
 class MediaLoader(QObject):
     """Helper class to handle media loading operations in the main thread."""
     load_started = pyqtSignal()
@@ -48,12 +49,13 @@ class LoadingThread(QThread):
         """Emit signal to request loading in main thread."""
         self.request_load.emit(self.page, self.per_page)
 
+
 class MediaFrame(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         self.layout = QVBoxLayout(self)
-        
+
         # Media container with fixed maximum height
         self.media_container = QWidget()
         self.media_container.setMinimumSize(200, 200)  # Minimum size for thumbnails
@@ -62,7 +64,7 @@ class MediaFrame(QFrame):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed  # Change to Fixed to prevent vertical stretching
         )
-        
+
         self.media_layout = QVBoxLayout(self.media_container)
         self.media_layout.setContentsMargins(0, 0, 0, 0)
         self.layout.addWidget(self.media_container)
@@ -342,11 +344,9 @@ class RankingTab(QWidget):
         self.grid_layout.setColumnStretch(0, 1)
         scroll_area.setWidget(self.grid_container)
 
-
     def set_new_files_flag(self):
         """Set the flag indicating that new files have been loaded."""
         self.new_files_since_last_refresh = True
-
 
     def change_filter(self, value):
         """Handle filter change."""
@@ -398,10 +398,10 @@ class RankingTab(QWidget):
 
     def create_image_frame(self, rank, id, path, rating, votes, index, pre_loaded_widget=None):
         frame = MediaFrame()
-        
+
         # Load the media in the frame
         media = self.media_handler.load_media(path)
-        
+
         if isinstance(media, AspectRatioWidget):
             frame.media_layout.addWidget(media)
             media.mousePressEvent = lambda e, p=path: self.show_preview(p)
@@ -489,24 +489,7 @@ class RankingTab(QWidget):
         self.update_buttons_visibility()
 
 
-    # def release_file_resources(self, file_path: str):
-    #     """Release any resources (e.g., video players) using the file."""
-    #     for i in range(self.grid_layout.count()):
-    #         item = self.grid_layout.itemAt(i)
-    #         if item and item.widget():
-    #             widget = item.widget()
-    #             if hasattr(widget, 'video_player') and widget.video_player:
-    #                 # Stop and release the video player if it's using the file
-    #                 if widget.video_player.source() == file_path:
-    #                     widget.video_player.stop()
-    #                     widget.video_player.setSource(QUrl())  # Clear the source
-    #             if hasattr(widget, 'gif_movie') and widget.gif_movie:
-    #                 # Stop and release the GIF movie if it's using the file
-    #                 if widget.gif_movie.fileName() == file_path:
-    #                     widget.gif_movie.stop()
-    #                     widget.gif_movie.setFileName("")  # Clear the file name
-
-    def show_preview(self, media_path, media_player = None):
+    def show_preview(self, media_path, media_player=None):
         """Show media preview overlay with navigation"""
         # Find index of current media
         self.current_preview_index = -1
@@ -699,7 +682,8 @@ class RankingTab(QWidget):
         self.threaded_loader = ThreadedMediaLoader(self.media_handler)
         self.threaded_loader.media_loaded.connect(self._handle_loaded_media_item)
         self.threaded_loader.all_media_loaded.connect(self._on_all_media_loaded)
-        self.threaded_loader.progress_updated.connect(self.loading_overlay.increment_progress)  # Connect progress signal
+        self.threaded_loader.progress_updated.connect(
+            self.loading_overlay.increment_progress)  # Connect progress signal
         self.threaded_loader.load_media_batch(rankings)
 
     def _handle_loaded_media_item(self, media_id, file_path, index):
@@ -715,7 +699,7 @@ class RankingTab(QWidget):
                     votes,
                     index
                 )
-                
+
                 row = index // self.columns
                 col = index % self.columns
                 self.grid_layout.addWidget(frame, row, col)
@@ -950,7 +934,6 @@ class RankingTab(QWidget):
         if self.current_page != total_pages:  # Only navigate if not already on the last page
             self.current_page = total_pages
             self.refresh_rankings()
-
 
     def on_page_input_changed(self):
         """Show the 'Go' button when the user edits the page input field."""

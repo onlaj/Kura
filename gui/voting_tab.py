@@ -76,7 +76,7 @@ class MediaFrame(QFrame):
         """Create a subtle flash effect for winning media"""
         self.setStyleSheet("QFrame { background-color: rgba(255, 255, 255, 30); }")
         QTimer.singleShot(150, self.reset_style)
-        
+
     def reset_style(self):
         """Reset frame style after flash"""
         self.setStyleSheet(self.default_style)
@@ -170,7 +170,6 @@ class VotingTab(QWidget):
 
         self.setup_ui()
 
-
     def setup_ui(self):
         """Set up the voting interface."""
         layout = QVBoxLayout(self)
@@ -230,7 +229,6 @@ class VotingTab(QWidget):
         """Set reference to history tab"""
         self.history_tab = history_tab
 
-
     def eventFilter(self, obj, event):
         """Handle video widget events using shared utility."""
         handled = handle_video_events(
@@ -249,7 +247,6 @@ class VotingTab(QWidget):
             self.handle_vote("left", 1)  # Regular vote for left image
         elif event.key() == Qt.Key.Key_Right:
             self.handle_vote("right", 1)  # Regular vote for right image
-
 
     def load_new_pair(self):
         """Load initial pairs"""
@@ -407,7 +404,7 @@ class VotingTab(QWidget):
         self.total_votes = self.get_total_votes(self.active_album_id)
         self.update_reliability_info()
 
-    def show_preview(self, media_path, media_player = None):
+    def show_preview(self, media_path, media_player=None):
         """Show media preview overlay"""
         media = self.media_handler.load_media(media_path)
         self.media_handler.pause_all_videos()
@@ -417,7 +414,8 @@ class VotingTab(QWidget):
             if isinstance(media[1], QMovie):  # GIF
                 self.preview.show_media(media[0], gif_movie=media[1], media_path=media_path)
             else:  # Video
-                self.preview.show_media(media[0], video_player=media[1], media_path=media_path, thumbnail_media_player=media_player)
+                self.preview.show_media(media[0], video_player=media[1], media_path=media_path,
+                                        thumbnail_media_player=media_player)
 
     def handle_vote(self, vote, vote_count):
         """Handle voting for a media item."""
@@ -453,7 +451,7 @@ class VotingTab(QWidget):
         # Update database
         for _ in range(vote_count):
             self.update_ratings_callback(
-                winner[0], loser[0], 
+                winner[0], loser[0],
                 new_ratings['a'], new_ratings['b'],
                 self.active_album_id
             )
@@ -463,7 +461,7 @@ class VotingTab(QWidget):
 
         # Delay the pair replacement
         QTimer.singleShot(150, self._replace_current_pair)
-        
+
         # Start cooldown timer
         self.cooldown_timer.start(int(self.vote_cooldown * 1000))
         self.update_reliability_info()
@@ -477,7 +475,7 @@ class VotingTab(QWidget):
             self.current_pair.cleanup()
             self.current_pair, self.next_pair = self.next_pair, self.current_pair
             self._display_current_pair()
-            
+
             # Schedule preload with a slight delay
             self.delayed_preload_timer.start(100)
         else:
