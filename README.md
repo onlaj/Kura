@@ -1,9 +1,9 @@
 
-# <a href="https://github.com/onlaj/Kura"><img src="/docs/logo.png" align="left" height="80" width="80" ></a> Kura
+<p align="left"><a href="https://github.com/onlaj/Kura"><img src="/docs/logo.png" alt="Kura Banner" height="180" /></a></p>
 
+<h1 align="left">Kura</h1>
 
-
-# [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+ [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 
 A Python tool that adapts the Elo ranking system (yes, the one from chess!) to help you sort images and videos through quick comparisons. Perfect for when you've got too many photos to compare manually, but want more nuance than simple star ratings.
