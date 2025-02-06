@@ -15,6 +15,7 @@ from gui.load_tab import LoadTab
 from gui.voting_tab import VotingTab
 from utils.config import setup_logging
 from gui.albums_tab import AlbumsTab
+import os
 
 logger = logging.getLogger(__name__)
 
