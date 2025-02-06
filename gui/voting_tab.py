@@ -267,6 +267,11 @@ class VotingTab(QWidget):
             self.left_frame.button_container.hide()
             self.right_frame.button_container.hide()
             self.skip_button.hide()
+
+            # Hide file info label
+            self.left_frame.file_info_label.hide()
+            self.right_frame.file_info_label.hide()
+
             return
 
         self.status_label.setText("")
@@ -274,6 +279,9 @@ class VotingTab(QWidget):
         self.left_frame.button_container.show()
         self.right_frame.button_container.show()
         self.skip_button.show()
+        self.left_frame.file_info_label.show()
+        self.right_frame.file_info_label.show()
+
 
         # Load current pair
         self.current_pair.load_pair(*media_pair)
