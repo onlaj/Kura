@@ -179,6 +179,12 @@ class VotingTab(QWidget):
         media_layout.setContentsMargins(0, 0, 0, 0)
         media_layout.setSpacing(10)  # Add some spacing between media frames
 
+        # Status label
+        self.status_label = QLabel()
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet("font-size: 16px;")
+        layout.addWidget(self.status_label)
+
         # Left media frame
         self.left_frame = MediaFrame()
         self.left_frame.vote_button.clicked.connect(
@@ -216,10 +222,7 @@ class VotingTab(QWidget):
 
         layout.addLayout(reliability_layout)
 
-        # Status label
-        self.status_label = QLabel()
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.status_label)
+
 
         # Enable focus for keyboard events
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -261,9 +264,16 @@ class VotingTab(QWidget):
             self._clear_frames()
             self.status_label.setText("No media items in this album")
             self.disable_voting()
+            self.left_frame.button_container.hide()
+            self.right_frame.button_container.hide()
+            self.skip_button.hide()
             return
 
         self.status_label.setText("")
+
+        self.left_frame.button_container.show()
+        self.right_frame.button_container.show()
+        self.skip_button.show()
 
         # Load current pair
         self.current_pair.load_pair(*media_pair)
