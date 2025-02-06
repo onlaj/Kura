@@ -194,6 +194,8 @@ class RankingTab(QWidget):
         self.sort_by = "rating"  # Default sort column
         self.sort_order = "DESC"  # Default sort order
 
+        self.search_query = None
+
         self.active_album_id = 1  # Default album
 
         # Cache for total media count
@@ -226,6 +228,13 @@ class RankingTab(QWidget):
         # Control panel
         control_panel = QHBoxLayout()
         control_panel_2 = QHBoxLayout()
+
+        # Search input
+        control_panel.addWidget(QLabel("Search:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search files...")
+        self.search_input.textChanged.connect(self.on_search_changed)
+        control_panel.addWidget(self.search_input)
 
         # Column selector
         control_panel.addWidget(QLabel("Columns:"))
@@ -560,6 +569,11 @@ class RankingTab(QWidget):
             self.current_page = self.pending_preview_page
             self.refresh_rankings()
 
+    def on_search_changed(self, text):
+        self.search_query = text.strip() or None
+        self.current_page = 1
+        self.refresh_rankings()
+
     def change_columns(self, value):
         """Handle column count change"""
         self.columns = int(value)
@@ -624,7 +638,8 @@ class RankingTab(QWidget):
                 self.current_filter,
                 self.active_album_id,
                 self.sort_by,
-                self.sort_order
+                self.sort_order,
+                self.search_query
             )
             self._handle_loaded_media(rankings, total_filtered)
         except Exception as e:

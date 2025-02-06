@@ -144,10 +144,10 @@ class Application:
 
     def get_rankings(self, page: int = 1, per_page: int = 50,
                     media_type: str = "all", album_id: int = 1,
-                    sort_by: str = "rating", sort_order: str = "DESC"):
+                    sort_by: str = "rating", sort_order: str = "DESC", search_query: str = None):
         """Get current rankings with pagination, filtering, and sorting."""
         return self.db.get_rankings_page(
-            page, per_page, media_type, album_id, sort_by, sort_order
+            page, per_page, media_type, album_id, sort_by, sort_order, search_query
         )
 
 

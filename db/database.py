@@ -468,10 +468,10 @@ class Database:
         return albums, total
 
     def get_rankings_page(self, page: int, per_page: int = 50, media_type: str = "all",
-                          album_id: int = 1, sort_by: str = "rating", sort_order: str = "DESC") -> Tuple[
-        List[tuple], int]:
+                          album_id: int = 1, sort_by: str = "rating", sort_order: str = "DESC",
+                          search_query: str = None) -> Tuple[List[tuple], int]:
         """
-        Get a page of ranked media items with sorting options.
+        Get a page of ranked media items with sorting and search options.
 
         Args:
             page: Page number (1-based)
@@ -480,58 +480,59 @@ class Database:
             album_id: ID of the album to filter by
             sort_by: Column to sort by (rating, votes, path, file_size)
             sort_order: Sort order (ASC or DESC)
+            search_query: Search string to filter by filename
         """
         # Validate and sanitize sort parameters
         valid_sort_columns = {
             'rating': 'rating',
             'votes': 'votes',
-            'file_name': 'path',  # We'll sort by path for file name
+            'file_name': 'path',  # Sort by path for file name
             'file_size': 'file_size'
         }
-        sort_column = valid_sort_columns.get(sort_by, 'rating')  # Default to rating if invalid
+        sort_column = valid_sort_columns.get(sort_by, 'rating')
         sort_direction = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
-        # Get total count with filter
-        if media_type == "all":
-            self.cursor.execute(
-                "SELECT COUNT(*) FROM media WHERE album_id = ?",
-                (album_id,)
-            )
-        else:
-            self.cursor.execute(
-                "SELECT COUNT(*) FROM media WHERE type = ? AND album_id = ?",
-                (media_type, album_id)
-            )
+        # Build query components
+        where_clauses = ["album_id = ?"]
+        params = [album_id]
+
+        # Media type filter
+        if media_type != "all":
+            where_clauses.append("type = ?")
+            params.append(media_type)
+
+        # Search filter
+        if search_query:
+            where_clauses.append("(path LIKE ?)")
+            params.append(f"%{search_query}%")
+
+        # Combine WHERE clauses
+        where_statement = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+        # Get total count
+        count_query = f"""
+            SELECT COUNT(*) 
+            FROM media 
+            WHERE {where_statement}
+        """
+        self.cursor.execute(count_query, params)
         total_items = self.cursor.fetchone()[0]
 
-        # Calculate offset
-        offset = (page - 1) * per_page
-
-        # Build the query
-        query = """
+        # Build main query
+        query = f"""
             SELECT id, path, rating, votes 
             FROM media 
-            WHERE {where_clause}
+            WHERE {where_statement}
             ORDER BY {sort_column} {sort_direction}
             LIMIT ? OFFSET ?
         """
 
-        # Set up where clause and parameters based on media type
-        if media_type == "all":
-            where_clause = "album_id = ?"
-            params = (album_id, per_page, offset)
-        else:
-            where_clause = "type = ? AND album_id = ?"
-            params = (media_type, album_id, per_page, offset)
+        # Add pagination parameters
+        offset = (page - 1) * per_page
+        params.extend([per_page, offset])
 
-        # Format and execute query
-        formatted_query = query.format(
-            where_clause=where_clause,
-            sort_column=sort_column,
-            sort_direction=sort_direction
-        )
-
-        self.cursor.execute(formatted_query, params)
+        # Execute query
+        self.cursor.execute(query, params)
         return self.cursor.fetchall(), total_items
 
     def get_vote_history_page(self, album_id: int, page: int, per_page: int,
