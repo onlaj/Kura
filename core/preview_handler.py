@@ -265,20 +265,39 @@ class MediaPreview(QDialog):
 
     def close(self):
         """Handle closing the preview"""
+        # Stop and cleanup media
         if self.video_player:
-            # Set time of video player in preview to thumbnail video preview
-            if self.thumbnail_media_player:
-                self.thumbnail_media_player.setPosition(self.video_player.position())
-            if self.video_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-                if self.thumbnail_media_player:
-                    QTimer.singleShot(100,
-                                      lambda: self.thumbnail_media_player.play())
             self.video_player.stop()
+            # Disconnect all signals from video player
+            self.video_player.positionChanged.disconnect()
+            self.video_player.durationChanged.disconnect()
+            self.video_player.playbackStateChanged.disconnect()
+            self.video_player = None
+
         if self.gif_movie:
             self.gif_movie.stop()
+            self.gif_movie = None
 
+        # Clean up parent window event filter
+        if self.parent():
+            self.parent().window().removeEventFilter(self)
+
+        # Stop all timers
+        self.timer.stop()
         self.single_click_timer.stop()
+
+        # Clear media references
+        self.current_media = None
+        self.current_media_path = None
+        self.thumbnail_media_player = None
         self.pending_video_click = False
+
+        # Clear any existing media widget
+        if self.content_layout.count() > 0:
+            item = self.content_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
         super().close()
 
     def resizeEvent(self, event):
