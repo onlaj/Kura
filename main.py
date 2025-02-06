@@ -1,5 +1,6 @@
 import logging
 import sys
+import platform
 
 from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
 from PyQt6.QtGui import QIcon
@@ -17,10 +18,16 @@ from gui.albums_tab import AlbumsTab
 
 logger = logging.getLogger(__name__)
 
-# Add icon on taskabr
-import ctypes
-myappid = u'mycompany.myproduct.subproduct.version' # arbitrary string
-ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+# Platform-specific icon handling
+if platform.system() == 'Windows':
+    import ctypes
+    myappid = u'mycompany.myproduct.subproduct.version' # arbitrary string
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+elif platform.system() == 'Linux':
+    # Ensure icon is visible in Linux desktop environments
+    import os
+    if not os.environ.get('DESKTOP_SESSION'):
+        os.environ['DESKTOP_SESSION'] = 'generic'
 
 def excepthook(exc_type, exc_value, exc_tb):
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
@@ -50,8 +57,8 @@ class Application:
         # Set application style
         self.app.setStyle('Fusion')
 
-        # Set application icon
-        icon_path = 'docs/logo.png'
+        # Set application icon - more robust path handling
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs', 'logo.png')
         self.app.setWindowIcon(QIcon(icon_path))
 
         # Initialize database
