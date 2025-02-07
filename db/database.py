@@ -7,15 +7,26 @@ from typing import List, Tuple, Optional
 from core.elo import ReliabilityCalculator
 
 
+def get_database_path():
+    """Determine a writable path for the database."""
+    if os.name == "nt":  # Windows
+        db_dir = Path(os.getenv("LOCALAPPDATA")) / "KuraApp"
+    else:  # Linux/macOS
+        db_dir = Path.home() / ".kuraapp"
+
+    db_dir.mkdir(parents=True, exist_ok=True)
+    return str(db_dir / "media_ratings.db")
+
 class Database:
-    def __init__(self, db_path: str = "media_ratings.db"):
+    def __init__(self, db_path: str = None):
         """
         Initialize database connection and create tables if they don't exist.
 
         Args:
-            db_path: Path to the SQLite database file
+            db_path: Path to the SQLite database file (optional)
         """
-        self.conn = sqlite3.connect(db_path)
+        self.db_path = db_path or get_database_path()
+        self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         self._create_tables()
         self._create_indices()
