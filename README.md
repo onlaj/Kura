@@ -96,3 +96,8 @@ source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 python main.py
 ```
+
+Creating onefile executable:
+```
+pyinstaller --onefile --windowed --icon="docs/favicon.ico" --add-data "docs/logo.png;docs" main.py
+```
