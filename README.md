@@ -44,7 +44,7 @@ The algorithm automatically:
 - **Flexible Viewing:** Sort by score/votes/name, fullscreen previews, adjustable grid sizes, video previews
 - **Project Management:** Create albums, export/import rankings, handle missing files
 - **Transparency:** See every vote in history (and edit if you change your mind)
-- **Progress Tracking:** Reliability score shows when you've compared enough pairs
+- **Progress Tracking:** Reliability score shows when you've compared enough pairs ([threshold rationale](docs/reliability_thresholds.md))
 
 
 ## ⌛ Time-Tested Methodology
