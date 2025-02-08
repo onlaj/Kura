@@ -64,7 +64,7 @@ jobs:
           name: Kura-macOS-${{ matrix.arch }}
           path: Kura-${{ matrix.arch }}.dmg
 
-    build-linux:
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
