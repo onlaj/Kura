@@ -2,6 +2,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+import cv2
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from PyQt6.QtCore import Qt, QSize
