@@ -3,8 +3,8 @@ name: Build and Release Kura
 on:
   push:
     tags:
-      - "v*"  # Runs only when a new version tag (e.g., v1.0) is pushed
-  workflow_dispatch:  # Allows manual trigger from GitHub Actions UI
+      - "v*"
+  workflow_dispatch:
 
 jobs:
   build-windows:
@@ -12,19 +12,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
-
       - name: Build Windows Executable
         run: |
           pyinstaller --onefile --windowed --name Kura --icon="docs/favicon.ico" --add-data "docs/logo.png;docs" main.py
-
       - name: Upload Windows Executable
         uses: actions/upload-artifact@v4
         with:
@@ -35,29 +31,24 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [x86_64, arm64]  # Build for both Intel and Apple Silicon
+        arch: [x86_64, arm64]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
-
       - name: Build macOS Executable
         run: |
           pyinstaller --onefile --windowed --name Kura --icon="docs/favicon.ico" --add-data "docs/logo.png:docs" main.py
-
       - name: Create macOS DMG
         run: |
           mkdir -p dmg_build
           cp -R dist/Kura.app dmg_build/
           hdiutil create -volname "Kura" -srcfolder dmg_build -ov -format UDZO Kura-${{ matrix.arch }}.dmg
-
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
@@ -69,35 +60,28 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
-
       - name: Build Linux Executable
         run: |
           pyinstaller --onefile --windowed --name Kura --icon="docs/favicon.ico" --add-data "docs/logo.png:docs" main.py
-
       - name: Package as AppImage
         run: |
           sudo apt update && sudo apt install -y fuse
-          
           mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          
           cp dist/Kura AppDir/usr/bin/Kura
-          cp docs/Kura.desktop AppDir/usr/share/applications/Kura.desktop
+          printf '#!/bin/bash\nHERE=$(dirname "$(readlink -f "$0")")\nexec "$HERE/usr/bin/Kura" "$@"\n' > AppDir/AppRun
+          chmod +x AppDir/AppRun
+          cp docs/Kura.desktop AppDir/Kura.desktop
           cp docs/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/Kura.png
-
           wget -q https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           ./appimagetool-x86_64.AppImage AppDir Kura.AppImage
-
       - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
         with:
@@ -113,25 +97,21 @@ jobs:
         with:
           name: Kura-Windows
           path: release/
-
       - name: Download macOS x86_64 DMG
         uses: actions/download-artifact@v4
         with:
           name: Kura-macOS-x86_64
           path: release/
-
       - name: Download macOS ARM DMG
         uses: actions/download-artifact@v4
         with:
           name: Kura-macOS-arm64
           path: release/
-
       - name: Download Linux AppImage
         uses: actions/download-artifact@v4
         with:
           name: Kura-Linux
           path: release/
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
