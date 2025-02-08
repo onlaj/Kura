@@ -29,6 +29,7 @@ class ScalableLabel(QLabel):
         self._original_pixmap = None
         self._original_size = None
         self._aspect_ratio = None
+        self.setStyleSheet("background-color: black;")  # Add this line
 
     def setPixmap(self, pixmap):
         self._original_pixmap = pixmap
@@ -128,9 +129,24 @@ class MediaHandler:
     @lru_cache(maxsize=1000)
     def _get_aspect_ratio_cached(file_path: str) -> float:
         try:
-            with Image.open(file_path) as img:
-                return img.width / img.height
-        except Exception:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext in MediaHandler.VALID_VIDEO_EXTENSIONS:
+                # Use OpenCV to get video dimensions
+                cap = cv2.VideoCapture(file_path)
+                if not cap.isOpened():
+                    logger.warning(f"Could not open video {file_path} for aspect ratio")
+                    return 16 / 9
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                cap.release()
+                if height == 0:
+                    return 16 / 9
+                return width / height
+            else:
+                with Image.open(file_path) as img:
+                    return img.width / img.height
+        except Exception as e:
+            logger.error(f"Error getting aspect ratio for {file_path}: {str(e)}")
             return 16 / 9  # Fallback
 
     def is_valid_media(self, file_path: str) -> bool:

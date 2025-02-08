@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from core.media_utils import AspectRatioWidget
 import logging
 from utils.config import DEFAULT_VOLUME
+#from core.media_handler import ScalableLabel
 
 
 logger = logging.getLogger(__name__)
@@ -116,13 +117,13 @@ class VideoPlayer(QWidget):
         video_container.layout().addWidget(self.video_widget)
 
         # Thumbnail label with click handling
-        self.thumbnail_label = QLabel()
+        from core.media_handler import ScalableLabel
+        self.thumbnail_label = ScalableLabel()
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         video_container.layout().addWidget(self.thumbnail_label)
 
         # Add aspect ratio wrapper
-        aspect_widget = AspectRatioWidget(video_container, 16 / 9)
-        layout.addWidget(aspect_widget)
+        layout.addWidget(video_container)
 
         # Media player setup
         self.media_player = QMediaPlayer()
@@ -284,7 +285,7 @@ class VideoPlayer(QWidget):
             QSizePolicy.Policy.Expanding
         )
         self.thumbnail_label.setPixmap(final_pixmap)
-        self.thumbnail_label.setScaledContents(True)
+        #
         self.thumbnail_label.mousePressEvent = self.on_thumbnail_clicked
 
     def on_thumbnail_clicked(self, event):
