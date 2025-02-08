@@ -85,8 +85,15 @@ jobs:
       - name: Package as AppImage
         run: |
           sudo apt update && sudo apt install -y fuse
+          
           mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          
           cp dist/Kura AppDir/usr/bin/Kura
+          cp docs/Kura.desktop AppDir/usr/share/applications/Kura.desktop
+          cp docs/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/Kura.png
+
           wget -q https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           ./appimagetool-x86_64.AppImage AppDir Kura.AppImage
