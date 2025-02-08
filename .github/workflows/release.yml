@@ -78,6 +78,7 @@ jobs:
           printf '#!/bin/bash\nHERE=$(dirname "$(readlink -f "$0")")\nexec "$HERE/usr/bin/Kura" "$@"\n' > AppDir/AppRun
           chmod +x AppDir/AppRun
           cp docs/Kura.desktop AppDir/Kura.desktop
+          cp docs/logo.png AppDir/Kura.png
           cp docs/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/Kura.png
           wget -q https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
