@@ -50,16 +50,9 @@ class ScalableLabel(QLabel):
         if self._original_pixmap:
             available_size = self.size()
             # Calculate the scaled size while maintaining aspect ratio
-            scaled_size = self._original_pixmap.size()
-            scaled_size.scale(
-                available_size.width(),
-                available_size.height(),
-                Qt.AspectRatioMode.KeepAspectRatio
-            )
-
             scaled_pixmap = self._original_pixmap.scaled(
-                scaled_size,
-                Qt.AspectRatioMode.KeepAspectRatio,
+                available_size,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                 Qt.TransformationMode.SmoothTransformation
             )
             super().setPixmap(scaled_pixmap)

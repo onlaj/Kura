@@ -55,11 +55,11 @@ class AspectRatioWidget(QWidget):
 
         if current_aspect > target_aspect:
             new_width = int(height * target_aspect)
-            offset = (width - new_width) // 2
+            offset = ((width - new_width) // 2) - 20
             self.layout().setContentsMargins(offset, 0, offset, 0)
         else:
             new_height = int(width / target_aspect)
-            offset = (height - new_height) // 2
+            offset = ((height - new_height) // 2) - 20
             self.layout().setContentsMargins(0, offset, 0, offset)
 
         super().resizeEvent(event)
