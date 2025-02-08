@@ -76,7 +76,7 @@ class AlbumsTab(QWidget):
         button_layout_top.addWidget(self.btn_delete)
         button_layout_bottom.addWidget(self.btn_relocate)
         self.btn_relocate.setToolTip(
-            "Locate missing media files by searching for matching filenames and file sizes in a directory of your choice"
+            "Locate missing media files by searching for matching filenames and sizes in a directory of your choice"
         )
         button_layout_bottom.addWidget(self.btn_export)
         button_layout_bottom.addWidget(self.btn_import)

@@ -23,7 +23,7 @@ class MediaFrame(QFrame):
         # Media display widget (will be set later)
         self.media_widget = None
         self.media_player = None
-        self.gif_movie = None  # Added for GIF support
+        self.gif_movie = None  # GIF animation movie player
 
         # File info label
         self.file_info_label = QLabel()
@@ -35,7 +35,7 @@ class MediaFrame(QFrame):
         self.button_container = QWidget()
         self.button_layout = QHBoxLayout(self.button_container)
         self.button_layout.setContentsMargins(0, 0, 0, 0)
-        self.button_layout.setSpacing(5)  # Add some spacing between buttons
+        self.button_layout.setSpacing(5)  # Set spacing between buttons
 
         # Regular Vote button
         self.vote_button = QPushButton("Vote")
@@ -104,7 +104,6 @@ class PreloadPair(QObject):
             else:
                 self.is_loaded = False
         except Exception as e:
-            print(f"Failed to preload media: {str(e)}")
             self.is_loaded = False
 
     def cleanup(self):
@@ -153,7 +152,7 @@ class VotingTab(QWidget):
         self.single_click_timer = QTimer(self)
         self.single_click_timer.setSingleShot(True)
         self.single_click_timer.timeout.connect(lambda: handle_video_single_click(self.pending_video_click))
-        self.pending_video_click = []  # Stores (media_player, media_path)
+        self.pending_video_click = []
 
         self.current_pair = PreloadPair(media_handler)
         self.next_pair = PreloadPair(media_handler)
@@ -161,7 +160,7 @@ class VotingTab(QWidget):
         self.preload_timer.setSingleShot(True)
         self.preload_timer.timeout.connect(self._finish_preload)
 
-        # Add delayed preload timer
+        # Delayed preload timer
         self.delayed_preload_timer = QTimer(self)
         self.delayed_preload_timer.setSingleShot(True)
         self.delayed_preload_timer.timeout.connect(self._start_preload)
@@ -177,7 +176,7 @@ class VotingTab(QWidget):
         # Create horizontal layout for media frames
         media_layout = QHBoxLayout()
         media_layout.setContentsMargins(0, 0, 0, 0)
-        media_layout.setSpacing(10)  # Add some spacing between media frames
+        media_layout.setSpacing(10)  # Set spacing between media frames
 
         # Status label
         self.status_label = QLabel()
@@ -226,7 +225,7 @@ class VotingTab(QWidget):
 
         # Enable focus for keyboard events
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setFocus()  # Ensure the widget has focus when the tab is opened
+        self.setFocus()  # Ensure widget has focus on tab activation
 
     def set_history_tab(self, history_tab):
         """Set reference to history tab"""
@@ -258,7 +257,7 @@ class VotingTab(QWidget):
             self.disable_voting()
             return
 
-        # Get first pair
+        # Retrieve first media pair
         media_pair = self.get_pair_callback(self.active_album_id)
         if not media_pair or None in media_pair:
             self._clear_frames()
@@ -283,11 +282,11 @@ class VotingTab(QWidget):
         self.right_frame.file_info_label.show()
 
 
-        # Load current pair
+        # Load and display current media pair
         self.current_pair.load_pair(*media_pair)
         self._display_current_pair()
 
-        # Schedule preload with a delay
+        # Schedule preloading next pair with delay
         self.delayed_preload_timer.start(100)
 
     def _start_preload(self):
@@ -298,7 +297,7 @@ class VotingTab(QWidget):
             QTimer.singleShot(0, lambda: self._do_preload(media_pair))
 
     def _do_preload(self, media_pair):
-        """Actually perform the preload"""
+        """ Perform media preloading"""
         self.next_pair.load_pair(*media_pair)
         self.enable_voting()
 
@@ -307,7 +306,7 @@ class VotingTab(QWidget):
         if not self.current_pair.is_loaded:
             return
 
-        # Clear existing media
+        # Clear existing media from frames
         self._clear_frames()
 
         def setup_frame(frame, media, path):

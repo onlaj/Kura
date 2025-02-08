@@ -62,7 +62,7 @@ class MediaFrame(QFrame):
         self.media_container.setMaximumHeight(300)  # Add maximum height constraint
         self.media_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed  # Change to Fixed to prevent vertical stretching
+            QSizePolicy.Policy.Fixed
         )
 
         self.media_layout = QVBoxLayout(self.media_container)
@@ -138,7 +138,7 @@ class MediaFrame(QFrame):
 
     def leaveEvent(self, event):
         """Hide the checkbox when the mouse leaves the frame, unless it is checked."""
-        if not self.checkbox.isChecked():  # Only hide if the checkbox is unchecked
+        if not self.checkbox.isChecked():
             self.checkbox.hide()
         super().leaveEvent(event)
 

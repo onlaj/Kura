@@ -60,7 +60,7 @@ Mark Zuckerberg's controversial campus site pitted student photos head-to-head, 
 Tech reviewer Marques Brownlee uses blind photo comparisons to crown camera champions. "_You’d be shocked how often premium phones lose to mid-range_," he notes – a truth Kura’s neutrality reveals.
 
 * 🎨  **This Very Logo** (2024)
-Kura’s hen mascot emerged from 213 AI-generated options, ranked via the same Elo system you’re now looking at. Proof that the algorithm practices what it preaches.
+Kura’s hen mascot emerged from 213 AI-generated options, ranked via the same Elo system you’re now looking at. Proof that the algorithm demonstrates its effectiveness.
 
 
 ## ❓Why "Kura"?

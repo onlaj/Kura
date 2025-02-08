@@ -149,7 +149,6 @@ class Application:
             self.albums_tab.refresh_albums()  # Add this line
             return file_path
         except Exception as e:
-            print(f"Error deleting media: {e}")
             raise e
 
     def get_rankings(self, page: int = 1, per_page: int = 50,

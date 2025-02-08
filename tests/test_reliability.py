@@ -153,8 +153,8 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
         "avg_diff": sum(diffs) / len(diffs),
         "plot_file": filename,
         "total_votes": total_votes,
-        "calc_reliability": calc_reliability,  # Added this line
-        "real_reliability": real_reliability,  # Added this line
+        "calc_reliability": calc_reliability,
+        "real_reliability": real_reliability,
         "original_scores": original_order,
         "final_scores": final_order,
         "final_elos": [m.elo for m in shuffled],

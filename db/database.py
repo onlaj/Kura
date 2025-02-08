@@ -1,10 +1,12 @@
 # db/database.py
+import logging
 import os
 import sqlite3
 from pathlib import Path
 from typing import List, Tuple, Optional
 
 from core.elo import ReliabilityCalculator
+logger = logging.getLogger(__name__)
 
 
 def get_database_path():
@@ -163,7 +165,7 @@ class Database:
 
         except Exception as e:
             self.conn.rollback()
-            print(f"Error deleting album: {e}")
+            logger.warning(f"Error deleting album: {e}")
             return False
 
     def get_albums(self) -> List[tuple]:
@@ -222,7 +224,6 @@ class Database:
             return False
 
     def _recalculate_ratings(self):
-        print("RECALCULATING SCORES")
         from core.elo import Rating
 
         # Reset all ratings
@@ -279,7 +280,6 @@ class Database:
                 """, (rating, media_id))
 
         self.conn.commit()
-        print("Recalculation complete!")
 
     def delete_media(self, media_id: int, recalculate: bool = True) -> Optional[str]:
         """
@@ -373,19 +373,19 @@ class Database:
                 SELECT * FROM votes WHERE id = ?
             """, (vote_id,))
             vote_record = self.cursor.fetchone()
-            print(
+            logger.info(
                 f"Recorded vote: ID={vote_record[0]}, Winner={vote_record[1]}, Loser={vote_record[2]}, Time={vote_record[3]}")
 
             # Get total vote count
             self.cursor.execute("SELECT COUNT(*) FROM votes")
             total_votes = self.cursor.fetchone()[0]
-            print(f"Total votes in database: {total_votes}")
+            logger.info(f"Total votes in database: {total_votes}")
 
             self.conn.commit()
 
         except Exception as e:
             self.conn.rollback()
-            print(f"Error recording vote: {e}")
+            logger.warning(f"Error recording vote: {e}")
             raise e
 
     def get_total_votes(self, album_id: int) -> int:
@@ -455,7 +455,7 @@ class Database:
             self.conn.commit()
             return True
         except Exception as e:
-            print(f"Error updating path: {e}")
+            logger.warning(f"Error updating path: {e}")
             return False
 
     def get_albums_page(self, page: int, per_page: int, sort_by: str = "name", sort_order: str = "ASC") -> Tuple[

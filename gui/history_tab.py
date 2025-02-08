@@ -20,7 +20,6 @@ class HistoryTab(QWidget):
         self.media_handler = media_handler
         self.preview = MediaPreview(self)
         self.current_page = 1
-        self.per_page = 20
         self.active_album_id = 1
         self.sort_by = "timestamp"
         self.sort_order = "DESC"
@@ -223,13 +222,12 @@ class HistoryTab(QWidget):
 
             if event.button() == Qt.MouseButton.LeftButton:
                 # Single click - toggle play/pause
-                if event.type() == QEvent.Type.MouseButtonPress:
-                    if media_player:
-                        if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-                            media_player.pause()
-                        else:
-                            media_player.play()
-                        return True
+                if media_player:
+                    if media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                        media_player.pause()
+                    else:
+                        media_player.play()
+                    return True
 
             # Double click - stop and close
             elif event.type() == QEvent.Type.MouseButtonDblClick:
@@ -344,14 +342,6 @@ class HistoryTab(QWidget):
         except ValueError:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid page number.")
 
-    def on_sort_changed(self, text):
-        sort_map = {
-            "Date": "timestamp",
-            "Winner": "winner",
-            "Loser": "loser"
-        }
-        self.sort_by = sort_map.get(text, "timestamp")
-        self.load_data()
 
     def on_search_changed(self, text):
         self.search_query = text if text.strip() else None
