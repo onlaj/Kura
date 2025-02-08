@@ -96,6 +96,9 @@ jobs:
   release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
     steps:
       - name: Download Windows Executable
         uses: actions/download-artifact@v4
