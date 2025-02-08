@@ -78,24 +78,60 @@ From "curare" (to care for) → "curator" – Kura acts as your digital curator,
 
 ## 🚀 Get Started
 
-**Requirements:**
-- Python 3.9+
-- Windows/Mac/Linux
+### **🔹 Option 1: Download Pre-Built Executable**
+Pre-built versions of **Kura** are available for **Windows, macOS, and Linux** in the [Releases](https://github.com/onlaj/Kura/releases) section.
 
+> **⚠️ Windows Defender & Antivirus Warning**  
+> Some antivirus software (including Windows Defender) may flag the `.exe` as a potential threat. This is a **false positive** caused by the way PyInstaller packages the application.  
+> If you see a warning:
+> - You can **exclude the file in your antivirus software**
+> - Or, use the **manual installation method** below
+
+---
+
+### **🔹 Option 2: Run from Source (Recommended)**
+This method ensures the best compatibility and avoids antivirus issues.
+
+**Requirements:**
+- **Windows/macOS/Linux**
+- **Python 3.9+** (Download from [python.org](https://www.python.org/downloads/))
+
+#### **1. Install Python (if not installed)**
+- **Windows:** Download and install Python from [python.org](https://www.python.org/downloads/). Ensure you check the box **"Add Python to PATH"** during installation.
+- **macOS/Linux:** Python 3 is usually pre-installed. Check by running `python3 --version`.
+
+#### **2. Clone & Set Up the Project**
 ```bash
-# Clone & setup
+# Download the project
 git clone https://github.com/onlaj/Kura.git
 cd Kura
+```
 
-# Create virtual environment (recommended)
+#### **3. Create a Virtual Environment**
+```bash
+# Linux/macOS
 python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-.\venv\Scripts\activate   # Windows
+source venv/bin/activate
 
-# Install & run
-pip install -r requirements.txt
+# Windows
+python -m venv venv
+venv\Scripts\activate
+```
+
+#### **4. Install Dependencies & Run**
+```bash
+# Ensure pip is up to date
+python -m pip install --upgrade pip
+
+# Install required packages
+python -m pip install -r requirements.txt
+
+# Run the application
 python main.py
 ```
+
+Now, the app should start! 🚀
+
 
 Creating onefile executable:
 ```
