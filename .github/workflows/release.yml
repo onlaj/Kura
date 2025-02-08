@@ -1,4 +1,8 @@
 name: Build and Release Kura
+permissions:
+  contents: write
+  actions: write
+  attestations: write
 
 on:
   push:
