@@ -81,7 +81,7 @@ jobs:
           cp docs/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/Kura.png
           wget -q https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
-          ./appimagetool-x86_64.AppImage AppDir Kura.AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir Kura.AppImage
       - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
         with:
