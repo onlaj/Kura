@@ -59,42 +59,8 @@ jobs:
           name: Kura-macOS-${{ matrix.arch }}
           path: Kura-${{ matrix.arch }}.dmg
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install -r requirements.txt pyinstaller
-      - name: Build Linux Executable
-        run: |
-          pyinstaller --onefile --windowed --name Kura --icon="docs/favicon.ico" --add-data "docs/logo.png:docs" main.py
-      - name: Package as AppImage
-        run: |
-          sudo apt update && sudo apt install -y fuse
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          cp dist/Kura AppDir/usr/bin/Kura
-          printf '#!/bin/bash\nHERE=$(dirname "$(readlink -f "$0")")\nexec "$HERE/usr/bin/Kura" "$@"\n' > AppDir/AppRun
-          chmod +x AppDir/AppRun
-          cp docs/Kura.desktop AppDir/Kura.desktop
-          cp docs/logo.png AppDir/Kura.png
-          cp docs/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/Kura.png
-          wget -q https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir Kura.AppImage
-      - name: Upload Linux AppImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: Kura-Linux
-          path: Kura.AppImage
-
   release:
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -114,11 +80,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: Kura-macOS-arm64
-          path: release/
-      - name: Download Linux AppImage
-        uses: actions/download-artifact@v4
-        with:
-          name: Kura-Linux
           path: release/
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
