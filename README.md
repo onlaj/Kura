@@ -79,7 +79,7 @@ From "curare" (to care for) → "curator" – Kura acts as your digital curator,
 ## 🚀 Get Started
 
 ### **🔹 Option 1: Download Pre-Built Executable**
-Pre-built versions of **Kura** are available for **Windows, macOS, and Linux** in the [Releases](https://github.com/onlaj/Kura/releases) section.
+Pre-built versions of **Kura** are available for **Windows and macOS** in the [Releases](https://github.com/onlaj/Kura/releases) section.
 
 > **⚠️ Windows Defender & Antivirus Warning**  
 > Some antivirus software (including Windows Defender) may flag the `.exe` as a potential threat. This is a **false positive** caused by the way PyInstaller packages the application.  
