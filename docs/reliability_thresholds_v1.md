@@ -19,7 +19,7 @@ The system was tested using synthetic datasets with objective ground-truth ranki
 | Final Real Reliability      | 94.2%      |
 | First Crossing Point        | 94.1% at 172.9 votes |
 
-![Reliability Comparison Graph](/docs/reliability_comparison_n20.png)  
+![Reliability Comparison Graph](/docs/reliability_comparison_n20_v2.png)  
 
 ### Case 2: `n=50` Media Items  
 | Metric                     | Value                       |
@@ -29,7 +29,7 @@ The system was tested using synthetic datasets with objective ground-truth ranki
 | Crossing Points             | 92.1–93.0% at 499–522 votes |
 
 
-![Reliability Comparison Graph](/docs/reliability_comparison_n50.png)  
+![Reliability Comparison Graph](/docs/reliability_comparison_n50_v2.png)  
 
 
 ---
