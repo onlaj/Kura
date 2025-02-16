@@ -1,112 +1,126 @@
-# Reliability Threshold Justification for ELO-Based Ranking System  
-**Author**: Onlaj  
-**Version**: 2.1 
+# Reliability Threshold Justification for ELO-Based Ranking System
+**Version**: 3.0
 
 ---
 
-## 1. Introduction  
-This document outlines the rationale for selecting **85%** and **94%** as critical reliability thresholds in the ELO-based media ranking system. These thresholds are derived from empirical testing and reflect fundamental properties of pairwise ranking systems under combinatorial constraints. Test results and analyses are included to validate these benchmarks.  
+## 1. Introduction
+This document outlines the rationale for selecting critical reliability thresholds in the ranking system. The thresholds of **85%** (used to trigger the transition from coarse to fine adjustments via K-factor reduction) and **94%** (indicating a practical plateau in ranking improvements) were derived from empirical testing and reflect fundamental properties of pairwise ranking systems under combinatorial constraints.
 
-A key assumption of the current system is that there exists an objective ground-truth ordering of media items. However, when dealing with subjective evaluations, phenomena such as **Condorcet cycles** may occur—situations where comparisons yield intransitive results (e.g., A > B, B > C, yet C > A). While our current method for calculating reliability does not account for these cycles, they are acknowledged here, and potential solutions for future implementations are discussed.
+The simulation framework incorporates three methods—Dynamic ELO (with K-factor adaptation), Fixed ELO (K=16), and Glicko2. All methods are updated on the same vote outcome (determined by an objective ground-truth ordering) and their "real" reliability (measured via pairwise comparison with the true ranking) is recorded.
 
----
-
-## 2. Test Results Summary  
-The system was tested using synthetic datasets with objective ground-truth rankings. Key observations:  
-
-### Case 1: `n=20` Media Items  
-| Metric                     | Value (Original) | Value (Improved) |  
-|----------------------------|------------------|------------------|  
-| Final Calculated Reliability | 99.1%            | 99.1%            |  
-| Final Real Reliability      | 94.2%            | **97.9%**        |  
-| First Crossing Point        | 94.1% at 173 votes | **98.2% at 245 votes** |  
-
-![Reliability Comparison Graph](reliability_comparison_n20_v2.png)  
-
-### Case 2: `n=50` Media Items  
-| Metric                     | Value (Original) | Value (Improved)       |  
-|----------------------------|------------------|------------------------|  
-| Final Calculated Reliability | 99.1%            | 99.0%                  |  
-| Final Real Reliability      | 93.9%            | **96.3%**              |  
-| Crossing Points             | 92.1–93.0% at 499–522 votes      | **95.4%** at 605 votes |  
-
-![Reliability Comparison Graph](reliability_comparison_n50_v2.png)  
+A key assumption of the current system is that there exists an objective ground-truth ordering of media items. However, when dealing with subjective evaluations, phenomena such as **Condorcet cycles** may occur—situations where comparisons yield intransitive results (e.g., A > B, B > C, yet C > A). While the current reliability calculation does not account for these cycles, they are acknowledged here.
 
 ---
 
-## 3. Threshold Justification  
+## 2. Test Results Summary
+The system was tested using synthetic datasets with objective ground-truth rankings. For each method, the vote count was recorded at which the "real" reliability first reached 80%, 85%, 90%, and 95%. The methods are compared as Fixed ELO, Dynamic ELO, and Glicko2.
 
-### 3.1 First Goal: 85% Reliability  
-The **85%** threshold now serves as a **system behavior transition point**:  
+### Case 1: `n=20` Media Items
 
-1. **Dynamic K-Factor Activation**:  
-   - K=32 below 85% enables rapid coarse sorting  
-   - K=16 above 85% enables fine adjustments  
+| Method       | Votes for 80% | Votes for 85% | Votes for 90% | Votes for 95% |
+|--------------|---------------|---------------|---------------|---------------|
+| Dynamic ELO  | 24            | 44            | 91            | 186           |
+| Fixed ELO    | 24            | 44            | 91            | 226           |
+| Glicko2      | 21            | 36            | 74            | 149           |
 
-2. **Pair Selection Optimization**:  
-   - Post-85%: Matches similar-rated items (±100 ELO)  
-   - Reduces ambiguous comparisons by 41% (n=50 test)  
+![Reliability Comparison Graph](avg_reliability_comparison_n20.png) 
 
-**Empirical Support**:  
-- New system reaches 85% real reliability **22% faster** (n=20: 85% at 82 votes vs 100 votes previously)  
+### Case 2: `n=50` Media Items
 
----
+| Method       | Votes for 80% | Votes for 85% | Votes for 90% | Votes for 95% |
+|--------------|---------------|---------------|---------------|---------------|
+| Dynamic ELO  | 84            | 153           | 303           | 558           |
+| Fixed ELO    | 84            | 154           | 309           | 948           |
+| Glicko2      | 80            | 132           | 252           | 459           |
 
-### 3.2 Second Goal: 94% Reliability  
-The **94%** threshold remains critical due to:  
+![Reliability Comparison Graph](avg_reliability_comparison_n50.png) 
 
-1. **Enhanced Practical Limit**:  
-   - New system achieves **3-4% higher real reliability** at same vote counts  
-   - Residual errors reduced from 6% to 3-4%  
-
-2. **System Stability**:  
-   - Rating differences <15 ELO become statistically insignificant  
-   - Matches chess ELO system's "draw margin" concept  
-
-**Empirical Support**:  
-- Final real reliability now reaches **96-98%** before plateauing  
+Key observations for n=50:
+- All methods achieve 80% reliability rapidly (80-84 votes)
+- Glicko2 reaches 90% significantly faster (252 vs 303-309 votes)
+- Glicko2 maintains faster convergence to 95% (459 vs 558-948 votes)
+- Dynamic and Fixed ELO show nearly identical performance up to 90%
 
 ---
 
-## 3.3 Addressing Subjective Intransitivity and Condorcet Cycles
-While the current reliability calculations assume an objective ground-truth ranking, real-world subjective evaluations may produce [Condorcet cycles](https://en.wikipedia.org/wiki/Condorcet_paradox), where preferences are intransitive (e.g., A > B, B > C, C > A). These cycles can distort the perceived reliability of the ranking system.
+## 3. Threshold Justification
 
-**Potential future improvements to address this include:**
+### 3.1 First Goal: 85% Reliability
+The **85%** threshold serves as a critical system behavior transition point:
 
-* **Intransitivity Detection:**
-Track and quantify occurrences of cyclic comparisons. If cycles are frequent, the system could flag these instances and adjust the confidence in its global ranking accordingly.
+- **Dynamic K-Factor Activation:**
+  - K=32 below 85% enables rapid coarse sorting
+  - K=16 above 85% permits finer adjustments
+- **Pair Selection Optimization:**
+  - Post-85%, comparisons are limited to similarly rated items
 
-
-* **Bayesian or Probabilistic Models:**
-Incorporate uncertainty into the ranking process by using models such as [TrueSkill](https://en.wikipedia.org/wiki/TrueSkill). This could weight votes differently based on their consistency, thereby mitigating the impact of outlier cyclic comparisons.
-
-
-* **Cycle Correction Techniques:**
-Implement smoothing or penalty mechanisms for conflicting votes. By reducing the influence of a vote that creates a cycle, the system could enhance overall stability without altering the reliability calculation method.
-
+**Empirical Support:**
+For n=50, the ELO systems require approximately 303 votes to reach 90%, while Glicko2 achieves this threshold in just 252 votes. This faster convergence by Glicko2 suggests its superior efficiency in early-stage sorting.
 
 ---
 
-## 4. Practical Implications  
+### 3.2 Second Goal: 94% Reliability
+Analysis of the test data reveals that 94% represents an optimal upper threshold—beyond which further votes yield diminishing returns:
 
-1. **85% Threshold**:  
-   - Optimal transition point for pairing logic and K-factor reduction  
-   - Maintains 92% vote efficiency for remaining improvements  
+- **For ELO Methods (n=50):**
+  - Dynamic ELO crosses 94% at approximately 479 votes
+  - Fixed ELO shows similar performance, crossing 94% around 506 votes
+  - Both methods show minimal improvement beyond this point
+- **For Glicko2 (n=50):**
+  - Reaches 94% at approximately 408 votes
+  - Continues to show modest improvements up to 98% reliability
 
-2. **94% Threshold**:  
-   - Represents **3× cost-per-percent** increase vs sub-85% voting  
-   - Recommended minimum for "professional-grade" rankings  
-
----
-
-## 5. Conclusion  
-The updated ELO-based system demonstrates significant improvements while retaining the original threshold logic. The 85% and 94% benchmarks are validated through empirical testing. While the reliability metrics are currently calculated against an objective ranking, real-world subjective evaluations may introduce Condorcet cycles, leading to intransitive comparisons. Future iterations could incorporate cycle detection, Bayesian ranking methods, or cycle correction mechanisms to further enhance the system's robustness.
+The 94% threshold remains valid as a practical upper bound, particularly for ELO-based methods. Glicko2's ability to exceed this threshold more quickly does not invalidate it as a stopping point, as the marginal gains beyond this point remain minimal relative to the additional votes required.
 
 ---
 
-## Version History  
+## 4. Reliability Calculation Improvements
+The reliability calculation system has been enhanced to better align with observed real reliability measurements. The updated ReliabilityCalculator class now employs a three-phase model:
 
-### v2.1 (Current)
+1. **Initial Phase (50-75%):** Rapid improvement reflecting quick early gains
+2. **Development Phase (75-90%):** Steady progress as the ranking stabilizes
+3. **Refinement Phase (90%+):** Asymptotic approach to maximum reliability
+
+This revised model shows significantly better correlation with actual reliability measurements:
+
+| Votes | Old Calc (%) | New Calc (%) | Actual (%) |
+|-------|--------------|--------------|------------|
+| 40    | 18.0        | 59.7         | 80.8       |
+| 110   | 42.6        | 70.7         | 85.0       |
+| 290   | 77.0        | 82.9         | 90.4       |
+| 510   | 88.5        | 93.6         | 93.6       |
+
+---
+
+## 5. Practical Implications
+
+1. **85% Threshold:**
+   - Remains valid as the optimal transition point
+   - Glicko2 reaches this milestone approximately 13% faster
+   - Suitable trigger point for switching to fine-grained adjustments
+
+2. **94% Threshold:**
+   - Represents a practical maximum for ELO methods
+   - Glicko2 can exceed this level more efficiently
+   - Additional votes beyond this point show minimal impact
+
+---
+
+## 6. Conclusion
+The analysis confirms the validity of both the 85% and 94% thresholds while highlighting Glicko2's superior convergence characteristics. For systems prioritizing rapid convergence, Glicko2 offers significant advantages, reaching key reliability thresholds with substantially fewer votes.
+
+---
+
+## Version History
+
+### v3.0 (Current)
+- Improved reliability calculation methodology
+- Added comprehensive comparison of convergence rates
+- Updated threshold justifications based on new test data
+- Enhanced empirical support for chosen thresholds
+- Added detailed performance metrics for n=50 case
+
+### [v2.1](reliability_thresholds_v2.1.md)  
 - Added discussion on subjective intransitivity and Condorcet cycles
 - Mentioned potential future improvements for handling cyclic inconsistencies
 - Maintained current reliability calculation while discussing practical implications for subjective data
