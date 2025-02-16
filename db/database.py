@@ -55,13 +55,14 @@ class Database:
         """Create necessary database tables if they don't exist."""
         # Albums table
         self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS albums (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    total_media INTEGER DEFAULT 0
-                )
-            """)
+            CREATE TABLE IF NOT EXISTS albums (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                total_media INTEGER DEFAULT 0,
+                rating_system TEXT DEFAULT 'glicko2'
+            )
+        """)
 
         # Media table with album support
         self.cursor.execute("""
@@ -69,6 +70,8 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT NOT NULL,
                 rating REAL DEFAULT 1200,
+                glicko_phi REAL DEFAULT 350,
+                glicko_sigma REAL DEFAULT 0.06,
                 votes INTEGER DEFAULT 0,
                 type TEXT NOT NULL,
                 album_id INTEGER NOT NULL,
@@ -106,18 +109,12 @@ class Database:
         """)
         self.conn.commit()
 
-    def create_album(self, name: str, created_at: str = None) -> int:
+    def create_album(self, name: str, rating_system: str = "glicko2") -> int:
         try:
-            if created_at:
-                self.cursor.execute(
-                    "INSERT INTO albums (name, created_at) VALUES (?, ?)",
-                    (name, created_at)
-                )
-            else:
-                self.cursor.execute(
-                    "INSERT INTO albums (name) VALUES (?)",
-                    (name,)
-                )
+            self.cursor.execute(
+                "INSERT INTO albums (name, rating_system) VALUES (?, ?)",
+                (name, rating_system)
+            )
             self.conn.commit()
             return self.cursor.lastrowid
         except sqlite3.IntegrityError:
@@ -225,6 +222,25 @@ class Database:
             return False
 
     def _recalculate_ratings(self):
+        # Get all albums
+        albums = self.get_albums()
+        for album in albums:
+            album_id = album[0]
+            rating_system = self.get_album_rating_system(album_id)
+
+            if rating_system == "elo":
+                self._recalculate_elo(album_id)
+            else:
+                self._recalculate_glicko2(album_id)
+
+    def get_album_rating_system(self, album_id: int) -> str:
+        """Get the rating system used by an album"""
+        self.cursor.execute("SELECT rating_system FROM albums WHERE id = ?", (album_id,))
+        result = self.cursor.fetchone()
+        return result[0] if result else "glicko2"
+
+    def _recalculate_elo(self, album_id: int):
+
         from core.elo import Rating
 
         # Reset all ratings
@@ -238,11 +254,11 @@ class Database:
             media_count = self.get_total_media_count(album_id)
 
             self.cursor.execute("""
-                SELECT winner_id, loser_id 
-                FROM votes 
-                WHERE album_id = ?
-                ORDER BY timestamp ASC
-            """, (album_id,))
+                        SELECT winner_id, loser_id 
+                        FROM votes 
+                        WHERE album_id = ?
+                        ORDER BY timestamp ASC
+                    """, (album_id,))
             votes = self.cursor.fetchall()
 
             ratings = {row[0]: 1200 for row in
@@ -269,18 +285,85 @@ class Database:
                 ratings[loser_id] = new_ratings['b']
 
                 self.cursor.execute("""
-                    UPDATE media 
-                    SET votes = votes + 1 
-                    WHERE id IN (?, ?)
-                """, (winner_id, loser_id))
+                            UPDATE media 
+                            SET votes = votes + 1 
+                            WHERE id IN (?, ?)
+                        """, (winner_id, loser_id))
 
             # Update final ratings
             for media_id, rating in ratings.items():
                 self.cursor.execute("""
-                    UPDATE media SET rating = ? WHERE id = ?
-                """, (rating, media_id))
+                            UPDATE media SET rating = ? WHERE id = ?
+                        """, (rating, media_id))
 
         self.conn.commit()
+
+    def _recalculate_glicko2(self, album_id: int):
+        from core.glicko2 import Glicko2Rating
+
+        # Reset all Glicko2 parameters to initial values
+        self.cursor.execute("""
+            UPDATE media 
+            SET rating = 1200,
+                glicko_phi = 350,
+                glicko_sigma = 0.06
+            WHERE album_id = ?
+        """, (album_id,))
+
+        # Get all media IDs in this album
+        media = {}
+        self.cursor.execute("SELECT id FROM media WHERE album_id = ?", (album_id,))
+        for (media_id,) in self.cursor.fetchall():
+            media[media_id] = (1200.0, 350.0, 0.06)  # (mu, phi, sigma)
+
+        # Process votes in chronological order
+        self.cursor.execute("""
+            SELECT winner_id, loser_id 
+            FROM votes 
+            WHERE album_id = ?
+            ORDER BY timestamp ASC
+        """, (album_id,))
+
+        for winner_id, loser_id in self.cursor.fetchall():
+            if winner_id not in media or loser_id not in media:
+                continue
+
+            # Get current parameters
+            w_mu, w_phi, w_sigma = media[winner_id]
+            l_mu, l_phi, l_sigma = media[loser_id]
+
+            # Calculate updates
+            gr = Glicko2Rating(
+                w_mu, w_phi, w_sigma,
+                l_mu, l_phi, l_sigma,
+                1.0, 0.0  # Winner gets 1.0, loser 0.0
+            )
+            new_ratings = gr.get_new_ratings()
+
+            # Update in-memory state
+            media[winner_id] = (
+                new_ratings['a']['mu'],
+                new_ratings['a']['phi'],
+                new_ratings['a']['sigma']
+            )
+            media[loser_id] = (
+                new_ratings['b']['mu'],
+                new_ratings['b']['phi'],
+                new_ratings['b']['sigma']
+            )
+
+        # Save final ratings
+        for media_id, (mu, phi, sigma) in media.items():
+            self.cursor.execute("""
+                UPDATE media SET
+                    rating = ?,
+                    glicko_phi = ?,
+                    glicko_sigma = ?
+                WHERE id = ?
+            """, (mu, phi, sigma, media_id))
+
+        self.conn.commit()
+
 
     def delete_media(self, media_id: int, recalculate: bool = True) -> Optional[str]:
         """
@@ -331,62 +414,113 @@ class Database:
             self.conn.rollback()
             raise e
 
-    def update_ratings(self, winner_id: int, loser_id: int,
-                       new_winner_rating: float, new_loser_rating: float,
-                       album_id: int):
+    def update_ratings(self, winner_id: int, loser_id: int, album_id: int):
         """
-        Update ratings after a vote.
-
-        Args:
-            winner_id: ID of the winning media
-            loser_id: ID of the losing media
-            new_winner_rating: New rating for the winner
-            new_loser_rating: New rating for the loser
-            :param album_id:
+        Update ratings after a vote. Handles both ELO and Glicko2 systems.
         """
         try:
             self.conn.execute("BEGIN")
 
-            # Update ratings
+            # Get rating system from album
+            rating_system = self.get_album_rating_system(album_id)
+
+            if rating_system == "elo":
+                # ELO SYSTEM ======================================================
+                # Get current ratings
+                self.cursor.execute("SELECT rating FROM media WHERE id = ?", (winner_id,))
+                winner_rating = self.cursor.fetchone()[0]
+                self.cursor.execute("SELECT rating FROM media WHERE id = ?", (loser_id,))
+                loser_rating = self.cursor.fetchone()[0]
+
+                # Calculate ELO updates
+                from core.elo import Rating
+                n = self.get_total_media_count(album_id)
+                v = self.get_total_votes(album_id)
+                reliability = ReliabilityCalculator.calculate_reliability(n, v + 1)  # +1 for this vote
+                k_factor = 32 if reliability < 85 else 16
+
+                elo = Rating(winner_rating, loser_rating,
+                             Rating.WIN, Rating.LOST, k_factor)
+                new_ratings = elo.get_new_ratings()
+
+                # Update winner
+                self.cursor.execute("""
+                    UPDATE media 
+                    SET rating = ?, votes = votes + 1 
+                    WHERE id = ?
+                """, (new_ratings['a'], winner_id))
+
+                # Update loser
+                self.cursor.execute("""
+                    UPDATE media 
+                    SET rating = ?, votes = votes + 1 
+                    WHERE id = ?
+                """, (new_ratings['b'], loser_id))
+
+            else:
+                # GLICKO2 SYSTEM ==================================================
+                from core.glicko2 import Glicko2Rating
+
+                # Get current Glicko2 parameters for both items
+                self.cursor.execute("""
+                    SELECT rating, glicko_phi, glicko_sigma 
+                    FROM media 
+                    WHERE id IN (?, ?)
+                    ORDER BY CASE WHEN id = ? THEN 1 ELSE 2 END
+                """, (winner_id, loser_id, winner_id))
+
+                winner_mu, winner_phi, winner_sigma = self.cursor.fetchone()
+                loser_mu, loser_phi, loser_sigma = self.cursor.fetchone()
+
+                # Calculate Glicko2 updates
+                gr = Glicko2Rating(
+                    mu_a=winner_mu, phi_a=winner_phi, sigma_a=winner_sigma,
+                    mu_b=loser_mu, phi_b=loser_phi, sigma_b=loser_sigma,
+                    score_a=1.0, score_b=0.0
+                )
+                new_ratings = gr.get_new_ratings()
+
+                # Update winner
+                self.cursor.execute("""
+                    UPDATE media SET
+                        rating = ?,
+                        glicko_phi = ?,
+                        glicko_sigma = ?,
+                        votes = votes + 1
+                    WHERE id = ?
+                """, (
+                    new_ratings['a']['mu'],
+                    new_ratings['a']['phi'],
+                    new_ratings['a']['sigma'],
+                    winner_id
+                ))
+
+                # Update loser
+                self.cursor.execute("""
+                    UPDATE media SET
+                        rating = ?,
+                        glicko_phi = ?,
+                        glicko_sigma = ?,
+                        votes = votes + 1
+                    WHERE id = ?
+                """, (
+                    new_ratings['b']['mu'],
+                    new_ratings['b']['phi'],
+                    new_ratings['b']['sigma'],
+                    loser_id
+                ))
+
+            # Record vote in history (same for both systems)
             self.cursor.execute("""
-                UPDATE media 
-                SET rating = ?, votes = votes + 1 
-                WHERE id = ?
-            """, (new_winner_rating, winner_id))
-
-            self.cursor.execute("""
-                UPDATE media 
-                SET rating = ?, votes = votes + 1 
-                WHERE id = ?
-            """, (new_loser_rating, loser_id))
-
-            # Record the vote with album_id
-            self.cursor.execute("""
-                        INSERT INTO votes (winner_id, loser_id, album_id)
-                        VALUES (?, ?, ?)
-                    """, (winner_id, loser_id, album_id))
-
-            # Get the ID of the inserted vote
-            vote_id = self.cursor.lastrowid
-
-            # Verify the vote was recorded
-            self.cursor.execute("""
-                SELECT * FROM votes WHERE id = ?
-            """, (vote_id,))
-            vote_record = self.cursor.fetchone()
-            logger.info(
-                f"Recorded vote: ID={vote_record[0]}, Winner={vote_record[1]}, Loser={vote_record[2]}, Time={vote_record[3]}")
-
-            # Get total vote count
-            self.cursor.execute("SELECT COUNT(*) FROM votes")
-            total_votes = self.cursor.fetchone()[0]
-            logger.info(f"Total votes in database: {total_votes}")
+                INSERT INTO votes (winner_id, loser_id, album_id)
+                VALUES (?, ?, ?)
+            """, (winner_id, loser_id, album_id))
 
             self.conn.commit()
 
         except Exception as e:
             self.conn.rollback()
-            logger.warning(f"Error recording vote: {e}")
+            logger.error(f"Error updating ratings: {str(e)}")
             raise e
 
     def get_total_votes(self, album_id: int) -> int:
@@ -461,13 +595,13 @@ class Database:
 
     def get_albums_page(self, page: int, per_page: int, sort_by: str = "name", sort_order: str = "ASC") -> Tuple[
         List[tuple], int]:
-        valid_columns = {"id", "name", "total_media", "created_at"}
+        valid_columns = {"id", "name", "total_media", "rating_system", "created_at"}
         sort_by = sort_by if sort_by in valid_columns else "name"
         sort_order = sort_order.upper() if sort_order.upper() in ("ASC", "DESC") else "ASC"
 
         offset = (page - 1) * per_page
         query = f"""
-            SELECT id, name, total_media, created_at
+            SELECT id, name, total_media, created_at, rating_system
             FROM albums
             ORDER BY {sort_by} {sort_order}
             LIMIT ? OFFSET ?

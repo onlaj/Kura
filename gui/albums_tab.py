@@ -4,7 +4,7 @@ import sqlite3
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QInputDialog,
                              QMessageBox, QLabel, QGroupBox, QGridLayout, QHeaderView, QComboBox, QFileDialog,
-                             QProgressDialog)
+                             QProgressDialog, QDialog, QLineEdit, QDialogButtonBox)
 from PyQt6.QtCore import pyqtSignal, Qt, QSortFilterProxyModel, QSize
 import math
 
@@ -32,8 +32,8 @@ class AlbumsTab(QWidget):
 
         # Album Table
         self.album_table = QTableWidget()
-        self.album_table.setColumnCount(3)
-        self.album_table.setHorizontalHeaderLabels(["Name", "Media Count", "Created At"])
+        self.album_table.setColumnCount(4)
+        self.album_table.setHorizontalHeaderLabels(["Name", "Media Count", "Rating Method", "Created At"])
         self.album_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.album_table.horizontalHeader().setSortIndicatorShown(True)
         self.album_table.horizontalHeader().sectionClicked.connect(self.on_header_clicked)
@@ -104,7 +104,7 @@ class AlbumsTab(QWidget):
         self._setup_stats_section()
 
     def on_header_clicked(self, logical_index):
-        columns = ["name", "total_media", "created_at"]
+        columns = ["name", "total_media", "rating_system", "created_at"]
         if logical_index >= len(columns):
             return
         new_sort = columns[logical_index]
@@ -125,12 +125,17 @@ class AlbumsTab(QWidget):
         for album in albums:
             row = self.album_table.rowCount()
             self.album_table.insertRow(row)
-            album_id, name, media_count, created = album
+            album_id, name, media_count, created, rating_system = album
+
+            # Format rating system name
+            system_name = "Glicko2" if rating_system == "glicko2" else "Elo"
+
             name_item = QTableWidgetItem(name)
             name_item.setData(Qt.ItemDataRole.UserRole, album_id)
             self.album_table.setItem(row, 0, name_item)
             self.album_table.setItem(row, 1, QTableWidgetItem(str(media_count)))
-            self.album_table.setItem(row, 2, QTableWidgetItem(created))
+            self.album_table.setItem(row, 2, QTableWidgetItem(system_name))
+            self.album_table.setItem(row, 3, QTableWidgetItem(created))
 
         total_pages = math.ceil(total / self.per_page) if self.per_page else 1
         self.page_label.setText(f"Page {self.current_page} of {total_pages} (Total: {total})")
@@ -185,20 +190,61 @@ class AlbumsTab(QWidget):
                 break
 
     def create_album(self):
-        """Create a new album and select it after creation."""
-        name, ok = QInputDialog.getText(self, "Create Album", "Album name:")
-        if ok and name:
-            # Create album and get its ID
-            new_id = self.db.create_album(name)  # Modified database method should return ID
-            if new_id:
-                # Refresh with sorting by creation date descending
-                self.sort_by = "created_at"
-                self.sort_order = "DESC"
-                self.current_page = 1
-                self.refresh_albums()
-                self._select_album_by_id(new_id)
+        """Create a new album with rating system selection and description"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Create Album")
+        layout = QVBoxLayout(dialog)
+
+        # Name input
+        name_edit = QLineEdit()
+        layout.addWidget(QLabel("Album name:"))
+        layout.addWidget(name_edit)
+
+        # Rating system selection
+        layout.addWidget(QLabel("Ranking System:"))
+        system_combo = QComboBox()
+        system_combo.addItem("Glicko2 (Recommended)", "glicko2")
+        system_combo.addItem("Elo (Classic)", "elo")
+        layout.addWidget(system_combo)
+
+        # System description label
+        desc_label = QLabel()
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("color: #666; font-size: 11px; margin-top: 5px;")
+        layout.addWidget(desc_label)
+
+        # Update description when selection changes
+        def update_description(index):
+            if system_combo.currentData() == "glicko2":
+                desc_label.setText("Glicko2: Advanced system that considers rating certainty and "
+                                   "volatility. Better for large collections and infrequent voters.")
             else:
-                QMessageBox.warning(self, "Error", "Album name already exists")
+                desc_label.setText("Elo: Simple pairwise comparison system. Classic method used in "
+                                   "chess rankings. Good for small collections.")
+
+        system_combo.currentIndexChanged.connect(update_description)
+        update_description(0)  # Initial update
+
+        # Buttons
+        btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+        layout.addWidget(btn_box)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            name = name_edit.text()
+            rating_system = system_combo.currentData()
+            if name:
+                new_id = self.db.create_album(name, rating_system)  # Modified database method should return ID
+                if new_id:
+                    # Refresh with sorting by creation date descending
+                    self.sort_by = "created_at"
+                    self.sort_order = "DESC"
+                    self.current_page = 1
+                    self.refresh_albums()
+                    self._select_album_by_id(new_id)
+                else:
+                    QMessageBox.warning(self, "Error", "Album name already exists")
 
     def rename_album(self):
         selected = self.album_table.selectedItems()

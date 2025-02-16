@@ -164,14 +164,12 @@ class Application:
         """Get a pair of media items for voting from specified album."""
         return self.db.get_pair_for_voting(album_id)
 
-    def update_ratings(self, winner_id: int, loser_id: int,
-                       new_winner_rating: float, new_loser_rating: float,
-                       album_id: int):  # Add album_id parameter
+    def update_ratings(self, winner_id: int, loser_id: int, album_id: int):
         """Update ratings after a vote."""
         self.db.update_ratings(
-            winner_id, loser_id,
-            new_winner_rating, new_loser_rating,
-            album_id  # Pass the album_id to database
+            winner_id,
+            loser_id,
+            album_id  # Now only 3 parameters match Database.update_ratings()
         )
 
     def run(self):

@@ -7,7 +7,7 @@ class Glicko2Rating:
     Usage mirrors the Elo Rating class.
     """
 
-    MU = 1500
+    MU = 1200
     PHI = 350
     SIGMA = 0.06
     TAU = 1.0
@@ -60,7 +60,7 @@ class Glicko2Rating:
     class Glicko2Core:
         """Core Glicko-2 implementation"""
 
-        def __init__(self, mu=1500, phi=350, sigma=0.06, tau=1.0, epsilon=0.000001):
+        def __init__(self, mu=1200, phi=350, sigma=0.06, tau=1.0, epsilon=0.000001):
             self.mu = mu
             self.phi = phi
             self.sigma = sigma
