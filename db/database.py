@@ -738,50 +738,69 @@ class Database:
 
     def get_pair_for_voting(self, album_id: int = 1) -> Tuple[Optional[tuple], Optional[tuple]]:
         """
-        Get two media items for voting: one least voted and one random.
-
-        Returns:
-            Tuple of (least voted media, random media), where each is a tuple of
-            (id, path, rating, votes) or None if not enough media items exist
+        Get two media items for voting with adaptive rating difference handling.
         """
-        # Get current reliability
         media_count = self.get_total_media_count(album_id)
         total_votes = self.get_total_votes(album_id)
         reliability = ReliabilityCalculator.calculate_reliability(media_count, total_votes)
 
-
+        # Get least voted item
         self.cursor.execute("""
-                SELECT id, path, rating, votes 
-                FROM media 
-                WHERE album_id = ?
-                ORDER BY votes ASC, RANDOM() 
-                LIMIT 1
-            """, (album_id,))
+            SELECT id, path, rating, votes 
+            FROM media 
+            WHERE album_id = ?
+            ORDER BY votes ASC, RANDOM() 
+            LIMIT 1
+        """, (album_id,))
         least_voted = self.cursor.fetchone()
 
         if not least_voted:
             return None, None
 
+        # Adaptive rating difference logic
         if reliability >= 85:
+            # Try to find closest match first, then gradually expand search
             self.cursor.execute("""
-                    SELECT id, path, rating, votes 
-                    FROM media 
-                    WHERE id != ? 
-                    AND album_id = ?
-                    AND ABS(rating - ?) <= 100
-                    ORDER BY RANDOM()
-                    LIMIT 1
-                """, (least_voted[0], album_id, least_voted[2]))
+                SELECT id, path, rating, votes 
+                FROM media 
+                WHERE id != ? 
+                AND album_id = ?
+                ORDER BY 
+                    CASE 
+                        WHEN ABS(rating - ?) <= 100 THEN 0
+                        WHEN ABS(rating - ?) <= 200 THEN 1 
+                        ELSE 2 
+                    END,
+                    ABS(rating - ?) ASC,
+                    RANDOM()
+                LIMIT 1
+            """, (least_voted[0], album_id, least_voted[2], least_voted[2], least_voted[2]))
         else:
+            # Random selection for early stages
             self.cursor.execute("""
-                    SELECT id, path, rating, votes 
-                    FROM media 
-                    WHERE id != ? AND album_id = ?
-                    ORDER BY RANDOM() 
-                    LIMIT 1
-                """, (least_voted[0], album_id))
+                SELECT id, path, rating, votes 
+                FROM media 
+                WHERE id != ? 
+                AND album_id = ?
+                ORDER BY RANDOM() 
+                LIMIT 1
+            """, (least_voted[0], album_id))
 
-        return least_voted, self.cursor.fetchone()
+        second_item = self.cursor.fetchone()
+
+        # Fallback if no matches found (should never happen with at least 2 items)
+        if not second_item:
+            self.cursor.execute("""
+                SELECT id, path, rating, votes 
+                FROM media 
+                WHERE id != ? 
+                AND album_id = ?
+                ORDER BY RANDOM() 
+                LIMIT 1
+            """, (least_voted[0], album_id))
+            second_item = self.cursor.fetchone()
+
+        return least_voted, second_item
 
     def close(self):
         """Close the database connection."""
