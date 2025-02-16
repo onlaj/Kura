@@ -272,7 +272,7 @@ def run_multi_seed_simulation(n: int, seeds: List[int]):
 
 @pytest.mark.parametrize("n", [20, 50])
 def test_reliability_with_graph(n: int):
-    seeds = [42, 23, 45, 56]  # Editable list of seeds
+    seeds = [6, 11, 16, 27, 35, 42, 44, 45, 56, 64, 65, 72, 86, 92, 98]  # Editable list of seeds
     aggregated_stats, all_stats = run_multi_seed_simulation(n, seeds)
 
     print(f"\nResults averaged across {len(seeds)} seeds ({seeds}):")
