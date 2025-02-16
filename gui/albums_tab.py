@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt6.QtCore import pyqtSignal, Qt, QSortFilterProxyModel, QSize
 import math
 
-from core.elo import ReliabilityCalculator
+from core.reliability_calculator import ReliabilityCalculator
 
 
 class AlbumsTab(QWidget):

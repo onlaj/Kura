@@ -5,7 +5,8 @@ from PyQt6.QtGui import QMovie, QKeyEvent
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QFrame, QSizePolicy)
 
-from core.elo import Rating, ReliabilityCalculator
+from core.elo import Rating
+from core.reliability_calculator import ReliabilityCalculator
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
 from core.media_utils import AspectRatioWidget

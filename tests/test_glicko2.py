@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from core.elo import ReliabilityCalculator, Rating
+from core.elo import Rating
+from core.reliability_calculator import ReliabilityCalculator
 from core.glicko2 import Glicko2Rating
 
 
@@ -118,7 +119,7 @@ def simulate_and_plot(n: int, seed: int) -> dict:
         total_votes += 1
 
         # Record data every 1 votes
-        if total_votes % 1 == 0:
+        if total_votes % 10 == 0:
             votes_data.append(total_votes)
             calc_reliability_data.append(current_calc)
 

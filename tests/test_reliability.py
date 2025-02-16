@@ -3,7 +3,8 @@ from typing import List, Tuple
 import matplotlib.pyplot as plt
 import pytest
 
-from core.elo import ReliabilityCalculator, Rating
+from core.elo import Rating
+from core.reliability_calculator import ReliabilityCalculator
 
 
 class Media:

@@ -5,7 +5,8 @@ import sqlite3
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-from core.elo import ReliabilityCalculator
+from core.reliability_calculator import ReliabilityCalculator
+
 logger = logging.getLogger(__name__)
 
 
