@@ -1,6 +1,8 @@
 import random
+from statistics import mean
 from typing import List, Tuple
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 
 from core.elo import ReliabilityCalculator, Rating
@@ -39,8 +41,9 @@ def compute_real_reliability(original_order: List[Media], current_order: List[Me
     return (correct / total) * 100 if total > 0 else 0.0
 
 
-def simulate_and_plot(n: int) -> dict:
-    """Run simulation using dynamic ELO, fixed ELO and Glicko2; generate plot and return stats."""
+def simulate_and_plot(n: int, seed: int) -> dict:
+    """Run simulation with a specific seed."""
+    random.seed(seed)
     # Setup media items with objective scores (highest score = best ranking)
     original = [Media(i, n - i) for i in range(n)]
     medias = original.copy()
@@ -114,7 +117,7 @@ def simulate_and_plot(n: int) -> dict:
         media_b.vote_count += 1
         total_votes += 1
 
-        # Record data every 10 votes
+        # Record data every 1 votes
         if total_votes % 1 == 0:
             votes_data.append(total_votes)
             calc_reliability_data.append(current_calc)
@@ -162,7 +165,7 @@ def simulate_and_plot(n: int) -> dict:
                             crossing_points[key].append((x_cross, y_cross))
                 prev_diff[key] = diff
 
-            # End simulation when calculated reliability reaches 99.8%
+            # End simulation when calculated reliability reaches 96%
             if current_calc >= 96:
                 break
 
@@ -170,24 +173,6 @@ def simulate_and_plot(n: int) -> dict:
     final_order_dynamic = [m.objective_score for m in sorted(medias, key=lambda m: -m.elo)]
     final_order_fixed = [m.objective_score for m in sorted(medias, key=lambda m: -m.elo_fixed)]
     final_order_glicko2 = [m.objective_score for m in sorted(medias, key=lambda m: -m.glicko2["mu"])]
-
-    # Generate plot with all curves
-    plt.figure(figsize=(12, 6))
-    plt.plot(votes_data, elo_dynamic_reliability, label="Dynamic ELO Reliability", color="blue")
-    plt.plot(votes_data, elo_fixed_reliability, label="Fixed ELO Reliability", color="green")
-    plt.plot(votes_data, glicko2_reliability, label="Glicko2 Reliability", color="orange")
-    plt.plot(votes_data, calc_reliability_data, label="Calculated Reliability", color="red", linestyle="--")
-
-    plt.title(f"Reliability Comparison (n={n})")
-    plt.xlabel("Total Votes")
-    plt.ylabel("Reliability (%)")
-    plt.ylim(45, 100)  # Scale y-axis from 45% to 100%
-    plt.legend()
-    plt.grid(True)
-
-    filename = f"reliability_comparison_n{n}.png"
-    plt.savefig(filename)
-    plt.close()
 
     # Compile statistics to return
     stats = {
@@ -209,43 +194,118 @@ def simulate_and_plot(n: int) -> dict:
     return stats
 
 
+def run_multi_seed_simulation(n: int, seeds: List[int]):
+    """Run simulations with multiple seeds and aggregate results."""
+    all_stats = []
+    for seed in seeds:
+        stats = simulate_and_plot(n, seed)
+        all_stats.append(stats)
+
+    # Aggregate results
+    aggregated_stats = {
+        "avg_total_votes": mean(s["total_votes"] for s in all_stats),
+        "avg_final_calc_reliability": mean(s["calc_reliability"][-1] for s in all_stats),
+        "avg_final_dynamic_reliability": mean(s["elo_dynamic_reliability"][-1] for s in all_stats),
+        "avg_final_fixed_reliability": mean(s["elo_fixed_reliability"][-1] for s in all_stats),
+        "avg_final_glicko2_reliability": mean(s["glicko2_reliability"][-1] for s in all_stats),
+
+        "avg_calc_reliability_checkpoints": None,
+        "avg_elo_dynamic_reliability_checkpoints": None,
+        "avg_elo_fixed_reliability_checkpoints": None,
+        "avg_glicko2_reliability_checkpoints": None,
+    }
+
+    # Calculate average reliability curves
+    max_length = max(len(s["votes_data"]) for s in all_stats)
+    votes_data = next(s["votes_data"] for s in all_stats if len(s["votes_data"]) == max_length)
+
+    # Initialize arrays for averaging
+    calc_rel_sum = np.zeros(max_length)
+    dynamic_rel_sum = np.zeros(max_length)
+    fixed_rel_sum = np.zeros(max_length)
+    glicko2_rel_sum = np.zeros(max_length)
+    count = np.zeros(max_length)
+
+    # Sum up all values
+    for stats in all_stats:
+        length = len(stats["votes_data"])
+        calc_rel_sum[:length] += stats["calc_reliability"]
+        dynamic_rel_sum[:length] += stats["elo_dynamic_reliability"]
+        fixed_rel_sum[:length] += stats["elo_fixed_reliability"]
+        glicko2_rel_sum[:length] += stats["glicko2_reliability"]
+        count[:length] += 1
+
+    # Calculate averages for checkpoints
+    calc_rel_avg = calc_rel_sum / count
+    dynamic_rel_avg = dynamic_rel_sum / count
+    fixed_rel_avg = fixed_rel_sum / count
+    glicko2_rel_avg = glicko2_rel_sum / count
+
+    aggregated_stats["avg_calc_reliability_checkpoints"] = calc_rel_avg
+    aggregated_stats["avg_elo_dynamic_reliability_checkpoints"] = dynamic_rel_avg
+    aggregated_stats["avg_elo_fixed_reliability_checkpoints"] = fixed_rel_avg
+    aggregated_stats["avg_glicko2_reliability_checkpoints"] = glicko2_rel_avg
+
+
+    # Plot averaged curves
+    plt.figure(figsize=(12, 6))
+    plt.plot(votes_data, dynamic_rel_avg, label="Dynamic ELO Reliability", color="blue")
+    plt.plot(votes_data, fixed_rel_avg, label="Fixed ELO Reliability", color="green")
+    plt.plot(votes_data, glicko2_rel_avg, label="Glicko2 Reliability", color="orange")
+    plt.plot(votes_data, calc_rel_avg, label="Calculated Reliability", color="red", linestyle="--")
+
+    plt.title(f"Average Reliability Comparison (n={n}, seeds={seeds})")
+    plt.xlabel("Total Votes")
+    plt.ylabel("Reliability (%)")
+    plt.ylim(45, 100)
+    plt.legend()
+    plt.grid(True)
+
+    filename = f"avg_reliability_comparison_n{n}.png"
+    plt.savefig(filename)
+    plt.close()
+
+    aggregated_stats["plot_file"] = filename
+    aggregated_stats["votes_data"] = votes_data # Pass votes_data for checkpoint table printing
+    return aggregated_stats, all_stats
+
+
 @pytest.mark.parametrize("n", [20, 50])
 def test_reliability_with_graph(n: int):
-    random.seed(42)
-    stats = simulate_and_plot(n)
+    seeds = [42, 23, 45, 56]  # Editable list of seeds
+    aggregated_stats, all_stats = run_multi_seed_simulation(n, seeds)
 
-    # Print header for reliability checkpoints
-    print("\nReliability checkpoints (every 10 votes):")
-    header = f"{'Votes':>8} | {'Calc (%)':>9} | {'Dynamic ELO (%)':>15} | {'Fixed ELO (%)':>14} | {'Glicko2 (%)':>12}"
-    print(header)
-    print("-" * len(header))
-    for i in range(len(stats["votes_data"])):
-        print(f"{stats['votes_data'][i]:8} | {stats['calc_reliability'][i]:9.1f} | "
-              f"{stats['elo_dynamic_reliability'][i]:15.1f} | {stats['elo_fixed_reliability'][i]:14.1f} | "
-              f"{stats['glicko2_reliability'][i]:12.1f}")
+    print(f"\nResults averaged across {len(seeds)} seeds ({seeds}):")
+    print(f"Average total votes: {aggregated_stats['avg_total_votes']:.1f}")
+    print(f"Average final calculated reliability: {aggregated_stats['avg_final_calc_reliability']:.1f}%")
+    print(f"Average final dynamic ELO reliability: {aggregated_stats['avg_final_dynamic_reliability']:.1f}%")
+    print(f"Average final fixed ELO reliability: {aggregated_stats['avg_final_fixed_reliability']:.1f}%")
+    print(f"Average final Glicko2 reliability: {aggregated_stats['avg_final_glicko2_reliability']:.1f}%")
+    print(f"Plot saved to: {aggregated_stats['plot_file']}")
 
-    # Print crossing point information for each system
-    for key, points in stats["crossing_points"].items():
-        if points:
-            print(f"\nCrossing points for {key.replace('_', ' ').title()}:")
-            for i, (votes, rel) in enumerate(points, 1):
-                print(f"  {i}. Votes: {votes:.1f}, Reliability: {rel:.1f}%")
-        else:
-            print(f"\nNo crossing points detected for {key.replace('_', ' ').title()}.")
+    # Individual seed results
+    print("\nResults by seed:")
+    for i, stats in enumerate(all_stats):
+        print(f"\nSeed {seeds[i]}:")
+        print(f"Total votes: {stats['total_votes']}")
+        print(f"Final calculated reliability: {stats['calc_reliability'][-1]:.1f}%")
+        print(f"Final dynamic ELO reliability: {stats['elo_dynamic_reliability'][-1]:.1f}%")
+        print(f"Final fixed ELO reliability: {stats['elo_fixed_reliability'][-1]:.1f}%")
+        print(f"Final Glicko2 reliability: {stats['glicko2_reliability'][-1]:.1f}%")
 
-    # Print final ordering information (objective scores) for each system
-    print("\nFinal objective scores ordering:")
-    print(" Dynamic ELO:", stats["final_order_dynamic"])
-    print(" Fixed ELO:  ", stats["final_order_fixed"])
-    print(" Glicko2:    ", stats["final_order_glicko2"])
+    # Reliability Checkpoints Table
+    print("\nReliability Checkpoints Averages:")
+    print(f"{'Votes':<10} {'Calc':<10} {'Dynamic ELO':<15} {'Fixed ELO':<15} {'Glicko2':<10}")
+    print("-" * 60)
+    vote_data_points = aggregated_stats["votes_data"]
+    calc_avg_checkpoints = aggregated_stats["avg_calc_reliability_checkpoints"]
+    dynamic_avg_checkpoints = aggregated_stats["avg_elo_dynamic_reliability_checkpoints"]
+    fixed_avg_checkpoints = aggregated_stats["avg_elo_fixed_reliability_checkpoints"]
+    glicko2_avg_checkpoints = aggregated_stats["avg_glicko2_reliability_checkpoints"]
 
-    # Final ratings summary
-    print(f"\nTotal votes: {stats['total_votes']}")
-    print(f"Final Calculated Reliability: {stats['calc_reliability'][-1]:.1f}%")
-    print(f"Final Dynamic ELO Reliability: {stats['elo_dynamic_reliability'][-1]:.1f}%")
-    print(f"Final Fixed ELO Reliability:   {stats['elo_fixed_reliability'][-1]:.1f}%")
-    print(f"Final Glicko2 Reliability:     {stats['glicko2_reliability'][-1]:.1f}%")
-    print(f"Plot saved to: {stats['plot_file']}")
+    for i, votes in enumerate(vote_data_points):
+        print(f"{votes:<10} {calc_avg_checkpoints[i]:<10.1f} {dynamic_avg_checkpoints[i]:<15.1f} {fixed_avg_checkpoints[i]:<15.1f} {glicko2_avg_checkpoints[i]:<10.1f}")
 
-    # Assertions: Ensure the calculated reliability reached 99.8%
-    assert stats["calc_reliability"][-1] >= 96, "Calculated reliability never reached 99.8%"
+
+    # Assert that average calculated reliability is high enough
+    assert aggregated_stats["avg_final_calc_reliability"] >= 96, "Average calculated reliability never reached 96%"
