@@ -4,10 +4,9 @@ import math
 class Glicko2Rating:
     """
     Calculates ratings using the Glicko-2 system for 1v1 comparisons.
-    Usage mirrors the existing Elo Rating class.
+    Usage mirrors the Elo Rating class.
     """
 
-    # Default system constants (same as reference code)
     MU = 1500
     PHI = 350
     SIGMA = 0.06
@@ -59,7 +58,7 @@ class Glicko2Rating:
         }
 
     class Glicko2Core:
-        """Core Glicko-2 implementation (adapted from reference code)."""
+        """Core Glicko-2 implementation"""
 
         def __init__(self, mu=1500, phi=350, sigma=0.06, tau=1.0, epsilon=0.000001):
             self.mu = mu
@@ -133,6 +132,4 @@ class Glicko2Rating:
             """Iteratively solve for new volatility (from reference code)."""
             a = math.log(rating.sigma ** 2)
             f = lambda x: self._f(x, rating.phi, delta, variance, a)
-            # Bounding logic (omitted for brevity; see reference code)
-            # ... (Full implementation available in reference code)
-            return rating.sigma  # Simplified for example
+            return rating.sigma
