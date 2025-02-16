@@ -3,57 +3,84 @@ import math
 
 import math
 
+import math
+
+
 class ReliabilityCalculator:
     """
-        Provides reliability metrics for ELO-based ranking systems using exponential decay modeling.
+    Provides improved reliability metrics for ELO-based ranking systems.
 
-        The reliability model is based on the relationship between:
-        - n: Number of media items being ranked
-        - v: Total number of votes cast
-        - R: Reliability percentage (0-100%)
+    The improved model uses a combination of:
+    - Quick initial gains (logarithmic component)
+    - Steady improvement (linear component)
+    - Asymptotic approach to perfect reliability
 
-        The formulas account for combinatorial complexity of ranking relationships
-        using natural logarithm scaling.
-
-        Theory:
-        Reliability grows asymptotically toward 100% with more votes, following the formula:
-        R = 100 * (1 - e^(-v/(n*ln(n+1))))
+    The formula is designed to match observed behavior of ELO and Glicko2 systems.
     """
+
     @staticmethod
     def calculate_reliability(n: int, v: int) -> float:
         """
-           Calculate current reliability percentage of the ranking system.
+        Calculate current reliability percentage of the ranking system.
 
-           Args:
-               n: Number of media items in the system (n > 0)
-               v: Total number of votes cast (v >= 0)
+        Args:
+            n: Number of media items in the system (n > 0)
+            v: Total number of votes cast (v >= 0)
 
-           Returns:
-               float: Reliability percentage between 0-100
+        Returns:
+            float: Reliability percentage between 0-100
         """
         if n <= 0 or v < 0:
             return 0.0
-        exponent = -v / (n * math.log(n + 1))
-        return 100 * (1 - math.exp(exponent))
+
+        # Start from 50% (random ordering)
+        base_reliability = 50.0
+
+        # Quick initial gains component
+        votes_per_item = v / n
+        initial_gain = 25.0 * (1 - math.exp(-votes_per_item / 2))
+
+        # Steady improvement component
+        steady_gain = 20.0 * (1 - math.exp(-votes_per_item / 10))
+
+        # Asymptotic final approach
+        final_gain = 5.0 * (1 - math.exp(-votes_per_item / 50))
+
+        reliability = base_reliability + initial_gain + steady_gain + final_gain
+
+        # Cap at 100%
+        return min(100.0, reliability)
 
     @staticmethod
     def calculate_required_votes(n: int, target_reliability: float) -> int:
         """
-           Calculate votes needed to reach a desired reliability level.
+        Calculate votes needed to reach a desired reliability level.
 
-           Args:
-               n: Number of media items in the system (n > 0)
-               target_reliability: Desired reliability percentage (0 < R < 100)
+        Args:
+            n: Number of media items in the system (n > 0)
+            target_reliability: Desired reliability percentage (0 < R < 100)
 
-           Returns:
-               int: Minimum votes required (rounded up to nearest integer)
-           """
-        if target_reliability >= 100:
+        Returns:
+            int: Minimum votes required (rounded up to nearest integer)
+        """
+        if n <= 0 or target_reliability <= 50 or target_reliability >= 100:
             return 0
-        if n <= 0:
-            return 0
-        reliability_fraction = target_reliability / 100
-        return math.ceil(-math.log(1 - reliability_fraction) * n * math.log(n + 1))
+
+        # Using binary search to find required votes
+        low, high = 0, n * 1000
+        while low < high:
+            mid = (low + high) // 2
+            reliability = ReliabilityCalculator.calculate_reliability(n, mid)
+
+            if abs(reliability - target_reliability) < 0.1:
+                return mid
+            elif reliability < target_reliability:
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        return low
+
 
 class Rating:
     """
