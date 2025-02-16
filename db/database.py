@@ -35,6 +35,8 @@ class Database:
         self._create_indices()
         self._ensure_default_album()
 
+        self.last_pairs = {}
+
     def _create_indices(self):
         """Create indices for efficient sorting and filtering."""
         indices = [
@@ -738,69 +740,120 @@ class Database:
 
     def get_pair_for_voting(self, album_id: int = 1) -> Tuple[Optional[tuple], Optional[tuple]]:
         """
-        Get two media items for voting with adaptive rating difference handling.
+        Get voting pair with duplicate prevention
         """
+        media_count = self.get_total_media_count(album_id)
+        if media_count < 2:
+            return None, None
+
+        # Get least voted item excluding last pair
+        least_voted = self._get_least_voted(album_id)
+        if not least_voted:
+            return None, None
+
+        # Get second item with duplicate prevention
+        second_item = self._get_second_item(album_id, least_voted)
+
+        # Update last pair tracking
+        if least_voted and second_item:
+            self.last_pairs[album_id] = (least_voted[0], second_item[0])
+
+        return least_voted, second_item
+
+    def _get_least_voted(self, album_id: int):
+        """Get least voted item excluding last pair components"""
+        exclude_ids = list(self.last_pairs.get(album_id, ()))
+
+        # Build exclusion clause
+        exclude_clause = ""
+        params = [album_id]
+        if exclude_ids:
+            placeholders = ",".join(["?"] * len(exclude_ids))
+            exclude_clause = f"AND id NOT IN ({placeholders})"
+            params += exclude_ids
+
+        query = f"""
+            SELECT id, path, rating, votes 
+            FROM media 
+            WHERE album_id = ?
+            {exclude_clause}
+            ORDER BY votes ASC, RANDOM()
+            LIMIT 1
+        """
+
+        self.cursor.execute(query, params)
+        return self.cursor.fetchone()
+
+    def _get_second_item(self, album_id: int, least_voted: tuple):
+        """Get second item with adaptive logic and duplicate prevention"""
         media_count = self.get_total_media_count(album_id)
         total_votes = self.get_total_votes(album_id)
         reliability = ReliabilityCalculator.calculate_reliability(media_count, total_votes)
 
-        # Get least voted item
-        self.cursor.execute("""
+        exclude_ids = list(self.last_pairs.get(album_id, []))
+        exclude_ids.append(least_voted[0])
+
+        # Build exclusion parameters
+        exclude_clause = ""
+        base_params = [least_voted[0], album_id]
+        if exclude_ids:
+            placeholders = ",".join(["?"] * len(exclude_ids))
+            exclude_clause = f"AND id NOT IN ({placeholders})"
+            base_params += exclude_ids
+
+        if reliability >= 85:
+            # Try different tiers with exclusion
+            for max_diff in [100, 200, None]:
+                rating_clause = ""
+                order_clause = "RANDOM()"
+                params = base_params.copy()
+
+                if max_diff:
+                    rating_clause = "AND ABS(rating - ?) <= ?"
+                    order_clause = "ABS(rating - ?) ASC, RANDOM()"
+                    params += [least_voted[2], max_diff, least_voted[2]]
+
+                query = f"""
+                    SELECT id, path, rating, votes 
+                    FROM media 
+                    WHERE id != ? 
+                    AND album_id = ?
+                    {exclude_clause}
+                    {rating_clause}
+                    ORDER BY {order_clause}
+                    LIMIT 1
+                """
+
+                self.cursor.execute(query, params)
+                result = self.cursor.fetchone()
+                if result:
+                    return result
+        else:
+            # Random selection with exclusion
+            query = f"""
+                SELECT id, path, rating, votes 
+                FROM media 
+                WHERE id != ? 
+                AND album_id = ?
+                {exclude_clause}
+                ORDER BY RANDOM() 
+                LIMIT 1
+            """
+            self.cursor.execute(query, base_params)
+            return self.cursor.fetchone()
+
+        # Fallback if all queries failed
+        query = f"""
             SELECT id, path, rating, votes 
             FROM media 
-            WHERE album_id = ?
-            ORDER BY votes ASC, RANDOM() 
+            WHERE id != ? 
+            AND album_id = ?
+            {exclude_clause}
+            ORDER BY RANDOM() 
             LIMIT 1
-        """, (album_id,))
-        least_voted = self.cursor.fetchone()
-
-        if not least_voted:
-            return None, None
-
-        # Adaptive rating difference logic
-        if reliability >= 85:
-            # Try to find closest match first, then gradually expand search
-            self.cursor.execute("""
-                SELECT id, path, rating, votes 
-                FROM media 
-                WHERE id != ? 
-                AND album_id = ?
-                ORDER BY 
-                    CASE 
-                        WHEN ABS(rating - ?) <= 100 THEN 0
-                        WHEN ABS(rating - ?) <= 200 THEN 1 
-                        ELSE 2 
-                    END,
-                    ABS(rating - ?) ASC,
-                    RANDOM()
-                LIMIT 1
-            """, (least_voted[0], album_id, least_voted[2], least_voted[2], least_voted[2]))
-        else:
-            # Random selection for early stages
-            self.cursor.execute("""
-                SELECT id, path, rating, votes 
-                FROM media 
-                WHERE id != ? 
-                AND album_id = ?
-                ORDER BY RANDOM() 
-                LIMIT 1
-            """, (least_voted[0], album_id))
-
-        second_item = self.cursor.fetchone()
-
-        # Fallback if no matches found (should never happen with at least 2 items)
-        if not second_item:
-            self.cursor.execute("""
-                SELECT id, path, rating, votes 
-                FROM media 
-                WHERE id != ? 
-                AND album_id = ?
-                ORDER BY RANDOM() 
-                LIMIT 1
-            """, (least_voted[0], album_id))
-            second_item = self.cursor.fetchone()
-
-        return least_voted, second_item
+        """
+        self.cursor.execute(query, base_params)
+        return self.cursor.fetchone()
 
     def close(self):
         """Close the database connection."""
