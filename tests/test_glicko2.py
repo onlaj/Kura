@@ -19,7 +19,7 @@ class Media:
         self.elo = 1000.0  # Dynamic ELO rating (with changing K factor)
         self.elo_fixed = 1000.0  # Fixed K factor ELO rating (always 16)
         # Glicko2 rating stored as a dict with mu, phi, sigma
-        self.glicko2 = {"mu": 1500.0, "phi": 350.0, "sigma": 0.06}
+        self.glicko2 = {"mu": 1200.0, "phi": 350.0, "sigma": 0.06}
         self.vote_count = 0
 
 

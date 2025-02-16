@@ -468,11 +468,7 @@ class VotingTab(QWidget):
 
         # Update database
         for _ in range(vote_count):
-            self.update_ratings_callback(
-                winner[0], loser[0],
-                new_ratings['a'], new_ratings['b'],
-                self.active_album_id
-            )
+            self.update_ratings_callback(winner[0], loser[0], self.active_album_id)
 
         self.ranking_tab.set_new_votes_flag()
         self.total_votes += vote_count
