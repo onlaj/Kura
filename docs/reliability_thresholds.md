@@ -74,6 +74,25 @@ The 94% threshold remains valid as a practical upper bound, particularly for ELO
 
 ---
 
+## 3.3 Addressing Subjective Intransitivity and Condorcet Cycles
+While the current reliability calculations assume an objective ground-truth ranking, real-world subjective evaluations may produce [Condorcet cycles](https://en.wikipedia.org/wiki/Condorcet_paradox), where preferences are intransitive (e.g., A > B, B > C, C > A). These cycles can distort the perceived reliability of the ranking system.
+
+**Potential future improvements to address this include:**
+
+* **Intransitivity Detection:**
+Track and quantify occurrences of cyclic comparisons. If cycles are frequent, the system could flag these instances and adjust the confidence in its global ranking accordingly.
+
+
+* **Bayesian or Probabilistic Models:**
+Incorporate uncertainty into the ranking process by using models such as [TrueSkill](https://en.wikipedia.org/wiki/TrueSkill). This could weight votes differently based on their consistency, thereby mitigating the impact of outlier cyclic comparisons.
+
+
+* **Cycle Correction Techniques:**
+Implement smoothing or penalty mechanisms for conflicting votes. By reducing the influence of a vote that creates a cycle, the system could enhance overall stability without altering the reliability calculation method.
+
+
+---
+
 ## 4. Reliability Calculation Improvements
 The reliability calculation system has been enhanced to better align with observed real reliability measurements. The updated ReliabilityCalculator class now employs a three-phase model:
 
