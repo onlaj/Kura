@@ -41,6 +41,45 @@ Key observations for n=50:
 - Glicko2 maintains faster convergence to 95% (459 vs 558-948 votes)
 - Dynamic and Fixed ELO show nearly identical performance up to 90%
 
+
+---
+
+### 2.1 Scaling Analysis
+
+To evaluate how the system scales with an increasing number of media items, extensive testing was conducted across various dataset sizes, ranging from 10 to 1000 items. The results illustrate the relationship between the number of media items and the votes required to reach critical reliability thresholds.
+
+| Media Items | ELO 85% | Glicko2 85% | ELO 93% | Glicko2 93% |
+|-------------|---------|-------------|----------|-------------|
+| 10          | 50      | 50          | 83       | 66          |
+| 20          | 50      | 66          | 150      | 150         |
+| 50          | 200     | 183         | 633      | 416         |
+| 100         | 316     | 266         | 1250     | 966         |
+| 200         | 650     | 516         | 2483     | 1716        |
+| 500         | 1616    | 1333        | 6683     | 4466        |
+| 1000        | 3400    | 2750        | 13666    | 9533        |
+
+![Reliability Scaling Comparison Graph](reliability_scaling_comparison.png) 
+
+### Key Observations  
+
+#### **Early Convergence (85% Threshold)**
+- For small datasets (n ≤ 20), both systems exhibit similar performance.  
+- As dataset size increases, Glicko2 demonstrates greater efficiency.  
+- At 1000 items, Glicko2 requires approximately 19% fewer votes than ELO.  
+
+#### **High Reliability (93% Threshold)**
+- The performance gap between the two systems becomes more pronounced.  
+- Glicko2 consistently outperforms ELO in terms of efficiency.  
+- For 1000 items, Glicko2 achieves 93% reliability with around 30% fewer votes.  
+
+#### **Scaling Patterns**
+- Vote requirements increase non-linearly with dataset size.  
+- The gap between ELO and Glicko2 widens as the dataset expands.  
+- Both systems exhibit predictable scaling, allowing for reliable resource planning in larger datasets.  
+
+**These findings provide empirical evidence supporting Glicko2's superior efficiency, particularly in large datasets where vote savings become substantial.**
+
+
 ---
 
 ## 3. Threshold Justification
