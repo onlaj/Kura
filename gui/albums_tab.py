@@ -278,7 +278,7 @@ class AlbumsTab(QWidget):
         # Confirm deletion
         reply = QMessageBox.question(
             self, "Confirm Delete",
-            "This will delete all media in the album. Continue?",
+            "This action is irreversible. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
