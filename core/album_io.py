@@ -19,6 +19,8 @@ def export_album(db, album_id: int, file_path: str):
                 id INTEGER PRIMARY KEY,
                 path TEXT NOT NULL,
                 rating REAL,
+                glicko_phi REAL,
+                glicko_sigma REAL,
                 votes INTEGER,
                 type TEXT NOT NULL,
                 album_id INTEGER,
@@ -51,12 +53,13 @@ def export_album(db, album_id: int, file_path: str):
 
         # Export media data
         media_data = db.cursor.execute(
-            "SELECT * FROM media WHERE album_id = ?",
+            """SELECT id, path, rating, glicko_phi, glicko_sigma, votes, type, album_id, file_size 
+            FROM media WHERE album_id = ?""",
             (album_id,)
         ).fetchall()
         for media in media_data:
             backup_cursor.execute(
-                "INSERT INTO media VALUES (?, ?, ?, ?, ?, ?, ?)", media
+                "INSERT INTO media VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", media
             )
 
         # Export votes data
@@ -110,9 +113,9 @@ def import_album(db, file_path: str, new_name: str = None):
             old_id = media[0]
             db.cursor.execute(
                 """INSERT INTO media 
-                (path, rating, votes, type, album_id, file_size)
-                VALUES (?, ?, ?, ?, ?, ?)""",
-                (media[1], media[2], media[3], media[4], new_album_id, media[6])
+                (path, rating, glicko_phi, glicko_sigma, votes, type, album_id, file_size)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (media[1], media[2], media[3], media[4], media[5], media[6], new_album_id, media[8])
             )
             media_id_map[old_id] = db.cursor.lastrowid
 
