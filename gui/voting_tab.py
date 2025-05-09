@@ -3,13 +3,14 @@ import time
 from PyQt6.QtCore import Qt, QTimer, QObject
 from PyQt6.QtGui import QMovie, QKeyEvent
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QLabel, QFrame, QSizePolicy)
+                             QLabel, QFrame, QSizePolicy, QCheckBox)
 
 from core.elo import Rating
 from core.reliability_calculator import ReliabilityCalculator
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
 from core.media_utils import AspectRatioWidget
+from core.video_player import VideoPlayer
 
 
 class MediaFrame(QFrame):
@@ -168,22 +169,45 @@ class VotingTab(QWidget):
 
         self.history_tab = None
 
+        self.autoplay_videos_checkbox = None
+        self.autoplay_videos = False
+
+        self.autoloop_videos_checkbox = None
+        self.autoloop_videos = False
+
         self.setup_ui()
 
     def setup_ui(self):
         """Set up the voting interface."""
         layout = QVBoxLayout(self)
 
-        # Create horizontal layout for media frames
-        media_layout = QHBoxLayout()
-        media_layout.setContentsMargins(0, 0, 0, 0)
-        media_layout.setSpacing(10)  # Set spacing between media frames
-
         # Status label
         self.status_label = QLabel()
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("font-size: 16px;")
         layout.addWidget(self.status_label)
+
+        # Autoplay and Autoloop checkboxes in a horizontal layout
+        checkbox_layout = QHBoxLayout()
+        checkbox_layout.setContentsMargins(0, 0, 0, 0) # Minimal top/bottom margins
+
+        self.autoplay_videos_checkbox = QCheckBox("Autoplay Videos")
+        self.autoplay_videos_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.autoplay_videos_checkbox.stateChanged.connect(self.toggle_autoplay)
+        checkbox_layout.addWidget(self.autoplay_videos_checkbox)
+
+        self.autoloop_videos_checkbox = QCheckBox("Autoloop Videos")
+        self.autoloop_videos_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.autoloop_videos_checkbox.stateChanged.connect(self.toggle_autoloop)
+        checkbox_layout.addWidget(self.autoloop_videos_checkbox)
+
+        checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter) # Center the checkboxes horizontally
+        layout.addLayout(checkbox_layout) # Add the horizontal layout to the main vertical layout
+
+        # Create horizontal layout for media frames
+        media_layout = QHBoxLayout()
+        media_layout.setContentsMargins(0, 0, 0, 0)
+        media_layout.setSpacing(10)  # Set spacing between media frames
 
         # Left media frame
         self.left_frame = MediaFrame()
@@ -222,11 +246,23 @@ class VotingTab(QWidget):
 
         layout.addLayout(reliability_layout)
 
-
-
         # Enable focus for keyboard events
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocus()  # Ensure widget has focus on tab activation
+
+    def toggle_autoplay(self, state):
+        """Toggle autoplay videos state."""
+        self.autoplay_videos = state == Qt.CheckState.Checked.value
+
+    def toggle_autoloop(self, state):
+        """Toggle autoloop videos state and apply to current videos."""
+        self.autoloop_videos = state == Qt.CheckState.Checked.value
+        for frame_widget in [self.left_frame, self.right_frame]:
+            # frame_widget.media_widget is AspectRatioWidget if media is loaded
+            if frame_widget.media_widget and hasattr(frame_widget.media_widget, 'layout') and frame_widget.media_widget.layout().count() > 0:
+                inner_widget = frame_widget.media_widget.layout().itemAt(0).widget()
+                if isinstance(inner_widget, VideoPlayer):
+                    inner_widget.setLooping(self.autoloop_videos)
 
     def set_history_tab(self, history_tab):
         """Set reference to history tab"""
@@ -333,6 +369,18 @@ class VotingTab(QWidget):
                     frame.media_widget.setProperty('media_player', frame.media_player)
                     frame.media_widget.setProperty('media_path', path)
                     frame.media_widget.installEventFilter(self)
+
+                    # Get the VideoPlayer instance from AspectRatioWidget (media[0])
+                    # media[0] is AspectRatioWidget, its child is VideoPlayer
+                    actual_video_player_widget = media[0].layout().itemAt(0).widget()
+                    if isinstance(actual_video_player_widget, VideoPlayer):
+                        actual_video_player_widget.setLooping(self.autoloop_videos)
+
+                    if self.autoplay_videos and frame.media_player:
+                        # Calling play() on QMediaPlayer should trigger its playbackStateChanged signal.
+                        # VideoPlayer connects hide_thumbnail_on_play to this signal,
+                        # which should handle showing the video_widget and hiding the thumbnail_label.
+                        frame.media_player.play()
             else:
                 frame.media_widget = media
 

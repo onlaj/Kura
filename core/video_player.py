@@ -100,6 +100,8 @@ class VideoPlayer(QWidget):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+        self._is_looping = False
+
         # Create layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -218,10 +220,20 @@ class VideoPlayer(QWidget):
         self.media_player.playbackStateChanged.connect(self.update_play_button)
         self.media_player.positionChanged.connect(self.position_changed)
         self.media_player.durationChanged.connect(self.duration_changed)
+        self.media_player.mediaStatusChanged.connect(self.handle_media_status_changed)
 
         # Set initial volume
         self.set_volume(DEFAULT_VOLUME)
 
+    def setLooping(self, loop: bool):
+        """Enable or disable video looping."""
+        self._is_looping = loop
+
+    def handle_media_status_changed(self, status):
+        """Handle media status changes, e.g., for looping."""
+        if status == QMediaPlayer.MediaStatus.EndOfMedia and self._is_looping:
+            self.media_player.setPosition(0)
+            self.media_player.play()
 
     def set_source(self, path):
         """Set the video source."""
