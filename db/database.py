@@ -32,6 +32,7 @@ class Database:
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         self._create_tables()
+        self._update_schema()
         self._create_indices()
         self._ensure_default_album()
 
@@ -47,11 +48,36 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_media_type ON media (type)",  # Already existed
             "CREATE INDEX IF NOT EXISTS idx_media_album ON media (album_id)",  # For album filtering
             "CREATE INDEX IF NOT EXISTS idx_votes_album ON votes (album_id)",
+            "CREATE INDEX IF NOT EXISTS idx_media_created_at ON media (created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_media_modified_at ON media (modified_at)"
         ]
 
         for index in indices:
             self.cursor.execute(index)
         self.conn.commit()
+
+    def _update_schema(self):
+        """Check and update the database schema if necessary."""
+        try:
+            # Check for 'created_at' column in 'media' table
+            self.cursor.execute("PRAGMA table_info(media)")
+            columns = [info[1] for info in self.cursor.fetchall()]
+            
+            if 'created_at' not in columns:
+                logger.info("Adding 'created_at' column to 'media' table.")
+                self.cursor.execute("ALTER TABLE media ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+                self.conn.commit()
+            
+            if 'modified_at' not in columns:
+                logger.info("Adding 'modified_at' column to 'media' table.")
+                self.cursor.execute("ALTER TABLE media ADD COLUMN modified_at DATETIME")
+                self.conn.commit()
+
+        except sqlite3.Error as e:
+            logger.error(f"Error updating schema: {e}")
+            # Depending on the severity, you might want to raise the exception
+            # or handle it more gracefully, e.g., by notifying the user.
+            raise # Re-raise the exception to halt initialization if schema update fails
 
     def _create_tables(self):
         """Create necessary database tables if they don't exist."""
@@ -78,6 +104,8 @@ class Database:
                 type TEXT NOT NULL,
                 album_id INTEGER NOT NULL,
                 file_size INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                modified_at DATETIME,
                 FOREIGN KEY (album_id) REFERENCES albums (id),
                 UNIQUE(path, album_id)
             )
@@ -191,6 +219,8 @@ class Database:
 
             # Get the file size
             file_size = os.path.getsize(normalized_path)
+            # Get the file modification time
+            modified_time = os.path.getmtime(normalized_path)
 
             ext = Path(file_path).suffix.lower()
             if ext in ['.jpg', '.jpeg', '.png', '.webp']:
@@ -209,8 +239,8 @@ class Database:
                 return False
 
             self.cursor.execute(
-                "INSERT INTO media (path, type, album_id, file_size) VALUES (?, ?, ?, ?)",
-                (normalized_path, media_type, album_id, file_size)
+                "INSERT INTO media (path, type, album_id, file_size, modified_at) VALUES (?, ?, ?, ?, ?)",
+                (normalized_path, media_type, album_id, file_size, modified_time)
             )
 
             # Increment total_media for the album
@@ -635,7 +665,9 @@ class Database:
             'rating': 'rating',
             'votes': 'votes',
             'file_name': 'path',  # Sort by path for file name
-            'file_size': 'file_size'
+            'file_size': 'file_size',
+            'created_at': 'created_at',
+            'modified_at': 'modified_at'
         }
         sort_column = valid_sort_columns.get(sort_by, 'rating')
         sort_direction = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'

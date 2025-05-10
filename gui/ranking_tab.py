@@ -261,7 +261,7 @@ class RankingTab(QWidget):
 
         control_panel.addWidget(QLabel("Sort by:"))
         self.sort_selector = QComboBox()
-        self.sort_selector.addItems(["Rating", "Votes", "File Name", "File Size"])
+        self.sort_selector.addItems(["Rating", "Votes", "File Name", "File Size", "Time Added", "File Modified"])
         self.sort_selector.currentTextChanged.connect(self.change_sort)
         control_panel.addWidget(self.sort_selector)
 
@@ -369,7 +369,9 @@ class RankingTab(QWidget):
             "Rating": "rating",
             "Votes": "votes",
             "File Name": "file_name",
-            "File Size": "file_size"
+            "File Size": "file_size",
+            "Time Added": "created_at",
+            "File Modified": "modified_at"
         }
         self.sort_by = sort_map[value]
         self.current_page = 1  # Reset to first page
