@@ -65,7 +65,10 @@ class Database:
             
             if 'created_at' not in columns:
                 logger.info("Adding 'created_at' column to 'media' table.")
-                self.cursor.execute("ALTER TABLE media ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+                # Add column without default first
+                self.cursor.execute("ALTER TABLE media ADD COLUMN created_at DATETIME")
+                # Update existing rows with current timestamp
+                self.cursor.execute("UPDATE media SET created_at = datetime('now') WHERE created_at IS NULL")
                 self.conn.commit()
             
             if 'modified_at' not in columns:
