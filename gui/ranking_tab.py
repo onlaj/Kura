@@ -8,6 +8,12 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
 
+try:
+    import send2trash
+    SEND2TRASH_AVAILABLE = True
+except ImportError:
+    SEND2TRASH_AVAILABLE = False
+
 from core.media_loader import ThreadedMediaLoader
 from core.media_utils import AspectRatioWidget
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
@@ -794,15 +800,30 @@ class RankingTab(QWidget):
 
     def _delete_file(self, file_path: str) -> bool:
         """
-        Attempt to delete a file from disk.
+        Attempt to delete a file from disk, preferring trash bin.
         Returns True if successful, False otherwise.
         """
         try:
             if os.path.exists(file_path):
                 self._cleanup_media_resources(file_path)
-                os.remove(file_path)
-                logger.info(f"File deleted from disk: {file_path}")
-                return True
+                
+                # Try to move to trash first
+                if SEND2TRASH_AVAILABLE:
+                    try:
+                        send2trash.send2trash(file_path)
+                        logger.info(f"File moved to trash: {file_path}")
+                        return True
+                    except Exception as trash_error:
+                        logger.warning(f"Failed to move to trash, attempting permanent deletion: {trash_error}")
+                        # Fall back to permanent deletion
+                        os.remove(file_path)
+                        logger.info(f"File permanently deleted: {file_path}")
+                        return True
+                else:
+                    # Fall back to permanent deletion if send2trash not available
+                    os.remove(file_path)
+                    logger.info(f"File permanently deleted (send2trash not available): {file_path}")
+                    return True
             else:
                 logger.warning(f"File not found: {file_path}")
                 return False

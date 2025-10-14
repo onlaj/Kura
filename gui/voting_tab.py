@@ -1,9 +1,16 @@
 import time
+import os
 
 from PyQt6.QtCore import Qt, QTimer, QObject
 from PyQt6.QtGui import QMovie, QKeyEvent
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QLabel, QFrame, QSizePolicy, QCheckBox)
+                             QLabel, QFrame, QSizePolicy, QCheckBox, QMessageBox)
+
+try:
+    import send2trash
+    SEND2TRASH_AVAILABLE = True
+except ImportError:
+    SEND2TRASH_AVAILABLE = False
 
 from core.elo import Rating
 from core.reliability_calculator import ReliabilityCalculator
@@ -50,6 +57,13 @@ class MediaFrame(QFrame):
         self.double_vote_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
         self.button_layout.addWidget(self.double_vote_button)
 
+        # Delete button
+        self.delete_button = QPushButton("Delete")
+        self.delete_button.setStyleSheet("background-color: #ff0000; color: white;")
+        self.delete_button.setFixedWidth(60)  # Smaller width
+        self.delete_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Disable focus
+        self.button_layout.addWidget(self.delete_button)
+
         self.layout.addWidget(self.button_container)
 
         # Set size policy for the frame
@@ -88,7 +102,7 @@ class PreloadPair(QObject):
     def __init__(self, media_handler):
         super().__init__()
         self.media_handler = media_handler
-        self.left_data = None  # (id, path, rating)
+        self.left_data = None  # (id, path, rating, votes)
         self.right_data = None
         self.left_media = None  # Loaded media widget
         self.right_media = None
@@ -175,6 +189,9 @@ class VotingTab(QWidget):
         self.autoloop_videos_checkbox = None
         self.autoloop_videos = False
 
+        # Track deletion errors
+        self.deletion_errors = []
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -215,6 +232,8 @@ class VotingTab(QWidget):
             lambda: self.handle_vote("left", 1))
         self.left_frame.double_vote_button.clicked.connect(
             lambda: self.handle_vote("left", 2))
+        self.left_frame.delete_button.clicked.connect(
+            lambda: self.handle_delete("left"))
         media_layout.addWidget(self.left_frame, 1)  # Equal stretch for both frames
 
         # Right media frame
@@ -223,6 +242,8 @@ class VotingTab(QWidget):
             lambda: self.handle_vote("right", 1))
         self.right_frame.double_vote_button.clicked.connect(
             lambda: self.handle_vote("right", 2))
+        self.right_frame.delete_button.clicked.connect(
+            lambda: self.handle_delete("right"))
         media_layout.addWidget(self.right_frame, 1)  # Equal stretch for both frames
 
         layout.addLayout(media_layout)
@@ -571,3 +592,119 @@ class VotingTab(QWidget):
         """Called when preload is complete"""
         if self.next_pair.is_loaded:
             self.enable_voting()
+
+    def handle_delete(self, side):
+        """Handle delete button click for left or right media"""
+        if not self.current_pair.is_loaded:
+            return
+        
+        if side == "left" and self.current_pair.left_data:
+            media_id, file_path, rating, votes = self.current_pair.left_data
+            self.confirm_delete(media_id, file_path)
+        elif side == "right" and self.current_pair.right_data:
+            media_id, file_path, rating, votes = self.current_pair.right_data
+            self.confirm_delete(media_id, file_path)
+
+    def confirm_delete(self, media_id: int, file_path: str):
+        """Show delete confirmation dialog for a single item."""
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(f"Are you sure you want to delete:\n{os.path.basename(file_path)}?")
+        msg.setWindowTitle("Confirm Delete")
+
+        delete_file_checkbox = QCheckBox("Also permanently delete file from disk", msg)
+        delete_file_checkbox.setChecked(False)
+        msg.setCheckBox(delete_file_checkbox)
+
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Yes |
+            QMessageBox.StandardButton.No
+        )
+
+        if msg.exec() == QMessageBox.StandardButton.Yes:
+            self._handle_media_deletion(media_id, file_path, delete_file_checkbox.isChecked())
+            self._show_deletion_errors()
+            # Load new pair after deletion
+            self.load_new_pair()
+
+    def _delete_file(self, file_path: str) -> bool:
+        """
+        Attempt to delete a file from disk, preferring trash bin.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            if os.path.exists(file_path):
+                self._cleanup_media_resources(file_path)
+                
+                # Try to move to trash first
+                if SEND2TRASH_AVAILABLE:
+                    try:
+                        send2trash.send2trash(file_path)
+                        print(f"File moved to trash: {file_path}")
+                        return True
+                    except Exception as trash_error:
+                        print(f"Failed to move to trash, attempting permanent deletion: {trash_error}")
+                        # Fall back to permanent deletion
+                        os.remove(file_path)
+                        print(f"File permanently deleted: {file_path}")
+                        return True
+                else:
+                    # Fall back to permanent deletion if send2trash not available
+                    os.remove(file_path)
+                    print(f"File permanently deleted (send2trash not available): {file_path}")
+                    return True
+            else:
+                print(f"File not found: {file_path}")
+                return False
+        except Exception as e:
+            print(f"Error deleting file {file_path}: {e}")
+            self.deletion_errors.append((file_path, str(e)))
+            return False
+
+    def _cleanup_media_resources(self, file_path: str):
+        """Release all resources associated with a media file."""
+        # Stop any video players or GIF movies
+        for frame in [self.left_frame, self.right_frame]:
+            if hasattr(frame, 'media_player') and frame.media_player:
+                frame.media_player.stop()
+            if hasattr(frame, 'gif_movie') and frame.gif_movie:
+                frame.gif_movie.stop()
+        
+        # Close preview if it's showing this file
+        if hasattr(self, 'preview') and self.preview.isVisible():
+            if hasattr(self.preview, 'current_media_path'):
+                if self.preview.current_media_path == file_path:
+                    self.preview.close()
+
+    def _handle_media_deletion(self, media_id: int, file_path: str, delete_file: bool, recalculate: bool = True):
+        """
+        Handle the deletion of a media item.
+        Returns True if the database deletion was successful.
+        """
+        try:
+            # Delete from database
+            self.ranking_tab.delete_callback(media_id, recalculate=recalculate)
+
+            # Delete file if requested
+            if delete_file:
+                self._delete_file(file_path)
+
+            return True
+        except Exception as e:
+            print(f"Error deleting media {media_id}: {e}")
+            self.deletion_errors.append((file_path, str(e)))
+            return False
+
+    def _show_deletion_errors(self):
+        """Show error dialog for failed deletions."""
+        if self.deletion_errors:
+            error_msg = "Failed to delete the following files:\n\n"
+            for file_path, error in self.deletion_errors:
+                error_msg += f"• {os.path.basename(file_path)}: {error}\n"
+
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle("Deletion Errors")
+            msg.setText(error_msg)
+            msg.exec()
+            self.deletion_errors.clear()

@@ -443,7 +443,7 @@ class Database:
             self.conn.commit()
 
             # Return path for file deletion
-            return media_path[0] if media_path else None
+            return media_path if media_path else None
 
         except Exception as e:
             self.conn.rollback()
