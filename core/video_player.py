@@ -101,6 +101,7 @@ class VideoPlayer(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._is_looping = False
+        self._autoplay_pending = False  # Track if autoplay was requested before media was ready
 
         # Create layout
         layout = QVBoxLayout(self)
@@ -230,17 +231,36 @@ class VideoPlayer(QWidget):
         self._is_looping = loop
 
     def handle_media_status_changed(self, status):
-        """Handle media status changes, e.g., for looping."""
+        """Handle media status changes, e.g., for looping and autoplay."""
+        # Handle looping
         if status == QMediaPlayer.MediaStatus.EndOfMedia and self._is_looping:
             self.media_player.setPosition(0)
             self.media_player.play()
+        
+        # Handle autoplay when media becomes ready
+        if self._autoplay_pending:
+            if status == QMediaPlayer.MediaStatus.LoadedMedia or status == QMediaPlayer.MediaStatus.BufferedMedia:
+                # Media is ready, show video widget and start playback
+                self.thumbnail_label.hide()
+                self.video_widget.show()
+                self.media_player.play()
+                self._autoplay_pending = False
 
     def set_source(self, path):
         """Set the video source."""
         url = QUrl.fromLocalFile(path)
         logger.info(f"Setting video source: {url.toString()}")
+        
+        # Disconnect hide_thumbnail_on_play to prevent duplicate connections
+        try:
+            self.media_player.playbackStateChanged.disconnect(self.hide_thumbnail_on_play)
+        except TypeError:
+            # Signal wasn't connected, which is fine
+            pass
+        
         self.media_player.setSource(url)
         self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+        self._autoplay_pending = False  # Reset autoplay pending flag
 
         # Extract and display thumbnail
         self.extract_and_display_thumbnail(path)
@@ -305,6 +325,18 @@ class VideoPlayer(QWidget):
         if self.media_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
             self.play_pause()
 
+
+    def request_autoplay(self):
+        """Request autoplay, starting immediately if media is ready, otherwise waiting for media to load."""
+        current_status = self.media_player.mediaStatus()
+        if current_status == QMediaPlayer.MediaStatus.LoadedMedia or current_status == QMediaPlayer.MediaStatus.BufferedMedia:
+            # Media is already ready, start playback immediately
+            self.thumbnail_label.hide()
+            self.video_widget.show()
+            self.media_player.play()
+        else:
+            # Media not ready yet, set flag to autoplay when it becomes ready
+            self._autoplay_pending = True
 
     def hide_thumbnail_on_play(self, state):
         """Hide the thumbnail and show the video widget when the video starts playing."""

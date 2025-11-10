@@ -396,12 +396,11 @@ class VotingTab(QWidget):
                     actual_video_player_widget = media[0].layout().itemAt(0).widget()
                     if isinstance(actual_video_player_widget, VideoPlayer):
                         actual_video_player_widget.setLooping(self.autoloop_videos)
-
-                    if self.autoplay_videos and frame.media_player:
-                        # Calling play() on QMediaPlayer should trigger its playbackStateChanged signal.
-                        # VideoPlayer connects hide_thumbnail_on_play to this signal,
-                        # which should handle showing the video_widget and hiding the thumbnail_label.
-                        frame.media_player.play()
+                        
+                        if self.autoplay_videos:
+                            # Use request_autoplay() which waits for media to be ready before playing
+                            # This prevents audio from playing while video rendering isn't ready
+                            actual_video_player_widget.request_autoplay()
             else:
                 frame.media_widget = media
 
