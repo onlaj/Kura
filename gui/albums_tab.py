@@ -9,6 +9,8 @@ from PyQt6.QtCore import pyqtSignal, Qt, QSortFilterProxyModel, QSize
 import math
 
 from core.reliability_calculator import ReliabilityCalculator
+from core.media_workers import FileSearchWorker, AlbumExportWorker, AlbumImportWorker
+from db.database import get_database_path
 
 
 class AlbumsTab(QWidget):
@@ -23,6 +25,11 @@ class AlbumsTab(QWidget):
         self.sort_by = "created_at"
         self.sort_order = "ASC"
         self.total_albums = 0
+        self.search_worker = None
+        self.export_worker = None
+        self.import_worker = None
+        self.relocate_progress = None
+        self.relocate_results = {}  # Store search results
         self.setup_ui()
         self._select_album_by_id(1)
         self.refresh_albums()
@@ -369,7 +376,7 @@ class AlbumsTab(QWidget):
 
 
     def relocate_missing_files(self):
-        """Handle the file relocation process."""
+        """Handle the file relocation process using background thread."""
         missing = self.db.find_missing_media()
         if not missing:
             QMessageBox.information(self, "Info", "No missing files found")
@@ -382,62 +389,100 @@ class AlbumsTab(QWidget):
         if not search_dir:
             return
 
-        # Search for matches
-        total_fixed = 0
-        progress = QProgressDialog(
-            "Relocating files...",
+        # Cancel any existing worker
+        if self.search_worker and self.search_worker.isRunning():
+            self.search_worker.cancel()
+            self.search_worker.wait()
+
+        # Disable button during operation
+        self.btn_relocate.setEnabled(False)
+
+        # Create progress dialog
+        self.relocate_progress = QProgressDialog(
+            "Searching for missing files...",
             "Cancel",
             0,
             len(missing),
             self
         )
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self.relocate_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self.relocate_progress.show()
 
-        for i, media in enumerate(missing):
-            progress.setValue(i)
-            if progress.wasCanceled():
-                break
+        # Reset results
+        self.relocate_results = {}
 
-            matches = []
+        # Create and start worker
+        self.search_worker = FileSearchWorker(missing, search_dir)
+        self.search_worker.file_found.connect(self._on_file_found)
+        self.search_worker.progress.connect(self._on_relocate_progress)
+        self.search_worker.finished.connect(self._on_relocate_finished)
+        self.search_worker.start()
+
+    def _on_file_found(self, media_id, matches):
+        """Store search results for a file."""
+        self.relocate_results[media_id] = matches
+
+    def _on_relocate_progress(self, current, total):
+        """Update progress dialog."""
+        if self.relocate_progress:
+            self.relocate_progress.setValue(current)
+            if self.relocate_progress.wasCanceled():
+                if self.search_worker:
+                    self.search_worker.cancel()
+
+    def _on_relocate_finished(self):
+        """Handle completion of file search."""
+        # Close progress dialog
+        if self.relocate_progress:
+            self.relocate_progress.close()
+            self.relocate_progress = None
+
+        # Process results and update paths
+        total_fixed = 0
+        missing = self.db.find_missing_media()
+        missing_dict = {m['id']: m for m in missing}
+
+        for media_id, matches in self.relocate_results.items():
+            if not matches:
+                continue
+
+            media = missing_dict.get(media_id)
+            if not media:
+                continue
+
             target_name = media['filename']
-            target_size = media['file_size']
-
-            # Recursive search
-            for root, _, files in os.walk(search_dir):
-                for file in files:
-                    if file == target_name:
-                        full_path = os.path.join(root, file)
-                        try:
-                            if os.path.getsize(full_path) == target_size:
-                                matches.append(full_path)
-                        except OSError:
-                            continue
 
             # Handle matches
-            if matches:
-                if len(matches) == 1:
-                    new_path = matches[0]
-                else:
-                    # Let user choose from multiple matches
-                    item, ok = QInputDialog.getItem(
-                        self,
-                        "Select File",
-                        f"Multiple matches found for {target_name}:",
-                        matches,
-                        0, False
-                    )
-                    new_path = item if ok else None
+            if len(matches) == 1:
+                new_path = matches[0]
+            else:
+                # Let user choose from multiple matches
+                item, ok = QInputDialog.getItem(
+                    self,
+                    "Select File",
+                    f"Multiple matches found for {target_name}:",
+                    matches,
+                    0, False
+                )
+                new_path = item if ok else None
 
-                if new_path and self.db.update_media_path(media['id'], new_path):
-                    total_fixed += 1
+            if new_path and self.db.update_media_path(media_id, new_path):
+                total_fixed += 1
 
-        progress.close()
+        # Re-enable button
+        self.btn_relocate.setEnabled(True)
+
+        # Show results
         QMessageBox.information(
             self,
             "Process Complete",
-            f"Updated paths for {total_fixed}/{len(missing)} missing files"
+            f"Updated paths for {total_fixed}/{len(self.relocate_results)} missing files"
         )
         self.album_changed.emit(self.active_album_id, "")  # Refresh UI
+
+        # Clean up
+        self.search_worker = None
+        self.relocate_results = {}
 
     def export_album(self):
         selected = self.album_table.selectedItems()
@@ -456,13 +501,32 @@ class AlbumsTab(QWidget):
         if not file_path:
             return
 
-        # Perform export
-        try:
-            from core.album_io import export_album
-            export_album(self.db, album_id, file_path)
-            QMessageBox.information(self, "Success", "Album exported successfully.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
+        # Cancel any existing worker
+        if self.export_worker and self.export_worker.isRunning():
+            self.export_worker.wait()
+
+        # Disable button during operation
+        self.btn_export.setEnabled(False)
+
+        # Create and start worker
+        self.export_worker = AlbumExportWorker(get_database_path(), album_id, file_path)
+        self.export_worker.progress.connect(lambda msg: None)  # Could show status if needed
+        self.export_worker.finished.connect(self._on_export_finished)
+        self.export_worker.start()
+
+    def _on_export_finished(self, success, message):
+        """Handle completion of album export."""
+        # Re-enable button
+        self.btn_export.setEnabled(True)
+
+        # Show result
+        if success:
+            QMessageBox.information(self, "Success", message)
+        else:
+            QMessageBox.critical(self, "Error", message)
+
+        # Clean up
+        self.export_worker = None
 
     def import_album(self):
         # Get import file
@@ -472,7 +536,7 @@ class AlbumsTab(QWidget):
         if not file_path:
             return
 
-        # Check album name conflict
+        # Check album name conflict (this is quick, can stay in main thread)
         try:
             backup_conn = sqlite3.connect(file_path)
             backup_cursor = backup_conn.cursor()
@@ -498,11 +562,30 @@ class AlbumsTab(QWidget):
             if not ok or not new_name:
                 return
 
-        # Perform import
-        from core.album_io import import_album
-        success, message = import_album(self.db, file_path, new_name)
+        # Cancel any existing worker
+        if self.import_worker and self.import_worker.isRunning():
+            self.import_worker.wait()
+
+        # Disable button during operation
+        self.btn_import.setEnabled(False)
+
+        # Create and start worker
+        self.import_worker = AlbumImportWorker(get_database_path(), file_path, new_name)
+        self.import_worker.progress.connect(lambda msg: None)  # Could show status if needed
+        self.import_worker.finished.connect(self._on_import_finished)
+        self.import_worker.start()
+
+    def _on_import_finished(self, success, message):
+        """Handle completion of album import."""
+        # Re-enable button
+        self.btn_import.setEnabled(True)
+
+        # Show result and refresh
         if success:
             self.refresh_albums()
             QMessageBox.information(self, "Success", message)
         else:
             QMessageBox.warning(self, "Error", message)
+
+        # Clean up
+        self.import_worker = None

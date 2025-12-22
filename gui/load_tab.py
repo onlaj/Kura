@@ -1,13 +1,20 @@
 from pathlib import Path
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QTextEdit, QFileDialog, QCheckBox, QGroupBox, QFormLayout)
+                             QTextEdit, QFileDialog, QCheckBox, QGroupBox, QFormLayout,
+                             QProgressDialog)
+from PyQt6.QtCore import Qt
+from db.database import get_database_path
+from core.media_workers import MediaAddWorker
 
 class LoadTab(QWidget):
-    def __init__(self, db_callback, media_handler, ranking_tab):
+    def __init__(self, db_callback, media_handler, ranking_tab, album_id_getter):
         super().__init__()
         self.db_callback = db_callback
         self.media_handler = media_handler
         self.ranking_tab = ranking_tab  # Store reference to RankingTab
+        self.album_id_getter = album_id_getter  # Function to get current album_id
+        self.worker = None
+        self.progress_dialog = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -135,28 +142,90 @@ class LoadTab(QWidget):
             self.process_files(media_files)
 
     def process_files(self, files):
-        """Process the selected files and add them to the database."""
-        added = 0
-        skipped = 0
+        """Process the selected files and add them to the database using background thread."""
+        if not files:
+            return
 
-        for file in files:
-            file_path = str(file)
-            media_type = self.media_handler.get_media_type(file_path)
-            if self.db_callback(file_path, media_type):
-                added += 1
-                self.log_text.append(f"Added: {file_path} ({media_type})")
-            else:
-                skipped += 1
-                self.log_text.append(f"Skipped (already exists): {file_path}")
+        # Cancel any existing worker
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+            self.worker.wait()
 
+        # Get current album ID
+        album_id = self.album_id_getter()
+
+        # Disable UI controls during processing
+        self.btn_add_files.setEnabled(False)
+        self.btn_add_folder.setEnabled(False)
+
+        # Create progress dialog for large batches
+        if len(files) > 10:
+            self.progress_dialog = QProgressDialog(
+                "Adding files to database...",
+                "Cancel",
+                0,
+                len(files),
+                self
+            )
+            self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            self.progress_dialog.show()
+
+        # Create and start worker
+        self.worker = MediaAddWorker(
+            files,
+            self.media_handler,
+            album_id,
+            get_database_path()
+        )
+
+        # Connect signals
+        self.worker.file_processed.connect(self._on_file_processed)
+        self.worker.progress.connect(self._on_progress)
+        self.worker.finished.connect(self._on_finished)
+
+        # Start worker
+        self.worker.start()
+
+    def _on_file_processed(self, file_path, success, message):
+        """Handle individual file processing result."""
+        if success:
+            self.log_text.append(f"Added: {file_path} ({message})")
+        else:
+            self.log_text.append(f"Skipped: {file_path} ({message})")
+
+    def _on_progress(self, current, total):
+        """Update progress dialog."""
+        if self.progress_dialog:
+            self.progress_dialog.setValue(current)
+            if self.progress_dialog.wasCanceled():
+                if self.worker:
+                    self.worker.cancel()
+
+    def _on_finished(self, added_count, skipped_count):
+        """Handle completion of file processing."""
+        # Re-enable UI controls
+        self.btn_add_files.setEnabled(True)
+        self.btn_add_folder.setEnabled(True)
+
+        # Close progress dialog
+        if self.progress_dialog:
+            self.progress_dialog.close()
+            self.progress_dialog = None
+
+        # Add summary
         self.log_text.append(
-            f"\nSummary: Added {added} files, Skipped {skipped} files\n"
+            f"\nSummary: Added {added_count} files, Skipped {skipped_count} files\n"
         )
 
         # Notify RankingTab that new files have been loaded
-        if added > 0:
+        if added_count > 0:
             self.ranking_tab.set_new_files_flag()
+            # Also refresh via the callback mechanism
+            # The db_callback is still used for single-file operations if needed
 
         # Scroll to bottom
         scrollbar = self.log_text.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+
+        # Clean up worker
+        self.worker = None

@@ -17,7 +17,7 @@ from utils.config import setup_logging
 from gui.albums_tab import AlbumsTab
 import os
 
-__version__ = "1.0"
+__version__ = "1.2.0"
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,12 @@ class Application:
         # Set history tab reference in voting tab
         self.voting_tab.set_history_tab(self.history_tab)
 
-        self.upload_tab = LoadTab(self.add_media_to_db, self.media_handler, self.ranking_tab)
+        self.upload_tab = LoadTab(
+            self.add_media_to_db,
+            self.media_handler,
+            self.ranking_tab,
+            lambda: self.active_album_id
+        )
 
         # Set up tabs in main window
         self.main_window.setup_tabs(

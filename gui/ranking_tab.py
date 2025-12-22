@@ -6,7 +6,8 @@ from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread
 from PyQt6.QtGui import QMovie, QIcon, QKeyEvent
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
-                             QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit)
+                             QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit,
+                             QProgressDialog)
 
 try:
     import send2trash
@@ -18,7 +19,9 @@ from core.media_loader import ThreadedMediaLoader
 from core.media_utils import AspectRatioWidget
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
+from core.media_workers import MediaDeleteWorker
 from gui.loading_overlay import LoadingOverlay
+from db.database import get_database_path
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +229,8 @@ class RankingTab(QWidget):
         self.pending_video_click = []  # Stores (media_player, media_path)
 
         self.deletion_errors = []
+        self.delete_worker = None
+        self.delete_progress = None
 
     def setup_ui(self):
         """Setup the UI elements"""
@@ -887,7 +892,7 @@ class RankingTab(QWidget):
             self.refresh_rankings()
 
     def delete_selected_items(self):
-        """Delete multiple selected items."""
+        """Delete multiple selected items using background thread."""
         if not self.checked_items:
             return
 
@@ -907,41 +912,101 @@ class RankingTab(QWidget):
 
         if msg.exec() == QMessageBox.StandardButton.Yes:
             delete_files = delete_file_checkbox.isChecked()
-            success_count = 0
 
-            try:
-                for media_id in list(self.checked_items):
-                    # Get file path from database before deletion
-                    file_path = self.db.get_media_path(media_id)
-                    if self._handle_media_deletion(media_id, file_path, delete_files, recalculate=False):
-                        success_count += 1
-                        self.checked_items.discard(media_id)
+            # Cancel any existing worker
+            if self.delete_worker and self.delete_worker.isRunning():
+                self.delete_worker.cancel()
+                self.delete_worker.wait()
 
-                # Recalculate ratings once after all deletions
-                self.db._recalculate_ratings()
+            # Clean up media resources in main thread before deletion
+            media_items = []
+            for media_id in list(self.checked_items):
+                file_path = self.db.get_media_path(media_id)
+                if file_path:
+                    # Clean up resources (video players, previews) in main thread
+                    self._cleanup_media_resources(file_path)
+                    media_items.append((media_id, file_path))
 
-                # Show any errors that occurred
-                self._show_deletion_errors()
+            if not media_items:
+                return
 
-                # Show success message
-                if success_count > 0:
-                    QMessageBox.information(
-                        self,
-                        "Deletion Complete",
-                        f"Successfully deleted {success_count} item(s)."
-                    )
+            # Disable UI controls during deletion
+            self.trash_button.setEnabled(False)
+            self.uncheck_button.setEnabled(False)
+            self.select_all_button.setEnabled(False)
 
-                # Refresh the display
-                self.uncheck_all()
-                self.refresh_rankings()
+            # Create progress dialog
+            self.delete_progress = QProgressDialog(
+                "Deleting media items...",
+                "Cancel",
+                0,
+                len(media_items),
+                self
+            )
+            self.delete_progress.setWindowModality(Qt.WindowModality.WindowModal)
+            self.delete_progress.show()
 
-            except Exception as e:
-                logger.error(f"Error in batch deletion: {e}")
-                QMessageBox.critical(
-                    self,
-                    "Error",
-                    f"An error occurred during deletion: {str(e)}"
-                )
+            # Reset errors
+            self.deletion_errors = []
+
+            # Create and start worker
+            self.delete_worker = MediaDeleteWorker(
+                media_items,
+                delete_files,
+                get_database_path()
+            )
+            self.delete_worker.file_deleted.connect(self._on_file_deleted)
+            self.delete_worker.progress.connect(self._on_delete_progress)
+            self.delete_worker.finished.connect(self._on_delete_finished)
+            self.delete_worker.start()
+
+    def _on_file_deleted(self, media_id, success, error_message):
+        """Handle individual file deletion result."""
+        if success:
+            self.checked_items.discard(media_id)
+        else:
+            if error_message:
+                file_path = self.db.get_media_path(media_id)
+                if file_path:
+                    self.deletion_errors.append((file_path, error_message))
+
+    def _on_delete_progress(self, current, total):
+        """Update progress dialog."""
+        if self.delete_progress:
+            self.delete_progress.setValue(current)
+            if self.delete_progress.wasCanceled():
+                if self.delete_worker:
+                    self.delete_worker.cancel()
+
+    def _on_delete_finished(self, success_count, error_count):
+        """Handle completion of batch deletion."""
+        # Close progress dialog
+        if self.delete_progress:
+            self.delete_progress.close()
+            self.delete_progress = None
+
+        # Re-enable UI controls
+        self.trash_button.setEnabled(True)
+        self.uncheck_button.setEnabled(True)
+        self.select_all_button.setEnabled(True)
+
+        # Show any errors that occurred
+        self._show_deletion_errors()
+
+        # Show success message
+        if success_count > 0:
+            QMessageBox.information(
+                self,
+                "Deletion Complete",
+                f"Successfully deleted {success_count} item(s)."
+            )
+
+        # Refresh the display
+        self.uncheck_all()
+        self.refresh_rankings()
+
+        # Clean up worker
+        self.delete_worker = None
 
     def show_error(self, message):
         """Show error dialog"""
