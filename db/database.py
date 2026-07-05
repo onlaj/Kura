@@ -594,11 +594,16 @@ class Database:
 
         return result
 
-    def find_missing_media(self) -> List[dict]:
-        """Find media entries where the file doesn't exist."""
-        self.cursor.execute("SELECT id, path, file_size FROM media")
+    def find_missing_media(self, album_id: Optional[int] = None) -> List[dict]:
+        """
+        Find media entries where the file doesn't exist.
+
+        Args:
+            album_id: If given, only check media in this album; otherwise check all albums.
+        """
+        rows = self.get_media_paths_for_scan(album_id)
         missing = []
-        for media_id, path, file_size in self.cursor.fetchall():
+        for media_id, path, file_size in rows:
             if not os.path.exists(path):
                 missing.append({
                     'id': media_id,
@@ -608,6 +613,17 @@ class Database:
                 })
         return missing
 
+    def get_media_paths_for_scan(self, album_id: Optional[int] = None) -> List[tuple]:
+        """Get (id, path, file_size) rows for existence checks, optionally scoped to an album."""
+        if album_id is None:
+            self.cursor.execute("SELECT id, path, file_size FROM media")
+        else:
+            self.cursor.execute(
+                "SELECT id, path, file_size FROM media WHERE album_id = ?",
+                (album_id,)
+            )
+        return self.cursor.fetchall()
+
     def get_media_path(self, media_id: int) -> Optional[str]:
         """Get the file path for a media item by its ID."""
         self.cursor.execute("SELECT path FROM media WHERE id = ?", (media_id,))
@@ -615,18 +631,95 @@ class Database:
         return result[0] if result else None
 
     def update_media_path(self, media_id: int, new_path: str) -> bool:
-        """Update a media file's path."""
+        """Update a media file's path, refreshing file size and modification time."""
         try:
             normalized_path = str(Path(new_path).resolve())
-            self.cursor.execute(
-                "UPDATE media SET path = ? WHERE id = ?",
-                (normalized_path, media_id)
-            )
+            try:
+                file_size = os.path.getsize(normalized_path)
+                modified_time = os.path.getmtime(normalized_path)
+            except OSError:
+                file_size = None
+                modified_time = None
+
+            if file_size is not None:
+                self.cursor.execute(
+                    "UPDATE media SET path = ?, file_size = ?, modified_at = ? WHERE id = ?",
+                    (normalized_path, file_size, modified_time, media_id)
+                )
+            else:
+                self.cursor.execute(
+                    "UPDATE media SET path = ? WHERE id = ?",
+                    (normalized_path, media_id)
+                )
             self.conn.commit()
             return True
         except Exception as e:
             logger.warning(f"Error updating path: {e}")
             return False
+
+    def delete_media_batch(self, media_ids: List[int], recalculate: bool = True) -> int:
+        """
+        Delete multiple media records (and their votes) in a single transaction,
+        with at most one rating recalculation at the end.
+
+        Args:
+            media_ids: IDs of the media records to delete
+            recalculate: Whether to recalculate ratings after deletion
+
+        Returns:
+            int: Number of media records actually deleted
+        """
+        if not media_ids:
+            return 0
+        try:
+            self.conn.execute("BEGIN")
+
+            placeholders = ",".join(["?"] * len(media_ids))
+            self.cursor.execute(
+                f"SELECT id, album_id FROM media WHERE id IN ({placeholders})",
+                media_ids
+            )
+            rows = self.cursor.fetchall()
+            if not rows:
+                self.conn.rollback()
+                return 0
+
+            existing_ids = [row[0] for row in rows]
+            existing_placeholders = ",".join(["?"] * len(existing_ids))
+
+            self.cursor.execute(
+                f"""
+                DELETE FROM votes
+                WHERE winner_id IN ({existing_placeholders})
+                OR loser_id IN ({existing_placeholders})
+                """,
+                existing_ids + existing_ids
+            )
+
+            self.cursor.execute(
+                f"DELETE FROM media WHERE id IN ({existing_placeholders})",
+                existing_ids
+            )
+
+            # Decrement album counters by the number of deletions per album
+            album_counts = {}
+            for _, album_id in rows:
+                album_counts[album_id] = album_counts.get(album_id, 0) + 1
+            for album_id, count in album_counts.items():
+                self.cursor.execute(
+                    "UPDATE albums SET total_media = total_media - ? WHERE id = ?",
+                    (count, album_id)
+                )
+
+            if recalculate:
+                self._recalculate_ratings()
+
+            self.conn.commit()
+            return len(existing_ids)
+
+        except Exception as e:
+            self.conn.rollback()
+            raise e
 
     def get_albums_page(self, page: int, per_page: int, sort_by: str = "name", sort_order: str = "ASC") -> Tuple[
         List[tuple], int]:

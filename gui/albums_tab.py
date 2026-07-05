@@ -4,17 +4,18 @@ import sqlite3
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QInputDialog,
                              QMessageBox, QLabel, QGroupBox, QGridLayout, QHeaderView, QComboBox, QFileDialog,
-                             QProgressDialog, QDialog, QLineEdit, QDialogButtonBox)
+                             QDialog, QLineEdit, QDialogButtonBox)
 from PyQt6.QtCore import pyqtSignal, Qt, QSortFilterProxyModel, QSize
 import math
 
 from core.reliability_calculator import ReliabilityCalculator
-from core.media_workers import FileSearchWorker, AlbumExportWorker, AlbumImportWorker
+from core.media_workers import AlbumExportWorker, AlbumImportWorker
 from db.database import get_database_path
 
 
 class AlbumsTab(QWidget):
     album_changed = pyqtSignal(int, str)  # Emits (album_id, album_name)
+    check_missing_requested = pyqtSignal()  # User asked to check for missing files
 
     def __init__(self, db):
         super().__init__()
@@ -25,11 +26,8 @@ class AlbumsTab(QWidget):
         self.sort_by = "created_at"
         self.sort_order = "ASC"
         self.total_albums = 0
-        self.search_worker = None
         self.export_worker = None
         self.import_worker = None
-        self.relocate_progress = None
-        self.relocate_results = {}  # Store search results
         self.setup_ui()
         self._select_album_by_id(1)
         self.refresh_albums()
@@ -76,14 +74,15 @@ class AlbumsTab(QWidget):
         self.btn_delete = QPushButton("Delete Album")
         self.btn_export = QPushButton("Export Album")
         self.btn_import = QPushButton("Import Album")
-        self.btn_relocate = QPushButton("Relocate Missing Files")
+        self.btn_check_missing = QPushButton("Check for Missing Files…")
 
         button_layout_top.addWidget(self.btn_create)
         button_layout_top.addWidget(self.btn_rename)
         button_layout_top.addWidget(self.btn_delete)
-        button_layout_bottom.addWidget(self.btn_relocate)
-        self.btn_relocate.setToolTip(
-            "Locate missing media files by searching for matching filenames and sizes in a directory of your choice"
+        button_layout_bottom.addWidget(self.btn_check_missing)
+        self.btn_check_missing.setToolTip(
+            "Check all albums for media whose files no longer exist on disk, "
+            "then choose whether to remove their records, locate the moved files, or ignore them"
         )
         button_layout_bottom.addWidget(self.btn_export)
         button_layout_bottom.addWidget(self.btn_import)
@@ -100,7 +99,7 @@ class AlbumsTab(QWidget):
         self.btn_delete.clicked.connect(self.delete_album)
         self.btn_export.clicked.connect(self.export_album)
         self.btn_import.clicked.connect(self.import_album)
-        self.btn_relocate.clicked.connect(self.relocate_missing_files)
+        self.btn_check_missing.clicked.connect(self.check_missing_requested.emit)
         self.album_table.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.items_per_page.currentTextChanged.connect(self.change_items_per_page)
         self.first_page_btn.clicked.connect(self.go_to_first_page)
@@ -374,115 +373,6 @@ class AlbumsTab(QWidget):
         self.lbl_reliability.setText(f"Reliability: {reliability:.1f}%")
         self.lbl_votes_needed.setText(f"Votes to {target}%: {max(votes_needed, 0)}")
 
-
-    def relocate_missing_files(self):
-        """Handle the file relocation process using background thread."""
-        missing = self.db.find_missing_media()
-        if not missing:
-            QMessageBox.information(self, "Info", "No missing files found")
-            return
-
-        # Get search directory
-        search_dir = QFileDialog.getExistingDirectory(
-            self, "Select Search Directory"
-        )
-        if not search_dir:
-            return
-
-        # Cancel any existing worker
-        if self.search_worker and self.search_worker.isRunning():
-            self.search_worker.cancel()
-            self.search_worker.wait()
-
-        # Disable button during operation
-        self.btn_relocate.setEnabled(False)
-
-        # Create progress dialog
-        self.relocate_progress = QProgressDialog(
-            "Searching for missing files...",
-            "Cancel",
-            0,
-            len(missing),
-            self
-        )
-        self.relocate_progress.setWindowModality(Qt.WindowModality.WindowModal)
-        self.relocate_progress.show()
-
-        # Reset results
-        self.relocate_results = {}
-
-        # Create and start worker
-        self.search_worker = FileSearchWorker(missing, search_dir)
-        self.search_worker.file_found.connect(self._on_file_found)
-        self.search_worker.progress.connect(self._on_relocate_progress)
-        self.search_worker.finished.connect(self._on_relocate_finished)
-        self.search_worker.start()
-
-    def _on_file_found(self, media_id, matches):
-        """Store search results for a file."""
-        self.relocate_results[media_id] = matches
-
-    def _on_relocate_progress(self, current, total):
-        """Update progress dialog."""
-        if self.relocate_progress:
-            self.relocate_progress.setValue(current)
-            if self.relocate_progress.wasCanceled():
-                if self.search_worker:
-                    self.search_worker.cancel()
-
-    def _on_relocate_finished(self):
-        """Handle completion of file search."""
-        # Close progress dialog
-        if self.relocate_progress:
-            self.relocate_progress.close()
-            self.relocate_progress = None
-
-        # Process results and update paths
-        total_fixed = 0
-        missing = self.db.find_missing_media()
-        missing_dict = {m['id']: m for m in missing}
-
-        for media_id, matches in self.relocate_results.items():
-            if not matches:
-                continue
-
-            media = missing_dict.get(media_id)
-            if not media:
-                continue
-
-            target_name = media['filename']
-
-            # Handle matches
-            if len(matches) == 1:
-                new_path = matches[0]
-            else:
-                # Let user choose from multiple matches
-                item, ok = QInputDialog.getItem(
-                    self,
-                    "Select File",
-                    f"Multiple matches found for {target_name}:",
-                    matches,
-                    0, False
-                )
-                new_path = item if ok else None
-
-            if new_path and self.db.update_media_path(media_id, new_path):
-                total_fixed += 1
-
-        # Re-enable button
-        self.btn_relocate.setEnabled(True)
-
-        # Show results
-        QMessageBox.information(
-            self,
-            "Process Complete",
-            f"Updated paths for {total_fixed}/{len(self.relocate_results)} missing files"
-        )
-        self.album_changed.emit(self.active_album_id, "")  # Refresh UI
-
-        # Clean up
-        self.search_worker = None
-        self.relocate_results = {}
 
     def export_album(self):
         selected = self.album_table.selectedItems()

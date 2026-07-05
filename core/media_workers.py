@@ -83,6 +83,55 @@ class MediaAddWorker(QThread):
             self.finished.emit(added_count, skipped_count)
 
 
+class MissingFilesScanWorker(QThread):
+    """
+    Worker thread that checks whether media files still exist on disk.
+
+    Existence checks run off the main thread because they can block for
+    seconds on disconnected network drives or slow external disks.
+    """
+    progress = pyqtSignal(int, int)  # current, total
+    finished = pyqtSignal(list)  # list of dicts: id, original_path, filename, file_size
+
+    def __init__(self, media_rows):
+        """
+        Args:
+            media_rows: List of (media_id, path, file_size) tuples to check.
+        """
+        super().__init__()
+        self.media_rows = media_rows
+        self._cancelled = False
+
+    def cancel(self):
+        """Cancel the operation."""
+        self._cancelled = True
+
+    def was_cancelled(self) -> bool:
+        """Whether the scan was cancelled (its result is partial and stale)."""
+        return self._cancelled
+
+    def run(self):
+        """Check file existence in background thread."""
+        missing = []
+        total = len(self.media_rows)
+        for index, (media_id, path, file_size) in enumerate(self.media_rows):
+            if self._cancelled:
+                break
+            try:
+                exists = os.path.exists(path)
+            except OSError:
+                exists = False
+            if not exists:
+                missing.append({
+                    'id': media_id,
+                    'original_path': path,
+                    'filename': os.path.basename(path),
+                    'file_size': file_size
+                })
+            self.progress.emit(index + 1, total)
+        self.finished.emit(missing)
+
+
 class FileSearchWorker(QThread):
     """Worker thread for searching files in the filesystem."""
     file_found = pyqtSignal(int, list)  # media_id, matches
