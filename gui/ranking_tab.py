@@ -1,8 +1,9 @@
 import logging
 import math
 import os
+import time
 
-from PyQt6.QtCore import Qt, QTimer, QUrl, QObject, pyqtSignal, QThread
+from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtGui import QMovie, QIcon, QKeyEvent
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
@@ -24,39 +25,6 @@ from gui.loading_overlay import LoadingOverlay
 from db.database import get_database_path
 
 logger = logging.getLogger(__name__)
-
-
-class MediaLoader(QObject):
-    """Helper class to handle media loading operations in the main thread."""
-    load_started = pyqtSignal()
-    load_finished = pyqtSignal(list, int)
-
-    def __init__(self, get_rankings_callback):
-        super().__init__()
-        self.get_rankings_callback = get_rankings_callback
-
-    def load_media(self, page, per_page):
-        """Load media items (runs in main thread)."""
-        try:
-            rankings, total = self.get_rankings_callback(page, per_page)
-            self.load_finished.emit(rankings, total)
-        except Exception as e:
-            logger.info(f"Error loading media: {e}")
-            self.load_finished.emit([], 0)
-
-
-class LoadingThread(QThread):
-    """Thread to coordinate loading process."""
-    request_load = pyqtSignal(int, int)  # Signal to request loading (page, per_page)
-
-    def __init__(self, page, per_page):
-        super().__init__()
-        self.page = page
-        self.per_page = per_page
-
-    def run(self):
-        """Emit signal to request loading in main thread."""
-        self.request_load.emit(self.page, self.per_page)
 
 
 class MediaFrame(QFrame):
@@ -126,8 +94,9 @@ class MediaFrame(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
 
-    def set_file_info(self, file_path):
-        set_file_info(file_path, self.info_label, elide=True, max_width=150)
+    def set_file_info(self, file_path, file_size=None, modified_time=None):
+        set_file_info(file_path, self.info_label, elide=True, max_width=150,
+                      file_size=file_size, modified_time=modified_time)
 
     def elide_text(self, text, max_width=150):
         """Elide text to fit within a specified width."""
@@ -165,7 +134,7 @@ class MediaFrame(QFrame):
 class RankingTab(QWidget):
     def __init__(self, get_rankings_callback, media_handler, delete_callback, db):
         super().__init__()
-        self.is_refreshing = False
+        self._refresh_queued = False
         self.get_rankings_callback = get_rankings_callback
         self.media_handler = media_handler
         self.delete_callback = delete_callback
@@ -184,14 +153,6 @@ class RankingTab(QWidget):
 
         # Add loading overlay
         self.loading_overlay = LoadingOverlay(self)
-
-        # Set up media loader
-        self.media_loader = MediaLoader(get_rankings_callback)
-        self.media_loader.load_started.connect(self._on_load_started)
-        self.media_loader.load_finished.connect(self._handle_loaded_media)
-
-        # Initialize thread variable
-        self.loading_thread = None
 
         self.pending_preview_action = None  # 'prev' or 'next'
         self.pending_preview_page = None
@@ -217,16 +178,35 @@ class RankingTab(QWidget):
 
         self.setup_ui()
 
-        # Add threaded media loader
-        self.threaded_loader = ThreadedMediaLoader(media_handler)
-        self.threaded_loader.media_loaded.connect(self._handle_loaded_media_item)
+        # Threaded media loader: decodes thumbnails in background threads and
+        # emits ready-to-use MediaLoadResult objects to the main thread.
+        self.threaded_loader = ThreadedMediaLoader()
+        self.threaded_loader.media_loaded.connect(self._on_media_result)
         self.threaded_loader.all_media_loaded.connect(self._on_all_media_loaded)
+        self.threaded_loader.progress_updated.connect(self.loading_overlay.increment_progress)
+
+        # Buffer of MediaLoadResult objects waiting to become widgets. Frames
+        # are inserted in small time-budgeted batches by a timer so the UI
+        # keeps repainting between batches.
+        self._result_buffer = []
+        self._batch_complete = False
+        self._insert_timer = QTimer(self)
+        self._insert_timer.setInterval(16)
+        self._insert_timer.timeout.connect(self._drain_result_buffer)
+        self._insert_budget_s = 0.030  # Max time to spend inserting per tick
 
         # Add single-click timer for video handling
         self.single_click_timer = QTimer(self)
         self.single_click_timer.setSingleShot(True)
         self.single_click_timer.timeout.connect(lambda: handle_video_single_click(self.pending_video_click))
         self.pending_video_click = []  # Stores (media_player, media_path)
+
+        # Lazy video activation: grid videos start as static thumbnails and the
+        # real player is only created when the user clicks one.
+        self._pending_lazy_video = None  # (frame, thumb_widget, result)
+        self.lazy_video_timer = QTimer(self)
+        self.lazy_video_timer.setSingleShot(True)
+        self.lazy_video_timer.timeout.connect(self._activate_pending_video)
 
         self.deletion_errors = []
         self.delete_worker = None
@@ -418,31 +398,32 @@ class RankingTab(QWidget):
             return True
         return super().eventFilter(obj, event)
 
-    def create_image_frame(self, rank, id, path, rating, votes, index, pre_loaded_widget=None):
+    def create_image_frame(self, rank, id, path, rating, votes, index, result):
+        """Build a grid frame from a preloaded MediaLoadResult (cheap, no disk I/O)."""
         frame = MediaFrame()
+        frame.media_id = id
 
-        # Load the media in the frame
-        media = self.media_handler.load_media(path)
+        media = self.media_handler.load_media_from_result(result)
 
-        if isinstance(media, AspectRatioWidget):
+        if result.media_type == 'video':
+            if media:
+                frame.media_layout.addWidget(media)
+                self._wire_lazy_video(frame, media, result)
+        elif isinstance(media, tuple):  # GIF with a live QMovie
+            widget, movie = media
+            frame.media_layout.addWidget(widget)
+            frame.gif_movie = movie
+            widget.mousePressEvent = lambda e, p=path: self.show_preview(p)
+        elif isinstance(media, AspectRatioWidget):
             frame.media_layout.addWidget(media)
             media.mousePressEvent = lambda e, p=path: self.show_preview(p)
-        elif isinstance(media, tuple):
-            widget, player = media
-            frame.media_layout.addWidget(widget)
-            if isinstance(player, QMovie):  # GIF
-                frame.gif_movie = player
-                widget.mousePressEvent = lambda e, p=path: self.show_preview(p)
-            else:  # Video
-                frame.video_player = player
-                widget.setProperty('is_video', True)
-                widget.setProperty('media_player', frame.video_player)
-                widget.setProperty('media_path', path)
-                widget.installEventFilter(self)
 
-        # Set file info
-        file_name = os.path.basename(path)
-        frame.set_file_info(path)
+        # Set file info from the stats collected by the background loader
+        if result.exists:
+            frame.set_file_info(path, file_size=result.file_size,
+                                modified_time=result.modified_time)
+        else:
+            frame.info_label.setText(f"File not found: {path}")
 
         # Set rating and votes
         frame.rating_label.setText(f"Rating: {rating:.1f} | Votes: {votes}")
@@ -458,6 +439,56 @@ class RankingTab(QWidget):
         QTimer.singleShot(0, lambda: self.update_checkbox_visibility(frame, id))
 
         return frame
+
+    def _wire_lazy_video(self, frame, thumb_widget, result):
+        """
+        Wire click handling for a static video thumbnail. A single click
+        creates the real VideoPlayer and starts playback; a double click opens
+        the preview without creating an inline player.
+        """
+        path = result.file_path
+        thumb_widget.mousePressEvent = (
+            lambda e, f=frame, w=thumb_widget, r=result: self._on_video_thumb_pressed(f, w, r)
+        )
+        thumb_widget.mouseDoubleClickEvent = (
+            lambda e, p=path: self._on_video_thumb_double_clicked(p)
+        )
+
+    def _on_video_thumb_pressed(self, frame, thumb_widget, result):
+        self._pending_lazy_video = (frame, thumb_widget, result)
+        self.lazy_video_timer.start(250)
+
+    def _on_video_thumb_double_clicked(self, path):
+        self.lazy_video_timer.stop()
+        self._pending_lazy_video = None
+        self.show_preview(path)
+
+    def _activate_pending_video(self):
+        """Replace a video thumbnail with a real, playing VideoPlayer."""
+        if not self._pending_lazy_video:
+            return
+        frame, thumb_widget, result = self._pending_lazy_video
+        self._pending_lazy_video = None
+
+        path = result.file_path
+        try:
+            video_player, media_player = self.media_handler.create_video_player(path)
+        except Exception as e:
+            logger.error(f"Error creating video player for {path}: {e}")
+            return
+
+        wrapped = AspectRatioWidget(video_player, result.aspect_ratio)
+        frame.media_layout.removeWidget(thumb_widget)
+        thumb_widget.deleteLater()
+        frame.media_layout.addWidget(wrapped)
+
+        frame.video_player = media_player
+        wrapped.setProperty('is_video', True)
+        wrapped.setProperty('media_player', media_player)
+        wrapped.setProperty('media_path', path)
+        wrapped.installEventFilter(self)
+
+        video_player.request_autoplay()
 
     def update_checkbox_visibility(self, frame, id):
         """Update the visibility of the checkbox based on its state."""
@@ -489,11 +520,10 @@ class RankingTab(QWidget):
             item = self.grid_layout.itemAt(i)
             if item and item.widget():
                 frame = item.widget()
-                if hasattr(frame, 'checkbox'):
+                if hasattr(frame, 'checkbox') and hasattr(frame, 'media_id'):
                     frame.checkbox.setChecked(True)  # Check the checkbox
                     frame.checkbox.show()
-                    media_id = self.current_images[i][0]  # Get the media ID from current_images
-                    self.checked_items.add(media_id)  # Add to the checked_items set
+                    self.checked_items.add(frame.media_id)
 
         # Show the trash and uncheck buttons
         self.update_buttons_visibility()
@@ -620,8 +650,6 @@ class RankingTab(QWidget):
         self.refresh_rankings()
 
     def refresh_rankings(self, force_refresh=True):
-        if self.is_refreshing:
-            return  # Prevent concurrent refreshes
         """Refresh the rankings display."""
         if not hasattr(self, 'pending_preview_page') or self.current_page != self.pending_preview_page:
             self.pending_preview_action = None
@@ -634,20 +662,20 @@ class RankingTab(QWidget):
         self.loading_overlay.set_message("Loading media data...")
         self.loading_overlay.show()
 
-        self.is_refreshing = True
+        # Run the DB query on the next event loop pass so the overlay can
+        # paint first. Multiple refresh requests coalesce into one query.
+        if not self._refresh_queued:
+            self._refresh_queued = True
+            QTimer.singleShot(0, self._request_rankings_load)
 
-        # Create a loading thread
-        self.loading_thread = LoadingThread(self.current_page, self.per_page)
-        self.loading_thread.request_load.connect(self._request_rankings_load)
-        self.loading_thread.start()
-
-    def _request_rankings_load(self, page, per_page):
-        """Request rankings load in the main thread."""
+    def _request_rankings_load(self):
+        """Query the rankings page and kick off background media loading."""
+        self._refresh_queued = False
         try:
             # Pass sorting parameters to get_rankings
             rankings, total_filtered = self.get_rankings_callback(
-                page,
-                per_page,
+                self.current_page,
+                self.per_page,
                 self.current_filter,
                 self.active_album_id,
                 self.sort_by,
@@ -658,11 +686,6 @@ class RankingTab(QWidget):
         except Exception as e:
             logger.error(f"Error loading rankings: {e}")
             self.loading_overlay.hide()
-            self.is_refreshing = False
-
-    def _on_load_started(self):
-        """Handle load start event."""
-        self.loading_overlay.set_message("Loading media items...")
 
     def _show_empty_state(self, message):
         """Display a message when there's no data."""
@@ -674,6 +697,15 @@ class RankingTab(QWidget):
             self._show_empty_state("No active album selected")
             return
         """Handle the loaded media data."""
+        # Cancel any in-flight batch; its stale results are dropped by the
+        # generation checks in _on_media_result / _drain_result_buffer.
+        self.threaded_loader.stop()
+        self._result_buffer.clear()
+        self._batch_complete = False
+        self._insert_timer.stop()
+        self._pending_lazy_video = None
+        self.lazy_video_timer.stop()
+
         # Clear existing grid first
         for i in reversed(range(self.grid_layout.count())):
             item = self.grid_layout.takeAt(0)
@@ -706,17 +738,38 @@ class RankingTab(QWidget):
         self.loading_overlay.set_message("Loading media files...")
         self.loading_overlay.set_total_items(len(rankings))  # Set total items to load
 
-        # Start threaded loading of media
-        self.threaded_loader = ThreadedMediaLoader(self.media_handler)
-        self.threaded_loader.media_loaded.connect(self._handle_loaded_media_item)
-        self.threaded_loader.all_media_loaded.connect(self._on_all_media_loaded)
-        self.threaded_loader.progress_updated.connect(
-            self.loading_overlay.increment_progress)  # Connect progress signal
+        # Start threaded loading of media (decodes thumbnails off the main thread)
         self.threaded_loader.load_media_batch(rankings)
 
-    def _handle_loaded_media_item(self, media_id, file_path, index):
-        """Handle individual loaded media item."""
+    def _on_media_result(self, result):
+        """Buffer a decoded media result for throttled insertion (main thread)."""
+        if result.generation != self.threaded_loader.generation:
+            return  # Stale result from a cancelled batch
+        self._result_buffer.append(result)
+        if not self._insert_timer.isActive():
+            self._insert_timer.start()
+
+    def _drain_result_buffer(self):
+        """Insert buffered results within a small time budget so repaints stay frequent."""
+        generation = self.threaded_loader.generation
+        deadline = time.monotonic() + self._insert_budget_s
+        while self._result_buffer:
+            result = self._result_buffer.pop(0)
+            if result.generation != generation:
+                continue
+            self._insert_media_result(result)
+            if time.monotonic() >= deadline:
+                break
+
+        if not self._result_buffer:
+            self._insert_timer.stop()
+            if self._batch_complete:
+                self._finalize_loading()
+
+    def _insert_media_result(self, result):
+        """Create the widget for one decoded media item and place it in the grid."""
         try:
+            index = result.index
             if index < len(self.current_images):
                 id, path, rating, votes = self.current_images[index]
                 frame = self.create_image_frame(
@@ -725,7 +778,8 @@ class RankingTab(QWidget):
                     path,
                     rating,
                     votes,
-                    index
+                    index,
+                    result
                 )
 
                 row = index // self.columns
@@ -734,7 +788,16 @@ class RankingTab(QWidget):
         except Exception as e:
             logger.error(f"Error handling loaded media item: {e}")
 
-    def _on_all_media_loaded(self):
+    def _on_all_media_loaded(self, generation):
+        """All results of the batch were decoded; finalize once the buffer drains."""
+        if generation != self.threaded_loader.generation:
+            return  # Completion of a cancelled batch
+        self._batch_complete = True
+        if not self._result_buffer:
+            self._insert_timer.stop()
+            self._finalize_loading()
+
+    def _finalize_loading(self):
         """Handle completion of all media loading."""
         # Existing grid layout adjustments
         self.grid_layout.setHorizontalSpacing(10)
@@ -751,7 +814,6 @@ class RankingTab(QWidget):
         # Reset flags and hide loading overlay
         self.new_votes_since_last_refresh = False
         self.loading_overlay.hide()
-        self.is_refreshing = False
 
         # Handle pending preview navigation after load
         if self.pending_preview_action:

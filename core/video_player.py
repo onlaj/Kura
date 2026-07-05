@@ -1,13 +1,12 @@
 from functools import lru_cache
-import cv2
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QPainterPath
+from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QSlider, QStyle, QSizePolicy, QLabel)
 
-from core.media_utils import AspectRatioWidget
+from core.media_utils import AspectRatioWidget, grab_video_frame, add_play_button_overlay
 import logging
 from utils.config import DEFAULT_VOLUME
 #from core.media_handler import ScalableLabel
@@ -64,37 +63,10 @@ class VideoPlayer(QWidget):
     @lru_cache(maxsize=200)
     def _get_video_thumbnail(file_path: str) -> QPixmap:
         """Cached thumbnail generation with fallback handling"""
-        try:
-            cap = cv2.VideoCapture(file_path)
-            if not cap.isOpened():
-                logger.warning(f"Error: Could not open video {file_path}")
-                return QPixmap()
-
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            if total_frames == 0:
-                logger.warning(f"Error: Video {file_path} has no frames")
-                cap.release()
-                return QPixmap()
-
-            middle_frame = total_frames // 2
-            cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
-            ret, frame = cap.read()
-            cap.release()
-
-            if not ret:
-                logger.warning(f"Error reading frame from {file_path}")
-                return QPixmap()
-
-            # Convert to QPixmap
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = frame_rgb.shape
-            bytes_per_line = ch * w
-            q_img = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-            return QPixmap.fromImage(q_img)
-
-        except Exception as e:
-            logger.error(f"Error generating thumbnail for {file_path}: {str(e)}")
+        image, _ = grab_video_frame(file_path)
+        if image.isNull():
             return QPixmap()
+        return QPixmap.fromImage(image)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -271,35 +243,6 @@ class VideoPlayer(QWidget):
     def extract_and_display_thumbnail(self, path):
         """Display cached thumbnail with play button overlay"""
         pixmap = self._get_video_thumbnail(path)
-
-        def add_play_button_overlay(base_pixmap):
-            """Helper to add play button overlay to any pixmap"""
-            composite = QPixmap(base_pixmap.size())
-            composite.fill(Qt.GlobalColor.transparent)
-            painter = QPainter(composite)
-            painter.drawPixmap(0, 0, base_pixmap)
-
-            # Calculate sizes and positions
-            button_size = min(base_pixmap.width(), base_pixmap.height()) // 4
-            x_center = base_pixmap.width() // 2
-            y_center = base_pixmap.height() // 2
-
-            # Draw semi-transparent circle
-            painter.setBrush(QColor(255, 255, 255, 90))  # 70% opacity white
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(x_center - button_size // 2, y_center - button_size // 2, button_size, button_size)
-
-            # Draw play triangle
-            triangle_size = button_size // 2
-            path = QPainterPath()
-            path.moveTo(x_center - triangle_size // 3, y_center - triangle_size // 2)
-            path.lineTo(x_center - triangle_size // 3, y_center + triangle_size // 2)
-            path.lineTo(x_center + triangle_size // 2, y_center)
-            path.closeSubpath()
-            painter.setBrush(QColor(0, 0, 0, 100))  # 80% opacity black
-            painter.drawPath(path)
-            painter.end()
-            return composite
 
         if pixmap.isNull():
             # Create error thumbnail with overlay

@@ -10,7 +10,7 @@ from PyQt6.QtGui import QPixmap, QMovie
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
 from core.video_player import VideoPlayer
-from core.media_utils import AspectRatioWidget
+from core.media_utils import AspectRatioWidget, add_play_button_overlay
 
 import logging
 
@@ -187,6 +187,57 @@ class MediaHandler:
                 return wrapped_widget, player
             return wrapped_widget
         return None
+
+    def load_media_from_result(self, result):
+        """
+        Build a grid widget from a preloaded MediaLoadResult without touching
+        the disk on the main thread.
+
+        Returns the same shapes as load_media():
+        - image: AspectRatioWidget
+        - gif: (AspectRatioWidget, QMovie) or AspectRatioWidget when the GIF is invalid
+        - video: AspectRatioWidget showing the thumbnail with a play overlay
+          (the actual VideoPlayer is created lazily by the caller)
+        """
+        if result.media_type == 'gif':
+            widget, movie = self._load_gif(result.file_path)
+            if widget is None:
+                return None
+            wrapped = AspectRatioWidget(widget, result.aspect_ratio)
+            return (wrapped, movie) if movie else wrapped
+
+        if result.media_type == 'video':
+            return self._create_video_thumbnail_widget(result)
+
+        # Images (and unknown types fall back to a full main-thread load)
+        if result.thumbnail is not None and not result.thumbnail.isNull():
+            pixmap = QPixmap.fromImage(result.thumbnail)
+            label = ScalableLabel()
+            label.setPixmap(pixmap)
+            return AspectRatioWidget(label, result.aspect_ratio)
+        return self.load_media(result.file_path)
+
+    def _create_video_thumbnail_widget(self, result):
+        """Create a static thumbnail widget with a play overlay for a video."""
+        if result.thumbnail is not None and not result.thumbnail.isNull():
+            pixmap = QPixmap.fromImage(result.thumbnail)
+        else:
+            pixmap = QPixmap(400, 300)
+            pixmap.fill(Qt.GlobalColor.darkGray)
+        pixmap = add_play_button_overlay(pixmap)
+
+        label = ScalableLabel()
+        label.setPixmap(pixmap)
+        return AspectRatioWidget(label, result.aspect_ratio)
+
+    def create_video_player(self, file_path: str):
+        """
+        Create a VideoPlayer for the given path.
+
+        Returns:
+            (VideoPlayer, QMediaPlayer)
+        """
+        return self._create_video_widget(file_path)
 
     def _load_gif(self, gif_path: str):
         """Load animated GIF and return ScalableMovie with QMovie."""
