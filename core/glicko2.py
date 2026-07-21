@@ -128,8 +128,50 @@ class Glicko2Rating:
             new_mu = rating.mu + new_phi ** 2 * (delta / variance)
             return self.Rating(new_mu, new_phi, sigma)
 
+        def _f(self, x, phi, delta, variance, a):
+            """
+            Optimality criterion for volatility (Glickman 2012, Step 5).
+
+            f(x) = 0.5 * exp(x) * (delta^2 - phi^2 - v - exp(x)) / (phi^2 + v + exp(x))^2
+                   - (x - a) / tau^2
+            """
+            exp_x = math.exp(x)
+            tmp = phi ** 2 + variance + exp_x
+            return (
+                0.5 * exp_x * (delta ** 2 - tmp) / (tmp ** 2)
+                - (x - a) / (self.tau ** 2)
+            )
+
         def _determine_sigma(self, rating, delta, variance):
-            """Iteratively solve for new volatility (from reference code)."""
+            """
+            Iteratively solve for new volatility using the Illinois algorithm
+            (Glickman 2012 revision of Step 5).
+            """
+            phi = rating.phi
+            delta_sq = delta ** 2
             a = math.log(rating.sigma ** 2)
-            f = lambda x: self._f(x, rating.phi, delta, variance, a)
-            return rating.sigma
+
+            # Bracket [A, B] that contains the root of f
+            A = a
+            if delta_sq > phi ** 2 + variance:
+                B = math.log(delta_sq - phi ** 2 - variance)
+            else:
+                k = 1
+                while self._f(a - k * math.sqrt(self.tau ** 2), phi, delta, variance, a) < 0:
+                    k += 1
+                B = a - k * math.sqrt(self.tau ** 2)
+
+            f_A = self._f(A, phi, delta, variance, a)
+            f_B = self._f(B, phi, delta, variance, a)
+
+            # Illinois / regula falsi iteration
+            while abs(B - A) > self.epsilon:
+                C = A + (A - B) * f_A / (f_B - f_A)
+                f_C = self._f(C, phi, delta, variance, a)
+                if f_C * f_B < 0:
+                    A, f_A = B, f_B
+                else:
+                    f_A /= 2.0
+                B, f_B = C, f_C
+
+            return math.exp(A / 2.0)

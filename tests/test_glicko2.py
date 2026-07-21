@@ -1,8 +1,14 @@
 import random
+import os
 from typing import List, Dict, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover - optional for __main__ scaling runs
+    def tqdm(iterable, **_kwargs):
+        return iterable
+
 from core.elo import Rating
 from core.glicko2 import Glicko2Rating
 
@@ -44,13 +50,30 @@ def simulate_until_threshold(n: int, threshold: float, max_votes: int = 100000) 
     total_votes = 0
     elo_reached = None
     glicko_reached = None
+    seen = set()
 
     while total_votes < max_votes and (elo_reached is None or glicko_reached is None):
-        # Select media_a from least voted
+        # Shared fair pairing: least-voted primary + Elo-nearby opponent,
+        # avoiding rematches when alternatives exist. (Glicko-φ-first pairing
+        # is production-optimal for Glicko alone but starves Elo when both
+        # systems share the same edges — see generate_reliability_graphs.py.)
         min_votes = min(m.vote_count for m in medias)
         candidates = [m for m in medias if m.vote_count == min_votes]
         media_a = random.choice(candidates)
-        media_b = random.choice([m for m in medias if m != media_a])
+        others = [m for m in medias if m is not media_a]
+
+        def edge_key(x, y):
+            return (min(x.id, y.id), max(x.id, y.id))
+
+        media_b = None
+        for max_diff in (100, 200, None):
+            pool = others
+            if max_diff is not None:
+                pool = [m for m in others if abs(m.elo - media_a.elo) <= max_diff] or others
+            fresh = [m for m in pool if edge_key(media_a, m) not in seen]
+            pool = fresh or pool
+            media_b = random.choice(pool)
+            break
 
         # Determine winner based on objective score
         if media_a.objective_score > media_b.objective_score:
@@ -76,6 +99,7 @@ def simulate_until_threshold(n: int, threshold: float, max_votes: int = 100000) 
         # Update vote counts
         media_a.vote_count += 1
         media_b.vote_count += 1
+        seen.add(edge_key(media_a, media_b))
         total_votes += 1
 
         # Check reliability every 50 votes
@@ -170,10 +194,13 @@ def test_reliability_scaling():
     plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
 
 
-    # Save plot
-    filename = '../docs/reliability_scaling_comparison.png'
+    # Save plot next to this file's docs/ sibling (works from any cwd)
+    docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
+    os.makedirs(docs_dir, exist_ok=True)
+    filename = os.path.join(docs_dir, "reliability_scaling_comparison.png")
     plt.savefig(filename, bbox_inches='tight', dpi=300)
     plt.close()
+    print(f"\nWrote {filename}")
 
     # Print detailed results
     print("\nDetailed Results:")

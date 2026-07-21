@@ -47,7 +47,11 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_media_file_size ON media (file_size)",
             "CREATE INDEX IF NOT EXISTS idx_media_type ON media (type)",  # Already existed
             "CREATE INDEX IF NOT EXISTS idx_media_album ON media (album_id)",  # For album filtering
+            "CREATE INDEX IF NOT EXISTS idx_media_glicko_phi ON media (glicko_phi)",
             "CREATE INDEX IF NOT EXISTS idx_votes_album ON votes (album_id)",
+            "CREATE INDEX IF NOT EXISTS idx_votes_winner ON votes (winner_id)",
+            "CREATE INDEX IF NOT EXISTS idx_votes_loser ON votes (loser_id)",
+            "CREATE INDEX IF NOT EXISTS idx_votes_pair ON votes (album_id, winner_id, loser_id)",
             "CREATE INDEX IF NOT EXISTS idx_media_created_at ON media (created_at)",
             "CREATE INDEX IF NOT EXISTS idx_media_modified_at ON media (modified_at)"
         ]
@@ -305,7 +309,9 @@ class Database:
                     continue
 
                 v = idx + 1
-                reliability = ReliabilityCalculator.calculate_reliability(media_count, v)
+                reliability = ReliabilityCalculator.calculate_reliability(
+                    media_count, v, rating_system="elo"
+                )
                 k_factor = 32 if reliability < 85 else 16
 
                 rating = Rating(
@@ -336,20 +342,23 @@ class Database:
     def _recalculate_glicko2(self, album_id: int):
         from core.glicko2 import Glicko2Rating
 
-        # Reset all Glicko2 parameters to initial values
+        # Reset all Glicko2 parameters and vote counts for this album
         self.cursor.execute("""
             UPDATE media 
             SET rating = 1200,
                 glicko_phi = 350,
-                glicko_sigma = 0.06
+                glicko_sigma = 0.06,
+                votes = 0
             WHERE album_id = ?
         """, (album_id,))
 
         # Get all media IDs in this album
         media = {}
+        vote_counts = {}
         self.cursor.execute("SELECT id FROM media WHERE album_id = ?", (album_id,))
         for (media_id,) in self.cursor.fetchall():
             media[media_id] = (1200.0, 350.0, 0.06)  # (mu, phi, sigma)
+            vote_counts[media_id] = 0
 
         # Process votes in chronological order
         self.cursor.execute("""
@@ -386,16 +395,19 @@ class Database:
                 new_ratings['b']['phi'],
                 new_ratings['b']['sigma']
             )
+            vote_counts[winner_id] += 1
+            vote_counts[loser_id] += 1
 
-        # Save final ratings
+        # Save final ratings and recomputed vote counts
         for media_id, (mu, phi, sigma) in media.items():
             self.cursor.execute("""
                 UPDATE media SET
                     rating = ?,
                     glicko_phi = ?,
-                    glicko_sigma = ?
+                    glicko_sigma = ?,
+                    votes = ?
                 WHERE id = ?
-            """, (mu, phi, sigma, media_id))
+            """, (mu, phi, sigma, vote_counts[media_id], media_id))
 
         self.conn.commit()
 
@@ -449,10 +461,18 @@ class Database:
             self.conn.rollback()
             raise e
 
-    def update_ratings(self, winner_id: int, loser_id: int, album_id: int):
+    def update_ratings(self, winner_id: int, loser_id: int, album_id: int, weight: int = 1):
         """
         Update ratings after a vote. Handles both ELO and Glicko2 systems.
+
+        Args:
+            winner_id: Winning media ID
+            loser_id: Losing media ID
+            album_id: Album containing the pair
+            weight: Conviction strength (1 = normal vote, 2 = double vote).
+                    Applies a stronger rating update but records a single vote edge.
         """
+        weight = max(1, int(weight))
         try:
             self.conn.execute("BEGIN")
 
@@ -471,8 +491,11 @@ class Database:
                 from core.elo import Rating
                 n = self.get_total_media_count(album_id)
                 v = self.get_total_votes(album_id)
-                reliability = ReliabilityCalculator.calculate_reliability(n, v + 1)  # +1 for this vote
-                k_factor = 32 if reliability < 85 else 16
+                mean_phi = None
+                reliability = ReliabilityCalculator.calculate_reliability(
+                    n, v + 1, rating_system=rating_system, mean_phi=mean_phi
+                )
+                k_factor = (32 if reliability < 85 else 16) * weight
 
                 elo = Rating(winner_rating, loser_rating,
                              Rating.WIN, Rating.LOST, k_factor)
@@ -507,13 +530,17 @@ class Database:
                 winner_mu, winner_phi, winner_sigma = self.cursor.fetchone()
                 loser_mu, loser_phi, loser_sigma = self.cursor.fetchone()
 
-                # Calculate Glicko2 updates
-                gr = Glicko2Rating(
-                    mu_a=winner_mu, phi_a=winner_phi, sigma_a=winner_sigma,
-                    mu_b=loser_mu, phi_b=loser_phi, sigma_b=loser_sigma,
-                    score_a=1.0, score_b=0.0
-                )
-                new_ratings = gr.get_new_ratings()
+                # Apply a stronger update for weight>1 without inserting rematch rows
+                new_a = {'mu': winner_mu, 'phi': winner_phi, 'sigma': winner_sigma}
+                new_b = {'mu': loser_mu, 'phi': loser_phi, 'sigma': loser_sigma}
+                for _ in range(weight):
+                    gr = Glicko2Rating(
+                        mu_a=new_a['mu'], phi_a=new_a['phi'], sigma_a=new_a['sigma'],
+                        mu_b=new_b['mu'], phi_b=new_b['phi'], sigma_b=new_b['sigma'],
+                        score_a=1.0, score_b=0.0
+                    )
+                    updated = gr.get_new_ratings()
+                    new_a, new_b = updated['a'], updated['b']
 
                 # Update winner
                 self.cursor.execute("""
@@ -524,9 +551,9 @@ class Database:
                         votes = votes + 1
                     WHERE id = ?
                 """, (
-                    new_ratings['a']['mu'],
-                    new_ratings['a']['phi'],
-                    new_ratings['a']['sigma'],
+                    new_a['mu'],
+                    new_a['phi'],
+                    new_a['sigma'],
                     winner_id
                 ))
 
@@ -539,13 +566,13 @@ class Database:
                         votes = votes + 1
                     WHERE id = ?
                 """, (
-                    new_ratings['b']['mu'],
-                    new_ratings['b']['phi'],
-                    new_ratings['b']['sigma'],
+                    new_b['mu'],
+                    new_b['phi'],
+                    new_b['sigma'],
                     loser_id
                 ))
 
-            # Record vote in history (same for both systems)
+            # Record a single vote edge (even for weighted/double votes)
             self.cursor.execute("""
                 INSERT INTO votes (winner_id, loser_id, album_id)
                 VALUES (?, ?, ?)
@@ -557,6 +584,17 @@ class Database:
             self.conn.rollback()
             logger.error(f"Error updating ratings: {str(e)}")
             raise e
+
+    def get_mean_glicko_phi(self, album_id: int) -> Optional[float]:
+        """Average Glicko RD (phi) for an album, or None if empty."""
+        self.cursor.execute(
+            "SELECT AVG(glicko_phi) FROM media WHERE album_id = ?",
+            (album_id,)
+        )
+        result = self.cursor.fetchone()
+        if result is None or result[0] is None:
+            return None
+        return float(result[0])
 
     def get_total_votes(self, album_id: int) -> int:
         """Get total number of votes cast in an album."""
@@ -868,31 +906,33 @@ class Database:
 
     def get_pair_for_voting(self, album_id: int = 1) -> Tuple[Optional[tuple], Optional[tuple]]:
         """
-        Get voting pair with duplicate prevention
+        Get a high-information voting pair.
+
+        Primary item: high Glicko uncertainty (phi) then least-voted for Glicko
+        albums; least-voted for Elo. Opponent: always rating-nearby, preferring
+        uncertain / under-voted items, excluding previously compared edges when
+        alternatives exist.
         """
         media_count = self.get_total_media_count(album_id)
         if media_count < 2:
             return None, None
 
-        # Get least voted item excluding last pair
-        least_voted = self._get_least_voted(album_id)
-        if not least_voted:
+        rating_system = self.get_album_rating_system(album_id)
+        first_item = self._get_primary_item(album_id, rating_system)
+        if not first_item:
             return None, None
 
-        # Get second item with duplicate prevention
-        second_item = self._get_second_item(album_id, least_voted)
+        second_item = self._get_second_item(album_id, first_item, rating_system)
+        if not second_item:
+            return None, None
 
-        # Update last pair tracking
-        if least_voted and second_item:
-            self.last_pairs[album_id] = (least_voted[0], second_item[0])
+        self.last_pairs[album_id] = (first_item[0], second_item[0])
+        return first_item, second_item
 
-        return least_voted, second_item
-
-    def _get_least_voted(self, album_id: int):
-        """Get least voted item excluding last pair components"""
+    def _get_primary_item(self, album_id: int, rating_system: str):
+        """Pick the most informative under-compared item for this album."""
         exclude_ids = list(self.last_pairs.get(album_id, ()))
 
-        # Build exclusion clause
         exclude_clause = ""
         params = [album_id]
         if exclude_ids:
@@ -900,46 +940,80 @@ class Database:
             exclude_clause = f"AND id NOT IN ({placeholders})"
             params += exclude_ids
 
+        if rating_system == "elo":
+            order_clause = "votes ASC, RANDOM()"
+        else:
+            # Prefer uncertain (high phi), then under-voted
+            order_clause = "glicko_phi DESC, votes ASC, RANDOM()"
+
         query = f"""
             SELECT id, path, rating, votes 
             FROM media 
             WHERE album_id = ?
             {exclude_clause}
-            ORDER BY votes ASC, RANDOM()
+            ORDER BY {order_clause}
             LIMIT 1
         """
-
         self.cursor.execute(query, params)
         return self.cursor.fetchone()
 
-    def _get_second_item(self, album_id: int, least_voted: tuple):
-        """Get second item with adaptive logic and duplicate prevention"""
-        media_count = self.get_total_media_count(album_id)
-        total_votes = self.get_total_votes(album_id)
-        reliability = ReliabilityCalculator.calculate_reliability(media_count, total_votes)
+    def _rematch_exclusion_sql(self, first_id: int):
+        """
+        SQL fragment excluding media already compared with first_id in this album.
+        Caller must append album_id, first_id, first_id to params (in that order
+        relative to the placeholders below — see _get_second_item).
+        """
+        return """
+            AND NOT EXISTS (
+                SELECT 1 FROM votes v
+                WHERE v.album_id = ?
+                  AND (
+                    (v.winner_id = ? AND v.loser_id = media.id)
+                    OR (v.winner_id = media.id AND v.loser_id = ?)
+                  )
+            )
+        """
 
-        exclude_ids = list(self.last_pairs.get(album_id, []))
-        exclude_ids.append(least_voted[0])
+    def _get_second_item(self, album_id: int, first_item: tuple, rating_system: str):
+        """
+        Pick an informative opponent: rating-nearby, prefer high uncertainty /
+        low votes, avoid rematches when possible.
+        """
+        exclude_ids = list(self.last_pairs.get(album_id, ()))
+        exclude_ids.append(first_item[0])
 
-        # Build exclusion parameters
         exclude_clause = ""
-        base_params = [least_voted[0], album_id]
+        base_params = [first_item[0], album_id]
         if exclude_ids:
             placeholders = ",".join(["?"] * len(exclude_ids))
             exclude_clause = f"AND id NOT IN ({placeholders})"
             base_params += exclude_ids
 
-        if reliability >= 85:
-            # Try different tiers with exclusion
-            for max_diff in [100, 200, None]:
-                rating_clause = ""
-                order_clause = "RANDOM()"
-                params = base_params.copy()
+        rematch_sql = self._rematch_exclusion_sql(first_item[0])
 
-                if max_diff:
+        if rating_system == "elo":
+            order_tiebreak = "votes ASC, RANDOM()"
+        else:
+            order_tiebreak = "glicko_phi DESC, votes ASC, RANDOM()"
+
+        # Try with rematch exclusion first, then allow rematches as fallback
+        for avoid_rematches in (True, False):
+            for max_diff in (100, 200, None):
+                rating_clause = ""
+                params = list(base_params)
+
+                if max_diff is not None:
                     rating_clause = "AND ABS(rating - ?) <= ?"
-                    order_clause = "ABS(rating - ?) ASC, RANDOM()"
-                    params += [least_voted[2], max_diff, least_voted[2]]
+                    params += [first_item[2], max_diff]
+
+                rematch_clause = ""
+                if avoid_rematches:
+                    rematch_clause = rematch_sql
+                    params += [album_id, first_item[0], first_item[0]]
+
+                # ORDER BY placeholder must be bound after WHERE placeholders
+                order_clause = f"ABS(rating - ?) ASC, {order_tiebreak}"
+                params += [first_item[2]]
 
                 query = f"""
                     SELECT id, path, rating, votes 
@@ -948,29 +1022,16 @@ class Database:
                     AND album_id = ?
                     {exclude_clause}
                     {rating_clause}
+                    {rematch_clause}
                     ORDER BY {order_clause}
                     LIMIT 1
                 """
-
                 self.cursor.execute(query, params)
                 result = self.cursor.fetchone()
                 if result:
                     return result
-        else:
-            # Random selection with exclusion
-            query = f"""
-                SELECT id, path, rating, votes 
-                FROM media 
-                WHERE id != ? 
-                AND album_id = ?
-                {exclude_clause}
-                ORDER BY RANDOM() 
-                LIMIT 1
-            """
-            self.cursor.execute(query, base_params)
-            return self.cursor.fetchone()
 
-        # Fallback if all queries failed
+        # Absolute fallback
         query = f"""
             SELECT id, path, rating, votes 
             FROM media 

@@ -355,10 +355,18 @@ class AlbumsTab(QWidget):
         # Get votes
         total_votes = self.db.get_total_votes(self.active_album_id)
 
-        # Calculate reliability
-        reliability = ReliabilityCalculator.calculate_reliability(total_media, total_votes)
+        # Calculate reliability (system-aware; blend mean phi for Glicko albums)
+        rating_system = self.db.get_album_rating_system(self.active_album_id)
+        mean_phi = None
+        if rating_system != "elo":
+            mean_phi = self.db.get_mean_glicko_phi(self.active_album_id)
+        reliability = ReliabilityCalculator.calculate_reliability(
+            total_media, total_votes, rating_system=rating_system, mean_phi=mean_phi
+        )
         target = 94 if reliability >= 85 else 85
-        votes_needed = ReliabilityCalculator.calculate_required_votes(total_media, target) - total_votes
+        votes_needed = ReliabilityCalculator.calculate_required_votes(
+            total_media, target, rating_system=rating_system, mean_phi=mean_phi
+        ) - total_votes
 
         # Format size
         total_size_mb = media_counts['total_size'] / (1024 * 1024)

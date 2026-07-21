@@ -3,3 +3,6 @@ core/__pycache__/*
 db/__pycache__/*
 gui/__pycache__/*
 utils/__pycache__/*
+.venv/
+.pytest_cache/
+tests/__pycache__/*

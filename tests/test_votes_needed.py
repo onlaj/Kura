@@ -1,8 +1,21 @@
+"""
+Legacy Elo-only scaling experiment (random opponent pairing, fixed K=32).
+
+This does NOT reflect v4 production pairing (nearby + rematch avoidance) or
+Glicko-2. Kept for historical comparison when run via ``python -m`` / __main__.
+Authoritative v4 tables come from ``tests/generate_reliability_graphs.py`` and
+``tests/test_glicko2.py``.
+"""
 import random
 from typing import List, Dict, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
+import pytest
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover - optional for __main__ scaling runs
+    def tqdm(iterable, **_kwargs):
+        return iterable
 
 
 # [Previous Media and compute_real_reliability classes remain the same]
@@ -77,6 +90,9 @@ def simulate_until_threshold(n: int, threshold: float, max_votes: int = 100000) 
     return max_votes  # If threshold not reached
 
 
+@pytest.mark.skip(
+    reason="Legacy random-opponent Elo scaling; not v4 pairing. Run via __main__ only."
+)
 def test_reliability_scaling():
     # Test parameters
     n_values = [10, 20, 50, 100, 200, 350, 500, 750, 1000]

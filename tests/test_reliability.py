@@ -1,4 +1,5 @@
 import random
+import os
 from typing import List, Tuple
 import matplotlib.pyplot as plt
 import pytest
@@ -51,23 +52,17 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
     previous_diff = None
 
     while True:
-        # Voting logic
+        # Prefer under-voted; among ties pick randomly
         min_votes = min(m.vote_count for m in shuffled)
         candidates = [m for m in shuffled if m.vote_count == min_votes]
         media_a = random.choice(candidates)
-        # Calculate current reliability BEFORE vote occurs
-        current_reliability = ReliabilityCalculator.calculate_reliability(n, total_votes)
 
-        # Select media_b based on reliability
-        if current_reliability >= 85:
-            # Find media with similar ratings (±100)
-            eligible = [m for m in shuffled
-                        if m != media_a
-                        and abs(m.elo - media_a.elo) <= 100]
-            media_b = random.choice(eligible) if eligible else \
-                random.choice([m for m in shuffled if m != media_a])
-        else:
-            media_b = random.choice([m for m in shuffled if m != media_a])
+        # Always prefer similarly rated opponents (new pairing behaviour)
+        eligible = [m for m in shuffled
+                    if m != media_a
+                    and abs(m.elo - media_a.elo) <= 100]
+        media_b = random.choice(eligible) if eligible else \
+            random.choice([m for m in shuffled if m != media_a])
 
         # Determine winner
         if media_a.objective_score > media_b.objective_score:
@@ -75,8 +70,9 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
         else:
             winner, loser = media_b, media_a
 
-        # Calculate K-factor based on current reliability
-        k_factor = 32 if current_reliability < 85 else 16
+        # Calculate K-factor based on calculated reliability
+        calc_rel = ReliabilityCalculator.calculate_reliability(n, total_votes, "elo")
+        k_factor = 32 if calc_rel < 85 else 16
 
         # Update ELO with dynamic K-factor
         rating = Rating(winner.elo, loser.elo, Rating.WIN, Rating.LOST, k_factor)
@@ -93,7 +89,7 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
         if total_votes % 10 == 0:
             shuffled.sort(key=lambda x: -x.elo)
             real = compute_real_reliability(original, shuffled)
-            calc = ReliabilityCalculator.calculate_reliability(n, total_votes)
+            calc = ReliabilityCalculator.calculate_reliability(n, total_votes, "elo")
 
             # Detect crossings
             if len(votes_data) > 0:
@@ -141,8 +137,10 @@ def simulate_and_plot(n: int) -> Tuple[dict, str]:
     plt.legend()
     plt.grid(True)
 
-    # Save plot
-    filename = f'reliability_comparison_n{n}.png'
+    # Save plot under docs/
+    docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
+    os.makedirs(docs_dir, exist_ok=True)
+    filename = os.path.join(docs_dir, f"reliability_comparison_n{n}_v4.png")
     plt.savefig(filename)
     plt.close()
 

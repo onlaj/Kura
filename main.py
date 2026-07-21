@@ -108,8 +108,10 @@ class Application:
             self.update_ratings,
             self.media_handler,
             self.ranking_tab,
-            self.get_total_media_count,  # Add these new parameters
-            self.get_total_votes
+            self.get_total_media_count,
+            self.get_total_votes,
+            get_album_rating_system=self.db.get_album_rating_system,
+            get_mean_glicko_phi=self.db.get_mean_glicko_phi,
         )
 
         # Set history tab reference in voting tab
@@ -269,13 +271,9 @@ class Application:
         """Get a pair of media items for voting from specified album."""
         return self.db.get_pair_for_voting(album_id)
 
-    def update_ratings(self, winner_id: int, loser_id: int, album_id: int):
-        """Update ratings after a vote."""
-        self.db.update_ratings(
-            winner_id,
-            loser_id,
-            album_id  # Now only 3 parameters match Database.update_ratings()
-        )
+    def update_ratings(self, winner_id: int, loser_id: int, album_id: int, weight: int = 1):
+        """Update ratings after a vote (weight amplifies a single edge)."""
+        self.db.update_ratings(winner_id, loser_id, album_id, weight=weight)
 
     def run(self):
         """Start the application."""

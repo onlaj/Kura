@@ -12,7 +12,6 @@ try:
 except ImportError:
     SEND2TRASH_AVAILABLE = False
 
-from core.elo import Rating
 from core.reliability_calculator import ReliabilityCalculator
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
@@ -140,22 +139,28 @@ class PreloadPair(QObject):
 
 class VotingTab(QWidget):
     def __init__(self, get_pair_callback, update_ratings_callback, media_handler,
-                 ranking_tab, get_total_media_count, get_total_votes):
+                 ranking_tab, get_total_media_count, get_total_votes,
+                 get_album_rating_system=None, get_mean_glicko_phi=None):
         super().__init__()
         self.get_pair_callback = get_pair_callback
         self.update_ratings_callback = update_ratings_callback
         self.media_handler = media_handler
         self.ranking_tab = ranking_tab  # Store reference to RankingTab
         self.preview = MediaPreview(self)
+        self.get_album_rating_system = get_album_rating_system
+        self.get_mean_glicko_phi = get_mean_glicko_phi
 
         self.current_left = None
         self.current_right = None
         self.images_loaded = False
         self.last_vote_time = 0
-        self.vote_cooldown = 1.0
+        # Cooldown ends when the next pair is ready, capped at this duration
+        self.vote_cooldown = 0.3
         self.cooldown_timer = QTimer(self)
+        self.cooldown_timer.setSingleShot(True)
         self.cooldown_timer.timeout.connect(self.end_cooldown)
         self.active_album_id = 1  # Default album
+        self._on_cooldown = False
 
         self.reliability_label = QLabel()
         self.required_votes_label = QLabel()
@@ -164,6 +169,8 @@ class VotingTab(QWidget):
         self.get_total_votes = get_total_votes
         self.total_media = 0
         self.total_votes = 0
+        self.rating_system = "glicko2"
+        self.mean_phi = None
 
         self.single_click_timer = QTimer(self)
         self.single_click_timer.setSingleShot(True)
@@ -447,6 +454,14 @@ class VotingTab(QWidget):
         """Refresh media and vote counts from database"""
         self.total_media = self.get_total_media_count(self.active_album_id)
         self.total_votes = self.get_total_votes(self.active_album_id)
+        if self.get_album_rating_system:
+            self.rating_system = self.get_album_rating_system(self.active_album_id) or "glicko2"
+        else:
+            self.rating_system = "glicko2"
+        if self.rating_system != "elo" and self.get_mean_glicko_phi:
+            self.mean_phi = self.get_mean_glicko_phi(self.active_album_id)
+        else:
+            self.mean_phi = None
         self.update_reliability_info()
 
     def update_reliability_info(self):
@@ -456,7 +471,10 @@ class VotingTab(QWidget):
             target = None
         else:
             current_reliability = ReliabilityCalculator.calculate_reliability(
-                self.total_media, self.total_votes
+                self.total_media,
+                self.total_votes,
+                rating_system=self.rating_system,
+                mean_phi=self.mean_phi,
             )
             # Determine next target based on current reliability
             if current_reliability < 85:
@@ -471,7 +489,10 @@ class VotingTab(QWidget):
 
         if target:
             needed_votes = ReliabilityCalculator.calculate_required_votes(
-                self.total_media, target
+                self.total_media,
+                target,
+                rating_system=self.rating_system,
+                mean_phi=self.mean_phi,
             )
             remaining = max(0, needed_votes - self.total_votes)
             votes_text = f"Votes to {target}%: {remaining}"
@@ -486,9 +507,7 @@ class VotingTab(QWidget):
 
     def refresh_media_count(self):
         """Force refresh media count from database"""
-        self.total_media = self.get_total_media_count(self.active_album_id)
-        self.total_votes = self.get_total_votes(self.active_album_id)
-        self.update_reliability_info()
+        self._refresh_counts()
 
     def show_preview(self, media_path, media_player=None):
         """Show media preview overlay"""
@@ -504,15 +523,15 @@ class VotingTab(QWidget):
                                         thumbnail_media_player=media_player)
 
     def handle_vote(self, vote, vote_count):
-        """Handle voting for a media item."""
+        """Handle voting for a media item. vote_count>1 applies a stronger single update."""
         if not self.current_pair.is_loaded:
             return
 
-        current_time = time.time()
-        if current_time - self.last_vote_time < self.vote_cooldown:
+        if self._on_cooldown:
             return
 
-        self.last_vote_time = current_time
+        self.last_vote_time = time.time()
+        self._on_cooldown = True
         self.left_frame.set_cooldown_style(True)
         self.right_frame.set_cooldown_style(True)
 
@@ -526,25 +545,20 @@ class VotingTab(QWidget):
             loser = self.current_pair.left_data
             self.right_frame.flash_winner()
 
-        n = self.total_media
-        v = self.total_votes
-        current_reliability = ReliabilityCalculator.calculate_reliability(n, v)
-        k_factor = 32 if current_reliability < 85 else 16
-
-        rating = Rating(winner[2], loser[2], Rating.WIN, Rating.LOST, k_factor)
-        new_ratings = rating.get_new_ratings()
-
-        # Update database
-        for _ in range(vote_count):
-            self.update_ratings_callback(winner[0], loser[0], self.active_album_id)
+        # Single DB write: weight amplifies the rating delta without rematch rows
+        self.update_ratings_callback(
+            winner[0], loser[0], self.active_album_id, weight=vote_count
+        )
 
         self.ranking_tab.set_new_votes_flag()
-        self.total_votes += vote_count
+        self.total_votes += 1
+        if self.rating_system != "elo" and self.get_mean_glicko_phi:
+            self.mean_phi = self.get_mean_glicko_phi(self.active_album_id)
 
         # Delay the pair replacement
         QTimer.singleShot(150, self._replace_current_pair)
 
-        # Start cooldown timer
+        # Cap cooldown at vote_cooldown; end early once the next pair is ready
         self.cooldown_timer.start(int(self.vote_cooldown * 1000))
         self.update_reliability_info()
 
@@ -560,15 +574,20 @@ class VotingTab(QWidget):
 
             # Schedule preload with a slight delay
             self.delayed_preload_timer.start(100)
+            # Next pair already shown — release cooldown early
+            self.end_cooldown()
         else:
             # If next pair isn't loaded, load new pair
             self.load_new_pair()
+            self.end_cooldown()
 
     def end_cooldown(self):
         """End the cooldown period and revert button styles."""
+        self._on_cooldown = False
         self.left_frame.set_cooldown_style(False)
         self.right_frame.set_cooldown_style(False)
-        self.cooldown_timer.stop()
+        if self.cooldown_timer.isActive():
+            self.cooldown_timer.stop()
 
     def ensure_images_loaded(self):
         """Load images if they haven't been loaded yet."""
