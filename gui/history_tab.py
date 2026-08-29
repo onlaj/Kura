@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QComboBox, QPushButton, QLabel, QAbstractItemView, QMessageBox, QCheckBox)
 from core.preview_handler import MediaPreview
 from core.media_handler import MediaHandler
+from core.file_delete import paths_equal
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +214,11 @@ class HistoryTab(QWidget):
         self.preview.show_media(widget if widget else media,
                                 media_path=path,
                                 video_player=media_player)
+
+    def release_media_path(self, file_path: str):
+        """Close the history preview if it is showing this file."""
+        if self.preview.current_media_path and paths_equal(self.preview.current_media_path, file_path):
+            self.preview.close()
 
     def eventFilter(self, obj, event):
         """Handle video widget events in preview"""

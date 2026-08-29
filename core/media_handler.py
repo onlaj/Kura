@@ -305,6 +305,20 @@ class MediaHandler:
         for player in self.active_video_players:
             player.stop()
 
+    def release_path(self, file_path: str):
+        """Clear the source of every VideoPlayer currently using file_path."""
+        from core.file_delete import paths_equal
+
+        for player in list(self.active_video_players):
+            try:
+                source = player.media_player.source().toLocalFile()
+                if source and paths_equal(source, file_path):
+                    player.release_source()
+            except RuntimeError:
+                self.cleanup_player(player)
+            except Exception as e:
+                logger.debug(f"Could not release player for {file_path}: {e}")
+
     def cleanup_player(self, player):
         """Remove player from tracking."""
         if player in self.active_video_players:

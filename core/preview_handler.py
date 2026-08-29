@@ -152,14 +152,14 @@ class MediaPreview(QDialog):
         self.single_click_timer.setSingleShot(True)
         self.single_click_timer.timeout.connect(self.handle_video_click)
         self.pending_video_click = False
+        self._play_generation = 0
 
     def show_media(self, media_widget, video_player=None, gif_movie=None, enable_navigation=False,
                    media_path=None, thumbnail_media_player=None):
         """Show media in the preview dialog"""
         # Clear existing media
         if self.current_media:
-            if self.video_player:
-                self.video_player.stop()
+            self._release_backends()
             self.current_media.setParent(None)
 
         if video_player:
@@ -192,8 +192,9 @@ class MediaPreview(QDialog):
 
         # Use a QTimer to delay the video playback
         if video_player:
-            QTimer.singleShot(100, lambda: video_player.setPosition(position))
-            QTimer.singleShot(150, video_player.play)
+            generation = self._play_generation
+            QTimer.singleShot(100, lambda pos=position, gen=generation: self._delayed_set_position(pos, gen))
+            QTimer.singleShot(150, lambda gen=generation: self._delayed_play(gen))
 
         # Set size and position relative to parent
         if self.parent():
@@ -208,6 +209,22 @@ class MediaPreview(QDialog):
         self.show()
         self.raise_()
         self.setFocus()
+
+    def _delayed_set_position(self, position, generation):
+        if generation != self._play_generation or not self.video_player:
+            return
+        try:
+            self.video_player.setPosition(position)
+        except RuntimeError:
+            pass
+
+    def _delayed_play(self, generation):
+        if generation != self._play_generation or not self.video_player:
+            return
+        try:
+            self.video_player.play()
+        except RuntimeError:
+            pass
 
     def handle_click(self, event):
         """Handle click events on the preview"""
@@ -263,19 +280,29 @@ class MediaPreview(QDialog):
         else:
             super().keyPressEvent(event)
 
+    def _release_backends(self):
+        """Stop playback and drop file handles held by the current preview."""
+        from core.file_delete import release_qmediaplayer, release_qmovie
+        self._play_generation += 1
+        if self.video_player:
+            release_qmediaplayer(self.video_player)
+        if self.gif_movie:
+            release_qmovie(self.gif_movie)
+
     def close(self):
         """Handle closing the preview"""
         # Stop and cleanup media
+        self._release_backends()
         if self.video_player:
-            self.video_player.stop()
-            # Disconnect all signals from video player
-            self.video_player.positionChanged.disconnect()
-            self.video_player.durationChanged.disconnect()
-            self.video_player.playbackStateChanged.disconnect()
+            try:
+                self.video_player.positionChanged.disconnect()
+                self.video_player.durationChanged.disconnect()
+                self.video_player.playbackStateChanged.disconnect()
+            except TypeError:
+                pass
             self.video_player = None
 
         if self.gif_movie:
-            self.gif_movie.stop()
             self.gif_movie = None
 
         # Clean up parent window event filter

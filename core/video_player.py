@@ -74,6 +74,7 @@ class VideoPlayer(QWidget):
 
         self._is_looping = False
         self._autoplay_pending = False  # Track if autoplay was requested before media was ready
+        self._releasing = False  # True while the source is being cleared for file deletion
 
         # Create layout
         layout = QVBoxLayout(self)
@@ -204,6 +205,9 @@ class VideoPlayer(QWidget):
 
     def handle_media_status_changed(self, status):
         """Handle media status changes, e.g., for looping and autoplay."""
+        if self._releasing:
+            return
+
         # Handle looping
         if status == QMediaPlayer.MediaStatus.EndOfMedia and self._is_looping:
             self.media_player.setPosition(0)
@@ -220,6 +224,7 @@ class VideoPlayer(QWidget):
 
     def set_source(self, path):
         """Set the video source."""
+        self._releasing = False
         url = QUrl.fromLocalFile(path)
         logger.info(f"Setting video source: {url.toString()}")
         
@@ -271,6 +276,8 @@ class VideoPlayer(QWidget):
 
     def request_autoplay(self):
         """Request autoplay, starting immediately if media is ready, otherwise waiting for media to load."""
+        if self._releasing:
+            return
         current_status = self.media_player.mediaStatus()
         if current_status == QMediaPlayer.MediaStatus.LoadedMedia or current_status == QMediaPlayer.MediaStatus.BufferedMedia:
             # Media is already ready, start playback immediately
@@ -290,6 +297,8 @@ class VideoPlayer(QWidget):
 
     def play_pause(self):
         """Toggle play/pause state."""
+        if self._releasing:
+            return
         if self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.media_player.pause()
         else:
@@ -306,6 +315,8 @@ class VideoPlayer(QWidget):
 
     def position_changed(self, position):
         """Update slider position and current time label."""
+        if self._releasing:
+            return
         if self.media_player.playbackState() == QMediaPlayer.PlaybackState.StoppedState:
             self.media_player.play()
 
@@ -319,6 +330,8 @@ class VideoPlayer(QWidget):
 
     def set_position(self, position):
         """Set video position from slider."""
+        if self._releasing:
+            return
         self.media_player.play()
         self.media_player.setPosition(position)
 
@@ -331,6 +344,13 @@ class VideoPlayer(QWidget):
     def stop(self):
         """Stop video playback."""
         self.media_player.stop()
+
+    def release_source(self):
+        """Stop playback and clear the source so the file is no longer locked."""
+        from core.file_delete import release_qmediaplayer
+        self._releasing = True
+        self._autoplay_pending = False
+        release_qmediaplayer(self.media_player)
 
     def pause(self) -> None:
         """Attempt to pause the media playback, silently ignore any failures."""

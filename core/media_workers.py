@@ -6,12 +6,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 from db.database import Database, get_database_path
 from core.album_io import export_album, import_album
-
-try:
-    import send2trash
-    SEND2TRASH_AVAILABLE = True
-except ImportError:
-    SEND2TRASH_AVAILABLE = False
+from core.file_delete import BATCH_ATTEMPTS, delete_file
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +269,7 @@ class MediaDeleteWorker(QThread):
         db = Database(self.db_path)
 
         try:
+            db_deletes = 0
             for index, (media_id, file_path) in enumerate(self.media_items):
                 if self._cancelled:
                     break
@@ -282,27 +278,22 @@ class MediaDeleteWorker(QThread):
                 success = False
 
                 try:
-                    # Delete from database (without recalculating ratings yet)
-                    deleted_path = db.delete_media(media_id, recalculate=False)
-                    
-                    # Delete file from disk if requested
-                    if self.delete_from_disk and deleted_path:
-                        if os.path.exists(deleted_path):
-                            try:
-                                # Try to move to trash first
-                                if SEND2TRASH_AVAILABLE:
-                                    try:
-                                        send2trash.send2trash(deleted_path)
-                                    except Exception:
-                                        # Fall back to permanent deletion if trash fails
-                                        os.remove(deleted_path)
-                                else:
-                                    # Fall back to permanent deletion if send2trash not available
-                                    os.remove(deleted_path)
-                            except Exception as e:
-                                error_message = f"Failed to delete file: {str(e)}"
-                                logger.error(f"Error deleting file {deleted_path}: {e}")
+                    if self.delete_from_disk and file_path:
+                        ok, disk_error = delete_file(
+                            file_path, pump_events=False, attempts=BATCH_ATTEMPTS
+                        )
+                        if not ok:
+                            error_message = disk_error or "File still exists after delete"
+                            error_count += 1
+                            logger.error(f"Error deleting file {file_path}: {error_message}")
+                            self.file_deleted.emit(media_id, False, error_message)
+                            self.progress.emit(index + 1, total)
+                            continue
 
+                    deleted_path = db.delete_media(media_id, recalculate=False)
+                    if deleted_path is None and db.get_media_path(media_id):
+                        raise RuntimeError("Database record could not be removed")
+                    db_deletes += 1
                     success = True
                     success_count += 1
                 except Exception as e:
@@ -317,7 +308,7 @@ class MediaDeleteWorker(QThread):
                 self.progress.emit(index + 1, total)
 
             # Recalculate ratings once after all deletions
-            if not self._cancelled:
+            if db_deletes:
                 try:
                     db._recalculate_ratings()
                 except Exception as e:

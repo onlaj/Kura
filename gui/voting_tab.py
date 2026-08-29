@@ -1,22 +1,22 @@
 import time
 import os
+import logging
 
 from PyQt6.QtCore import Qt, QTimer, QObject
 from PyQt6.QtGui import QMovie, QKeyEvent
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QLabel, QFrame, QSizePolicy, QCheckBox, QMessageBox)
-
-try:
-    import send2trash
-    SEND2TRASH_AVAILABLE = True
-except ImportError:
-    SEND2TRASH_AVAILABLE = False
+                             QLabel, QFrame, QSizePolicy, QCheckBox, QMessageBox,
+                             QApplication)
 
 from core.reliability_calculator import ReliabilityCalculator
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
 from core.media_utils import AspectRatioWidget
 from core.video_player import VideoPlayer
+from core.file_delete import delete_file, paths_equal, release_qmediaplayer, release_qmovie
+from gui.failed_delete_dialog import FailedDeleteDialog, failed_file_entry
+
+logger = logging.getLogger(__name__)
 
 
 class MediaFrame(QFrame):
@@ -124,17 +124,34 @@ class PreloadPair(QObject):
     def cleanup(self):
         """Clean up loaded media"""
         for media in [self.left_media, self.right_media]:
+            self._release_loaded_media(media)
             if isinstance(media, tuple):
-                if media[1].__class__.__name__ == 'QMediaPlayer':
-                    media[1].stop()
-                elif media[1].__class__.__name__ == 'QMovie':
-                    media[1].stop()
                 media[0].deleteLater()
             elif media:
                 media.deleteLater()
         self.left_media = None
         self.right_media = None
+        self.left_data = None
+        self.right_data = None
         self.is_loaded = False
+
+    @staticmethod
+    def _release_loaded_media(media):
+        if isinstance(media, tuple) and media[1] is not None:
+            backend = media[1]
+            if hasattr(backend, 'setSource'):
+                release_qmediaplayer(backend)
+            elif hasattr(backend, 'setFileName'):
+                release_qmovie(backend)
+
+    def release_path(self, file_path: str):
+        """Release backends for a specific file without destroying the pair."""
+        for data, media in (
+            (self.left_data, self.left_media),
+            (self.right_data, self.right_media),
+        ):
+            if data and paths_equal(data[1], file_path):
+                self._release_loaded_media(media)
 
 
 class VotingTab(QWidget):
@@ -147,6 +164,8 @@ class VotingTab(QWidget):
         self.media_handler = media_handler
         self.ranking_tab = ranking_tab  # Store reference to RankingTab
         self.preview = MediaPreview(self)
+        self.release_callback = None
+        self.ui_refresh_callback = None
         self.get_album_rating_system = get_album_rating_system
         self.get_mean_glicko_phi = get_mean_glicko_phi
 
@@ -434,10 +453,10 @@ class VotingTab(QWidget):
         for frame in [self.left_frame, self.right_frame]:
             if frame.media_widget:
                 if frame.media_player:
-                    frame.media_player.stop()
+                    release_qmediaplayer(frame.media_player)
                     frame.media_player.deleteLater()
                 if frame.gif_movie:
-                    frame.gif_movie.stop()
+                    release_qmovie(frame.gif_movie)
                     frame.gif_movie.deleteLater()
                 frame.media_widget.deleteLater()
                 frame.media_widget = None
@@ -640,89 +659,85 @@ class VotingTab(QWidget):
         )
 
         if msg.exec() == QMessageBox.StandardButton.Yes:
-            self._handle_media_deletion(media_id, file_path, delete_file_checkbox.isChecked())
+            db_deleted = self._handle_media_deletion(media_id, file_path, delete_file_checkbox.isChecked())
             self._show_deletion_errors()
-            # Load new pair after deletion
-            self.load_new_pair()
-
-    def _delete_file(self, file_path: str) -> bool:
-        """
-        Attempt to delete a file from disk, preferring trash bin.
-        Returns True if successful, False otherwise.
-        """
-        try:
-            if os.path.exists(file_path):
-                self._cleanup_media_resources(file_path)
-                
-                # Try to move to trash first
-                if SEND2TRASH_AVAILABLE:
-                    try:
-                        send2trash.send2trash(file_path)
-                        print(f"File moved to trash: {file_path}")
-                        return True
-                    except Exception as trash_error:
-                        print(f"Failed to move to trash, attempting permanent deletion: {trash_error}")
-                        # Fall back to permanent deletion
-                        os.remove(file_path)
-                        print(f"File permanently deleted: {file_path}")
-                        return True
-                else:
-                    # Fall back to permanent deletion if send2trash not available
-                    os.remove(file_path)
-                    print(f"File permanently deleted (send2trash not available): {file_path}")
-                    return True
+            if db_deleted or not self.ranking_tab.db.get_media_path(media_id):
+                self.load_new_pair()
             else:
-                print(f"File not found: {file_path}")
-                return False
-        except Exception as e:
-            print(f"Error deleting file {file_path}: {e}")
-            self.deletion_errors.append((file_path, str(e)))
-            return False
+                self._reload_current_pair_display()
 
-    def _cleanup_media_resources(self, file_path: str):
-        """Release all resources associated with a media file."""
-        # Stop any video players or GIF movies
-        for frame in [self.left_frame, self.right_frame]:
-            if hasattr(frame, 'media_player') and frame.media_player:
-                frame.media_player.stop()
-            if hasattr(frame, 'gif_movie') and frame.gif_movie:
-                frame.gif_movie.stop()
-        
-        # Close preview if it's showing this file
-        if hasattr(self, 'preview') and self.preview.isVisible():
-            if hasattr(self.preview, 'current_media_path'):
-                if self.preview.current_media_path == file_path:
-                    self.preview.close()
+    def _reload_current_pair_display(self):
+        """Reload the current pair after handles were released for a failed disk delete."""
+        left = self.current_pair.left_data
+        right = self.current_pair.right_data
+        if not left or not right:
+            self.load_new_pair()
+            return
+        self.current_pair.cleanup()
+        self.current_pair.load_pair(left, right)
+        self._display_current_pair()
 
-    def _handle_media_deletion(self, media_id: int, file_path: str, delete_file: bool, recalculate: bool = True):
+    def release_media_path(self, file_path: str):
+        """Release voting-tab players, GIFs, preload, and preview for a media file."""
+        self.media_handler.release_path(file_path)
+        for frame, data in (
+            (self.left_frame, self.current_pair.left_data),
+            (self.right_frame, self.current_pair.right_data),
+        ):
+            if data and paths_equal(data[1], file_path):
+                if frame.gif_movie:
+                    release_qmovie(frame.gif_movie)
+                if frame.media_player:
+                    release_qmediaplayer(frame.media_player)
+
+        self.current_pair.release_path(file_path)
+        self.next_pair.release_path(file_path)
+
+        if self.preview.current_media_path and paths_equal(self.preview.current_media_path, file_path):
+            self.preview.close()
+
+    def _release_for_delete(self, file_path: str):
+        """Release this file everywhere in the app, then let Qt close OS handles."""
+        if self.release_callback:
+            self.release_callback(file_path)
+        else:
+            self.release_media_path(file_path)
+            QApplication.processEvents()
+
+    def _handle_media_deletion(self, media_id: int, file_path: str, delete_from_disk: bool, recalculate: bool = True):
         """
         Handle the deletion of a media item.
+        Disk delete (when requested) happens first; the database row is removed only if the file is gone.
         Returns True if the database deletion was successful.
         """
         try:
-            # Delete from database
+            if delete_from_disk:
+                self._release_for_delete(file_path)
+                ok, error = delete_file(file_path, pump_events=True)
+                if not ok:
+                    self.deletion_errors.append(failed_file_entry(media_id, file_path, error))
+                    return False
+
             self.ranking_tab.delete_callback(media_id, recalculate=recalculate)
-
-            # Delete file if requested
-            if delete_file:
-                self._delete_file(file_path)
-
             return True
         except Exception as e:
-            print(f"Error deleting media {media_id}: {e}")
-            self.deletion_errors.append((file_path, str(e)))
+            logger.error(f"Error deleting media {media_id}: {e}")
+            self.deletion_errors.append(failed_file_entry(media_id, file_path, str(e)))
             return False
 
     def _show_deletion_errors(self):
-        """Show error dialog for failed deletions."""
-        if self.deletion_errors:
-            error_msg = "Failed to delete the following files:\n\n"
-            for file_path, error in self.deletion_errors:
-                error_msg += f"• {os.path.basename(file_path)}: {error}\n"
-
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Icon.Warning)
-            msg.setWindowTitle("Deletion Errors")
-            msg.setText(error_msg)
-            msg.exec()
-            self.deletion_errors.clear()
+        """Show the review dialog for files that could not be deleted from disk."""
+        if not self.deletion_errors:
+            return
+        dialog = FailedDeleteDialog(
+            self.ranking_tab.db,
+            self.deletion_errors,
+            parent=self,
+            release_callback=self.release_callback or self._release_for_delete,
+        )
+        if self.ui_refresh_callback:
+            dialog.files_changed.connect(self.ui_refresh_callback)
+        else:
+            dialog.files_changed.connect(self.ranking_tab.refresh_rankings)
+        dialog.exec()
+        self.deletion_errors.clear()

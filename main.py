@@ -117,6 +117,11 @@ class Application:
         # Set history tab reference in voting tab
         self.voting_tab.set_history_tab(self.history_tab)
 
+        self.ranking_tab.release_callback = self.release_media_resources
+        self.ranking_tab.ui_refresh_callback = self.on_missing_files_changed
+        self.voting_tab.release_callback = self.release_media_resources
+        self.voting_tab.ui_refresh_callback = self.on_missing_files_changed
+
         self.upload_tab = LoadTab(
             self.add_media_to_db,
             self.media_handler,
@@ -235,6 +240,15 @@ class Application:
         self.voting_tab.refresh_media_count()
         self.albums_tab.refresh_albums()
         self.ranking_tab.refresh_rankings()
+
+    def release_media_resources(self, file_path: str):
+        """Release every in-app handle for a media file so it can be deleted from disk."""
+        # Clear QMediaPlayer sources first so VideoPlayer cannot auto-resume on stop()
+        self.media_handler.release_path(file_path)
+        self.ranking_tab.release_media_path(file_path)
+        self.voting_tab.release_media_path(file_path)
+        self.history_tab.release_media_path(file_path)
+        self.app.processEvents()
 
     def add_media_to_db(self, file_path: str, media_type: str) -> bool:
         """Add media file to database if valid."""
