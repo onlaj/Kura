@@ -238,6 +238,8 @@ class MissingFilesDialog(QDialog):
             "Searching for missing files...", "Cancel", 0, len(selected), self
         )
         self.search_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self.search_progress.setAutoClose(False)
+        self.search_progress.setAutoReset(False)
         self.search_progress.show()
 
         self.search_results = {}
@@ -245,6 +247,7 @@ class MissingFilesDialog(QDialog):
         self.search_worker.file_found.connect(self._on_file_found)
         self.search_worker.progress.connect(self._on_search_progress)
         self.search_worker.finished.connect(self._on_search_finished)
+        self.search_progress.canceled.connect(self.search_worker.cancel)
         self.search_worker.start()
 
     def _on_file_found(self, media_id, matches):
@@ -253,8 +256,6 @@ class MissingFilesDialog(QDialog):
     def _on_search_progress(self, current, total):
         if self.search_progress:
             self.search_progress.setValue(current)
-            if self.search_progress.wasCanceled() and self.search_worker:
-                self.search_worker.cancel()
 
     def _on_search_finished(self):
         if self.search_progress:

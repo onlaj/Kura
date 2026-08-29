@@ -168,6 +168,8 @@ class LoadTab(QWidget):
                 self
             )
             self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            self.progress_dialog.setAutoClose(False)
+            self.progress_dialog.setAutoReset(False)
             self.progress_dialog.show()
 
         # Create and start worker
@@ -182,6 +184,8 @@ class LoadTab(QWidget):
         self.worker.file_processed.connect(self._on_file_processed)
         self.worker.progress.connect(self._on_progress)
         self.worker.finished.connect(self._on_finished)
+        if self.progress_dialog:
+            self.progress_dialog.canceled.connect(self.worker.cancel)
 
         # Start worker
         self.worker.start()
@@ -197,9 +201,6 @@ class LoadTab(QWidget):
         """Update progress dialog."""
         if self.progress_dialog:
             self.progress_dialog.setValue(current)
-            if self.progress_dialog.wasCanceled():
-                if self.worker:
-                    self.worker.cancel()
 
     def _on_finished(self, added_count, skipped_count):
         """Handle completion of file processing."""

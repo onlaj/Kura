@@ -978,6 +978,8 @@ class RankingTab(QWidget):
                 self
             )
             self.delete_progress.setWindowModality(Qt.WindowModality.WindowModal)
+            self.delete_progress.setAutoClose(False)
+            self.delete_progress.setAutoReset(False)
             self.delete_progress.show()
 
             self._pending_delete_paths = {media_id: path for media_id, path in media_items}
@@ -994,6 +996,7 @@ class RankingTab(QWidget):
             self.delete_worker.file_deleted.connect(self._on_file_deleted)
             self.delete_worker.progress.connect(self._on_delete_progress)
             self.delete_worker.finished.connect(self._on_delete_finished)
+            self.delete_progress.canceled.connect(self.delete_worker.cancel)
             self.delete_worker.start()
 
     def _on_file_deleted(self, media_id, success, error_message):
@@ -1010,9 +1013,6 @@ class RankingTab(QWidget):
         """Update progress dialog."""
         if self.delete_progress:
             self.delete_progress.setValue(current)
-            if self.delete_progress.wasCanceled():
-                if self.delete_worker:
-                    self.delete_worker.cancel()
 
     def _on_delete_finished(self, success_count, error_count):
         """Handle completion of batch deletion."""
