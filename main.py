@@ -118,15 +118,14 @@ class Application:
         self.voting_tab.set_history_tab(self.history_tab)
 
         self.ranking_tab.release_callback = self.release_media_resources
-        self.ranking_tab.ui_refresh_callback = self.on_missing_files_changed
+        self.ranking_tab.ui_refresh_callback = self.on_media_changed
         self.voting_tab.release_callback = self.release_media_resources
-        self.voting_tab.ui_refresh_callback = self.on_missing_files_changed
+        self.voting_tab.ui_refresh_callback = self.on_media_changed
 
         self.upload_tab = LoadTab(
-            self.add_media_to_db,
             self.media_handler,
-            self.ranking_tab,
-            lambda: self.active_album_id
+            lambda: self.active_album_id,
+            on_files_added=self.on_media_changed,
         )
 
         # Set up tabs in main window
@@ -137,6 +136,7 @@ class Application:
             self.ranking_tab,
             self.history_tab
         )
+        self.main_window.tab_change_callback = self.refresh_current_tab
 
     def get_total_media_count(self, album_id: int) -> int:
         return self.db.get_total_media_count(album_id)
@@ -231,15 +231,28 @@ class Application:
             return
 
         dialog = MissingFilesDialog(self.db, missing, parent=self.main_window)
-        dialog.files_changed.connect(self.on_missing_files_changed)
+        dialog.files_changed.connect(self.on_media_changed)
         dialog.exec()
 
-    def on_missing_files_changed(self):
-        """Refresh the UI after missing-file records were removed or relocated."""
+    def on_media_changed(self):
+        """Mark dependent views stale after media was added, removed, or relocated."""
         self.ranking_tab.invalidate_total_media_count_cache()
-        self.voting_tab.refresh_media_count()
-        self.albums_tab.refresh_albums()
-        self.ranking_tab.refresh_rankings()
+        self.ranking_tab.set_new_files_flag()
+        self.voting_tab.mark_stale()
+        self.albums_tab.set_needs_refresh()
+        self.refresh_current_tab()
+
+    def refresh_current_tab(self):
+        """Apply pending refreshes for the tab the user is looking at."""
+        name = self.main_window.current_tab_name()
+        if name == "Albums":
+            self.albums_tab.refresh_if_needed()
+        elif name == "Voting":
+            self.voting_tab.refresh_if_needed()
+        elif name == "Ranking":
+            self.ranking_tab.refresh_rankings(force_refresh=False)
+        elif name == "Votes history":
+            self.history_tab.refresh_if_needed()
 
     def release_media_resources(self, file_path: str):
         """Release every in-app handle for a media file so it can be deleted from disk."""
@@ -250,24 +263,11 @@ class Application:
         self.history_tab.release_media_path(file_path)
         self.app.processEvents()
 
-    def add_media_to_db(self, file_path: str, media_type: str) -> bool:
-        """Add media file to database if valid."""
-        if self.media_handler.is_valid_media(file_path):
-            result = self.db.add_media(file_path, media_type, self.active_album_id)
-            if result:
-                self.ranking_tab.invalidate_total_media_count_cache()
-                self.voting_tab.refresh_media_count()
-                self.albums_tab.refresh_albums()  # Add this line
-            return result
-        return False
-
     def delete_media(self, media_id: int, recalculate: bool = True):
         """Delete media from database and return the file path."""
         try:
             file_path = self.db.delete_media(media_id, recalculate=recalculate)
-            self.ranking_tab.invalidate_total_media_count_cache()
-            self.voting_tab.refresh_media_count()
-            self.albums_tab.refresh_albums()  # Add this line
+            self.on_media_changed()
             return file_path
         except Exception as e:
             raise e
@@ -288,6 +288,7 @@ class Application:
     def update_ratings(self, winner_id: int, loser_id: int, album_id: int, weight: int = 1):
         """Update ratings after a vote (weight amplifies a single edge)."""
         self.db.update_ratings(winner_id, loser_id, album_id, weight=weight)
+        self.albums_tab.set_needs_refresh()
 
     def run(self):
         """Start the application."""

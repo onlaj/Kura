@@ -365,7 +365,7 @@ class HistoryTab(QWidget):
 
     def set_active_album(self, album_id: int):
         self.active_album_id = album_id
-        self.load_data()
+        self.set_needs_refresh()
 
     def on_header_clicked(self, logical_index):
         sort_mapping = {

@@ -7,12 +7,11 @@ from db.database import get_database_path
 from core.media_workers import MediaAddWorker
 
 class LoadTab(QWidget):
-    def __init__(self, db_callback, media_handler, ranking_tab, album_id_getter):
+    def __init__(self, media_handler, album_id_getter, on_files_added=None):
         super().__init__()
-        self.db_callback = db_callback
         self.media_handler = media_handler
-        self.ranking_tab = ranking_tab  # Store reference to RankingTab
         self.album_id_getter = album_id_getter  # Function to get current album_id
+        self.on_files_added = on_files_added
         self.worker = None
         self.progress_dialog = None
         self.setup_ui()
@@ -218,11 +217,8 @@ class LoadTab(QWidget):
             f"\nSummary: Added {added_count} files, Skipped {skipped_count} files\n"
         )
 
-        # Notify RankingTab that new files have been loaded
-        if added_count > 0:
-            self.ranking_tab.set_new_files_flag()
-            # Also refresh via the callback mechanism
-            # The db_callback is still used for single-file operations if needed
+        if added_count > 0 and self.on_files_added:
+            self.on_files_added()
 
         # Scroll to bottom
         scrollbar = self.log_text.verticalScrollBar()

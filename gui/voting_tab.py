@@ -171,7 +171,8 @@ class VotingTab(QWidget):
 
         self.current_left = None
         self.current_right = None
-        self.images_loaded = False
+        self._pair_stale = True
+        self._counts_stale = True
         self.last_vote_time = 0
         # Cooldown ends when the next pair is ready, capped at this duration
         self.vote_cooldown = 0.3
@@ -339,6 +340,7 @@ class VotingTab(QWidget):
         if not self.active_album_id:
             self.status_label.setText("No active album selected")
             self.disable_voting()
+            self._pair_stale = True
             return
 
         # Retrieve first media pair
@@ -355,6 +357,8 @@ class VotingTab(QWidget):
             self.left_frame.file_info_label.hide()
             self.right_frame.file_info_label.hide()
 
+            # Stay stale so a later visit retries after files are added
+            self._pair_stale = True
             return
 
         self.status_label.setText("")
@@ -446,7 +450,7 @@ class VotingTab(QWidget):
         right_path = self.current_pair.right_data[1] if self.current_pair.right_data else ""
         setup_frame(self.right_frame, self.current_pair.right_media, right_path)
 
-        self.images_loaded = True
+        self._pair_stale = False
 
     def _clear_frames(self):
         """Clear media from frames"""
@@ -464,10 +468,27 @@ class VotingTab(QWidget):
                 frame.gif_movie = None
 
     def set_active_album(self, album_id: int):
-        """Set the active album and reload media pair."""
+        """Switch album and mark counts/pair stale. Load happens on tab visit."""
         self.active_album_id = album_id
-        self._refresh_counts()
-        self.load_new_pair()
+        self.mark_stale()
+
+    def mark_stale(self):
+        """Mark counts and the current pair as needing a reload."""
+        self._counts_stale = True
+        self._pair_stale = True
+        self.delayed_preload_timer.stop()
+        self.preload_timer.stop()
+        self.current_pair.cleanup()
+        self.next_pair.cleanup()
+        self._clear_frames()
+
+    def refresh_if_needed(self):
+        """Reload counts and/or pair if they were marked stale."""
+        if self._counts_stale:
+            self._refresh_counts()
+            self._counts_stale = False
+        if self._pair_stale:
+            self.load_new_pair()
 
     def _refresh_counts(self):
         """Refresh media and vote counts from database"""
@@ -523,10 +544,6 @@ class VotingTab(QWidget):
 
         self.reliability_label.setText(reliability_text)
         self.required_votes_label.setText(votes_text)
-
-    def refresh_media_count(self):
-        """Force refresh media count from database"""
-        self._refresh_counts()
 
     def show_preview(self, media_path, media_player=None):
         """Show media preview overlay"""
@@ -608,11 +625,6 @@ class VotingTab(QWidget):
         if self.cooldown_timer.isActive():
             self.cooldown_timer.stop()
 
-    def ensure_images_loaded(self):
-        """Load images if they haven't been loaded yet."""
-        if not self.images_loaded:
-            self.load_new_pair()
-
     def enable_voting(self):
         """Enable voting buttons."""
         self.left_frame.vote_button.setEnabled(True)
@@ -661,7 +673,10 @@ class VotingTab(QWidget):
         if msg.exec() == QMessageBox.StandardButton.Yes:
             db_deleted = self._handle_media_deletion(media_id, file_path, delete_file_checkbox.isChecked())
             self._show_deletion_errors()
-            if db_deleted or not self.ranking_tab.db.get_media_path(media_id):
+            if db_deleted:
+                # delete_callback already ran on_media_changed, which reloads this tab
+                return
+            if not self.ranking_tab.db.get_media_path(media_id):
                 self.load_new_pair()
             else:
                 self._reload_current_pair_display()

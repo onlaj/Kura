@@ -809,6 +809,7 @@ class RankingTab(QWidget):
 
         # Reset flags and hide loading overlay
         self.new_votes_since_last_refresh = False
+        self.new_files_since_last_refresh = False
         self.loading_overlay.hide()
 
         # Handle pending preview navigation after load
@@ -921,9 +922,11 @@ class RankingTab(QWidget):
         )
 
         if msg.exec() == QMessageBox.StandardButton.Yes:
-            self._handle_media_deletion(media_id, file_path, delete_file_checkbox.isChecked())
+            ok = self._handle_media_deletion(media_id, file_path, delete_file_checkbox.isChecked())
             self._show_deletion_errors()
-            self.refresh_rankings()
+            if not ok:
+                # Successful deletes already refresh via on_media_changed
+                self.refresh_rankings()
 
     def delete_selected_items(self):
         """Delete multiple selected items using background thread."""
@@ -1040,12 +1043,8 @@ class RankingTab(QWidget):
 
         # Refresh the display
         self.uncheck_all()
-        if success_count > 0:
-            self.invalidate_total_media_count_cache()
-            if self.ui_refresh_callback:
-                self.ui_refresh_callback()
-            else:
-                self.refresh_rankings()
+        if success_count > 0 and self.ui_refresh_callback:
+            self.ui_refresh_callback()
         else:
             self.refresh_rankings()
 
@@ -1108,6 +1107,7 @@ class RankingTab(QWidget):
             self._is_programmatic_change = False  # Reset the flag
 
     def set_active_album(self, album_id: int):
-        """Set the active album and refresh rankings."""
+        """Switch album and mark rankings stale. Load happens on tab visit."""
         self.active_album_id = album_id
-        self.refresh_rankings(force_refresh=True)
+        self.invalidate_total_media_count_cache()
+        self.new_files_since_last_refresh = True

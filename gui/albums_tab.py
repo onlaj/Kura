@@ -28,6 +28,7 @@ class AlbumsTab(QWidget):
         self.total_albums = 0
         self.export_worker = None
         self.import_worker = None
+        self._needs_refresh = False
         self.setup_ui()
         self._select_album_by_id(1)
         self.refresh_albums()
@@ -121,6 +122,15 @@ class AlbumsTab(QWidget):
             self.sort_order = "ASC"
         self.refresh_albums()
 
+    def set_needs_refresh(self):
+        """Mark that the album list and stats need to be re-read."""
+        self._needs_refresh = True
+
+    def refresh_if_needed(self):
+        """Reload the album table only if it was marked stale."""
+        if self._needs_refresh:
+            self.refresh_albums()
+
     def refresh_albums(self):
         albums, total = self.db.get_albums_page(
             self.current_page, self.per_page, self.sort_by, self.sort_order
@@ -151,6 +161,7 @@ class AlbumsTab(QWidget):
         self.last_page_btn.setEnabled(self.current_page < total_pages)
         self._update_stats_display()
         self._select_album_by_id(self.active_album_id)
+        self._needs_refresh = False
 
     def on_selection_changed(self):
         selected = self.album_table.selectedItems()
@@ -158,8 +169,10 @@ class AlbumsTab(QWidget):
             row = selected[0].row()
             album_id = self.album_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
             album_name = self.album_table.item(row, 0).text()
+            album_changed = album_id != self.active_album_id
             self.active_album_id = album_id
-            self.album_changed.emit(album_id, album_name)
+            if album_changed:
+                self.album_changed.emit(album_id, album_name)
             self._update_stats_display()
 
     def change_items_per_page(self, text):

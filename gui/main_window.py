@@ -1,5 +1,4 @@
-from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout, QLabel)
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QWidget, QVBoxLayout)
 
 
 class MainWindow(QMainWindow):
@@ -22,6 +21,8 @@ class MainWindow(QMainWindow):
         self.tab_voting = None
         self.tab_load = None
         self.tab_ranking = None
+        self.tab_history = None
+        self.tab_change_callback = None
 
         self.media_handler = media_handler
 
@@ -33,9 +34,6 @@ class MainWindow(QMainWindow):
         self.tab_ranking = ranking_tab
         self.tab_history = history_tab
 
-        # Connect album change signal
-        self.tab_albums.album_changed.connect(self.on_album_changed)
-
         self.tab_widget.addTab(self.tab_albums, "Albums")
         self.tab_widget.addTab(self.tab_voting, "Voting")
         self.tab_widget.addTab(self.tab_load, "Load")
@@ -45,20 +43,20 @@ class MainWindow(QMainWindow):
         # Connect tab changed signal
         self.tab_widget.currentChanged.connect(self._handle_tab_change)
 
+    def current_tab_name(self) -> str:
+        index = self.tab_widget.currentIndex()
+        if index < 0:
+            return ""
+        return self.tab_widget.tabText(index)
+
     def on_album_changed(self, album_id: int, album_name: str):
         if album_id <= 1:
             self.setWindowTitle("Kura")
         else:
             self.setWindowTitle(f"Kura • {album_name}")
 
-    def _handle_tab_change(self, index):
+    def _handle_tab_change(self, _index):
         """Handle tab changes."""
-        tab_name = self.tab_widget.tabText(index)
-        if tab_name == "Voting":
-            self.tab_voting.ensure_images_loaded()
-        elif tab_name == "Ranking":
-            self.tab_ranking.refresh_rankings(force_refresh=False)
-        elif tab_name == "Votes history":
-            self.tab_history.refresh_if_needed()
-
+        if self.tab_change_callback:
+            self.tab_change_callback()
         self.media_handler.pause_all_videos()
