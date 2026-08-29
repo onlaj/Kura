@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QLabel, QSizePolicy
 
 from core.video_player import VideoPlayer
 from core.media_utils import AspectRatioWidget, add_play_button_overlay
+from core.png_sanitize import png_bytes_for_decode
 
 import logging
 
@@ -117,6 +118,12 @@ class MediaHandler:
     @staticmethod
     @lru_cache(maxsize=100)
     def _load_pixmap_cached(image_path: str) -> QPixmap:
+        if os.path.splitext(image_path)[1].lower() == '.png':
+            sanitized = png_bytes_for_decode(image_path)
+            if sanitized is not None:
+                pixmap = QPixmap()
+                pixmap.loadFromData(sanitized, 'PNG')
+                return pixmap
         return QPixmap(image_path)
 
     @staticmethod

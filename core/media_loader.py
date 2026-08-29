@@ -4,10 +4,11 @@ import os
 from queue import Queue, Empty
 from threading import Thread, Lock
 
-from PyQt6.QtCore import QObject, pyqtSignal, Qt
+from PyQt6.QtCore import QObject, pyqtSignal, Qt, QBuffer, QIODevice
 from PyQt6.QtGui import QImage, QImageReader
 
 from core.media_utils import grab_video_frame
+from core.png_sanitize import png_bytes_for_decode
 
 logger = logging.getLogger(__name__)
 
@@ -156,9 +157,25 @@ class ThreadedMediaLoader(QObject):
         return result
 
     @staticmethod
+    def _image_reader_for(file_path: str):
+        """Return (reader, keepalive). keepalive must be held until read() finishes."""
+        if os.path.splitext(file_path)[1].lower() == '.png':
+            sanitized = png_bytes_for_decode(file_path)
+            if sanitized is not None:
+                buffer = QBuffer()
+                buffer.setData(sanitized)
+                buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+                reader = QImageReader(buffer)
+                reader.setFormat(b'PNG')
+                reader.setAutoTransform(True)
+                return reader, buffer
+        reader = QImageReader(file_path)
+        reader.setAutoTransform(True)
+        return reader, None
+
+    @staticmethod
     def _load_image_thumbnail(result: MediaLoadResult):
-        reader = QImageReader(result.file_path)
-        reader.setAutoTransform(True)  # Respect EXIF orientation
+        reader, _keepalive = ThreadedMediaLoader._image_reader_for(result.file_path)
         size = reader.size()
         if size.isValid() and size.width() > 0 and size.height() > 0:
             if size.width() > THUMBNAIL_MAX_SIZE or size.height() > THUMBNAIL_MAX_SIZE:
