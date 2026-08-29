@@ -1,6 +1,6 @@
 from functools import lru_cache
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor
+from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor, QImage
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -222,8 +222,12 @@ class VideoPlayer(QWidget):
                 self.media_player.play()
                 self._autoplay_pending = False
 
-    def set_source(self, path):
-        """Set the video source."""
+    def set_source(self, path, thumbnail=None):
+        """Set the video source.
+
+        thumbnail: optional pre-decoded QImage or QPixmap from the ranking
+        loader. When provided, OpenCV is not used on the UI thread.
+        """
         self._releasing = False
         url = QUrl.fromLocalFile(path)
         logger.info(f"Setting video source: {url.toString()}")
@@ -240,14 +244,21 @@ class VideoPlayer(QWidget):
         self._autoplay_pending = False  # Reset autoplay pending flag
 
         # Extract and display thumbnail
-        self.extract_and_display_thumbnail(path)
+        self.extract_and_display_thumbnail(path, thumbnail)
 
         # Connect the playback state signal to handle thumbnail visibility
         self.media_player.playbackStateChanged.connect(self.hide_thumbnail_on_play)
 
-    def extract_and_display_thumbnail(self, path):
-        """Display cached thumbnail with play button overlay"""
-        pixmap = self._get_video_thumbnail(path)
+    def extract_and_display_thumbnail(self, path, thumbnail=None):
+        """Display a provided or cached thumbnail with play button overlay."""
+        pixmap = QPixmap()
+        if thumbnail is not None:
+            if isinstance(thumbnail, QPixmap):
+                pixmap = thumbnail
+            elif isinstance(thumbnail, QImage) and not thumbnail.isNull():
+                pixmap = QPixmap.fromImage(thumbnail)
+        if pixmap.isNull():
+            pixmap = self._get_video_thumbnail(path)
 
         if pixmap.isNull():
             # Create error thumbnail with overlay

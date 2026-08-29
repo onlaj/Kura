@@ -4,18 +4,19 @@ import os
 import time
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QMovie, QIcon, QKeyEvent
+from PyQt6.QtGui import QIcon, QKeyEvent, QPixmap
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                              QLabel, QScrollArea, QGridLayout, QFrame, QMessageBox,
                              QComboBox, QWidget, QSizePolicy, QCheckBox, QLineEdit,
                              QProgressDialog, QApplication)
 
-from core.media_loader import ThreadedMediaLoader
+from core.media_loader import ThreadedMediaLoader, PreviewLoader, classify_media, preview_max_edge
 from core.media_utils import AspectRatioWidget
 from core.media_utils import set_file_info, handle_video_single_click, handle_video_events
 from core.preview_handler import MediaPreview
 from core.media_workers import MediaDeleteWorker
 from core.file_delete import delete_file, paths_equal, release_qmediaplayer, release_qmovie
+from core.media_handler import ScalableLabel
 from gui.loading_overlay import LoadingOverlay
 from gui.failed_delete_dialog import FailedDeleteDialog, failed_file_entry
 from db.database import get_database_path
@@ -180,6 +181,12 @@ class RankingTab(QWidget):
         self.threaded_loader.media_loaded.connect(self._on_media_result)
         self.threaded_loader.all_media_loaded.connect(self._on_all_media_loaded)
         self.threaded_loader.progress_updated.connect(self.loading_overlay.increment_progress)
+        self._results_by_path = {}
+
+        self._preview_loader = PreviewLoader()
+        self._preview_loader.preview_ready.connect(self._on_preview_ready)
+        self._preview_request_id = 0
+        self.preview.finished.connect(self._on_preview_dialog_closed)
 
         # Buffer of MediaLoadResult objects waiting to become widgets. Frames
         # are inserted in small time-budgeted batches by a timer so the UI
@@ -372,8 +379,14 @@ class RankingTab(QWidget):
 
     def close_preview(self):
         """Handle preview closing"""
+        self._preview_loader.cancel()
+        self._preview_request_id = 0
         if self.preview.isVisible():
             self.preview.close()
+
+    def _on_preview_dialog_closed(self, *_args):
+        self._preview_loader.cancel()
+        self._preview_request_id = 0
 
     def keyPressEvent(self, event: QKeyEvent):
         """Handle ESC key to close preview"""
@@ -468,7 +481,9 @@ class RankingTab(QWidget):
 
         path = result.file_path
         try:
-            video_player, media_player = self.media_handler.create_video_player(path)
+            video_player, media_player = self.media_handler.create_video_player(
+                path, thumbnail=result.thumbnail
+            )
         except Exception as e:
             logger.error(f"Error creating video player for {path}: {e}")
             return
@@ -538,34 +553,93 @@ class RankingTab(QWidget):
 
 
     def show_preview(self, media_path, media_player=None):
-        """Show media preview overlay with navigation"""
-        # Find index of current media
+        """Show media preview overlay with navigation, without full-res UI-thread decode."""
         self.current_preview_index = -1
         for i, (_, path, _, _) in enumerate(self.current_images):
             if path == media_path:
                 self.current_preview_index = i
                 break
 
-        media = self.media_handler.load_media(media_path)
         self.media_handler.pause_all_videos()
+        self._preview_loader.cancel()
+        cached = self._results_by_path.get(media_path)
+        media_type = classify_media(media_path)
 
-        if isinstance(media, AspectRatioWidget):
+        if media_type == 'video':
+            self._show_video_preview(
+                media_path,
+                thumbnail=cached.thumbnail if cached else None,
+                aspect_ratio=cached.aspect_ratio if cached else 16 / 9,
+                media_player=media_player,
+            )
+        elif media_type == 'gif':
+            self._show_gif_preview(
+                media_path,
+                aspect_ratio=cached.aspect_ratio if cached else None,
+            )
+        else:
+            if cached and cached.thumbnail is not None and not cached.thumbnail.isNull():
+                self._show_image_preview_widget(cached.thumbnail, cached.aspect_ratio, media_path)
+            else:
+                self._show_preview_placeholder(media_path)
+            self._preview_request_id = self._preview_loader.load(
+                media_path, preview_max_edge(self)
+            )
+
+        self.preview.set_navigation_callbacks(
+            on_prev=self.show_previous_preview if self.can_show_previous() else None,
+            on_next=self.show_next_preview if self.can_show_next() else None
+        )
+
+    def _show_preview_placeholder(self, media_path):
+        placeholder = QLabel("Loading...")
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setStyleSheet("color: white; font-size: 18px;")
+        self.preview.show_media(placeholder, enable_navigation=True, media_path=media_path)
+
+    def _show_image_preview_widget(self, image, aspect_ratio, media_path):
+        pixmap = QPixmap.fromImage(image)
+        label = ScalableLabel()
+        label.setPixmap(pixmap)
+        wrapped = AspectRatioWidget(label, aspect_ratio)
+        self.preview.show_media(wrapped, enable_navigation=True, media_path=media_path)
+
+    def _show_gif_preview(self, media_path, aspect_ratio=None):
+        media = self.media_handler.create_gif_widget(media_path, aspect_ratio=aspect_ratio)
+        if media is None:
+            return
+        if isinstance(media, tuple):
+            self.preview.show_media(
+                media[0], gif_movie=media[1], enable_navigation=True, media_path=media_path
+            )
+        else:
             self.preview.show_media(media, enable_navigation=True, media_path=media_path)
-        elif isinstance(media, tuple) and media[0].__class__.__name__ == 'AspectRatioWidget':
-            if isinstance(media[1], QMovie):  # GIF
-                self.preview.show_media(media[0], gif_movie=media[1], enable_navigation=True, media_path=media_path)
-            else:  # Video
-                self.preview.show_media(
-                    media[0],
-                    video_player=media[1],
-                    enable_navigation=True,
-                    media_path=media_path,
-                    thumbnail_media_player=media_player
-                )
-                # Add event filter to video preview
-                media[0].installEventFilter(self.preview)
 
-        # Set up navigation callbacks
+    def _show_video_preview(self, media_path, thumbnail=None, aspect_ratio=16 / 9,
+                            media_player=None):
+        try:
+            video_player, player = self.media_handler.create_video_player(
+                media_path, thumbnail=thumbnail
+            )
+        except Exception as e:
+            logger.error(f"Error creating preview player for {media_path}: {e}")
+            return
+        wrapped = AspectRatioWidget(video_player, aspect_ratio)
+        self.preview.show_media(
+            wrapped,
+            video_player=player,
+            enable_navigation=True,
+            media_path=media_path,
+            thumbnail_media_player=media_player,
+        )
+        wrapped.installEventFilter(self.preview)
+
+    def _on_preview_ready(self, result):
+        if result.request_id != self._preview_request_id:
+            return
+        if result.media_type != 'image' or result.image is None or result.image.isNull():
+            return
+        self._show_image_preview_widget(result.image, result.aspect_ratio, result.file_path)
         self.preview.set_navigation_callbacks(
             on_prev=self.show_previous_preview if self.can_show_previous() else None,
             on_next=self.show_next_preview if self.can_show_next() else None
@@ -701,6 +775,7 @@ class RankingTab(QWidget):
         self._insert_timer.stop()
         self._pending_lazy_video = None
         self.lazy_video_timer.stop()
+        self._results_by_path.clear()
 
         # Clear existing grid first
         for i in reversed(range(self.grid_layout.count())):
@@ -768,6 +843,7 @@ class RankingTab(QWidget):
             index = result.index
             if index < len(self.current_images):
                 id, path, rating, votes = self.current_images[index]
+                self._results_by_path[path] = result
                 frame = self.create_image_frame(
                     index + 1,  # rank
                     id,

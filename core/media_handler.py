@@ -31,10 +31,12 @@ class ScalableLabel(QLabel):
         self._original_pixmap = None
         self._original_size = None
         self._aspect_ratio = None
+        self._scaled_for = None
         self.setStyleSheet("background-color: black;")  # Add this line
 
     def setPixmap(self, pixmap):
         self._original_pixmap = pixmap
+        self._scaled_for = None
         if not self._original_size:
             self._original_size = pixmap.size()
             if self._original_size.width() > 0 and self._original_size.height() > 0:
@@ -48,15 +50,27 @@ class ScalableLabel(QLabel):
         self._update_scaled_pixmap()
 
     def _update_scaled_pixmap(self):
-        if self._original_pixmap:
-            available_size = self.size()
-            # Calculate the scaled size while maintaining aspect ratio
-            scaled_pixmap = self._original_pixmap.scaled(
-                available_size,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            super().setPixmap(scaled_pixmap)
+        if not self._original_pixmap:
+            return
+        available_size = self.size()
+        if available_size.width() < 1 or available_size.height() < 1:
+            return
+        if self._scaled_for is not None and available_size == self._scaled_for:
+            return
+        self._scaled_for = QSize(available_size)
+        orig = self._original_pixmap.size()
+        # Grid thumbs are already <= 640; FastTransformation is enough and
+        # much cheaper on layout churn. Smooth only for large sources.
+        if orig.width() > 640 or orig.height() > 640:
+            mode = Qt.TransformationMode.SmoothTransformation
+        else:
+            mode = Qt.TransformationMode.FastTransformation
+        scaled_pixmap = self._original_pixmap.scaled(
+            available_size,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            mode,
+        )
+        super().setPixmap(scaled_pixmap)
 
     def get_aspect_ratio(self):
         return self._aspect_ratio if self._aspect_ratio else 16 / 9
@@ -200,13 +214,19 @@ class MediaHandler:
         Build a grid widget from a preloaded MediaLoadResult without touching
         the disk on the main thread.
 
-        Returns the same shapes as load_media():
+        Returns the same shapes as load_media() except GIFs are static thumbs
+        (AspectRatioWidget) when a first-frame thumbnail is available:
         - image: AspectRatioWidget
-        - gif: (AspectRatioWidget, QMovie) or AspectRatioWidget when the GIF is invalid
+        - gif: AspectRatioWidget (static first frame) or (AspectRatioWidget, QMovie)
         - video: AspectRatioWidget showing the thumbnail with a play overlay
           (the actual VideoPlayer is created lazily by the caller)
         """
         if result.media_type == 'gif':
+            if result.thumbnail is not None and not result.thumbnail.isNull():
+                pixmap = QPixmap.fromImage(result.thumbnail)
+                label = ScalableLabel()
+                label.setPixmap(pixmap)
+                return AspectRatioWidget(label, result.aspect_ratio)
             widget, movie = self._load_gif(result.file_path)
             if widget is None:
                 return None
@@ -237,14 +257,31 @@ class MediaHandler:
         label.setPixmap(pixmap)
         return AspectRatioWidget(label, result.aspect_ratio)
 
-    def create_video_player(self, file_path: str):
+    def create_video_player(self, file_path: str, thumbnail=None):
         """
         Create a VideoPlayer for the given path.
+
+        thumbnail: optional pre-decoded QImage/QPixmap so the player does not
+        grab a frame on the UI thread.
 
         Returns:
             (VideoPlayer, QMediaPlayer)
         """
-        return self._create_video_widget(file_path)
+        return self._create_video_widget(file_path, thumbnail=thumbnail)
+
+    def create_gif_widget(self, gif_path: str, aspect_ratio=None):
+        """Load an animated GIF on the main thread and wrap it."""
+        widget, movie = self._load_gif(gif_path)
+        if widget is None:
+            return None
+        if aspect_ratio is None:
+            aspect_ratio = (
+                widget.get_aspect_ratio()
+                if hasattr(widget, 'get_aspect_ratio')
+                else 16 / 9
+            )
+        wrapped = AspectRatioWidget(widget, aspect_ratio)
+        return (wrapped, movie) if movie else wrapped
 
     def _load_gif(self, gif_path: str):
         """Load animated GIF and return ScalableMovie with QMovie."""
@@ -278,7 +315,7 @@ class MediaHandler:
             return label
         return None
 
-    def _create_video_widget(self, video_path: str):
+    def _create_video_widget(self, video_path: str, thumbnail=None):
         """Create and return video widget."""
         logger.info(f"Creating video widget for: {video_path}")
         video_player = VideoPlayer()
@@ -286,7 +323,7 @@ class MediaHandler:
         # Auto-remove from list when player is destroyed
         video_player.destroyed.connect(lambda: self.cleanup_player(video_player))
         try:
-            video_player.set_source(video_path)
+            video_player.set_source(video_path, thumbnail=thumbnail)
             logger.info(f"Successfully created video player for: {video_path}")
             return video_player, video_player.media_player
         except Exception as e:

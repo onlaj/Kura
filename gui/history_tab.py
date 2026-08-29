@@ -1,14 +1,16 @@
 # gui/history_tab.py
 import logging
 import os
-from PyQt6.QtCore import Qt, QTimer, QEvent
-from PyQt6.QtGui import QMovie
+from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtGui import QMovie, QPixmap
 from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QHeaderView, QLineEdit,
                              QComboBox, QPushButton, QLabel, QAbstractItemView, QMessageBox, QCheckBox)
 from core.preview_handler import MediaPreview
-from core.media_handler import MediaHandler
+from core.media_handler import ScalableLabel
+from core.media_loader import PreviewLoader, classify_media, preview_max_edge
+from core.media_utils import AspectRatioWidget
 from core.file_delete import paths_equal
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,10 @@ class HistoryTab(QWidget):
         self.db = db
         self.media_handler = media_handler
         self.preview = MediaPreview(self)
+        self._preview_loader = PreviewLoader()
+        self._preview_loader.preview_ready.connect(self._on_preview_ready)
+        self._preview_request_id = 0
+        self.preview.finished.connect(self._on_preview_dialog_closed)
         self.current_page = 1
         self.active_album_id = 1
         self.sort_by = "timestamp"
@@ -186,15 +192,59 @@ class HistoryTab(QWidget):
         item.setData(Qt.ItemDataRole.UserRole, path)
         return item
 
+    def _on_preview_dialog_closed(self, *_args):
+        self._preview_loader.cancel()
+        self._preview_request_id = 0
+
     def show_history_preview(self, row, col):
         if col not in [2, 3]:  # Only preview for winner/loser columns
             return
 
         path = self.table.item(row, col).data(Qt.ItemDataRole.UserRole)
-        media = self.media_handler.load_media(path)
         self.media_handler.pause_all_videos()
+        self._preview_loader.cancel()
+        media_type = classify_media(path)
 
-        # Store references to the media player
+        if media_type == 'gif':
+            self._present_history_preview(path, self.media_handler.create_gif_widget(path))
+            return
+
+        placeholder = QLabel("Loading...")
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setStyleSheet("color: white; font-size: 18px;")
+        self.preview.show_media(placeholder, media_path=path)
+        self._preview_request_id = self._preview_loader.load(
+            path, preview_max_edge(self)
+        )
+
+    def _on_preview_ready(self, result):
+        if result.request_id != self._preview_request_id:
+            return
+        path = result.file_path
+        if result.media_type == 'video':
+            try:
+                video_player, player = self.media_handler.create_video_player(
+                    path, thumbnail=result.image
+                )
+            except Exception as e:
+                logger.error(f"Error creating history preview player for {path}: {e}")
+                return
+            wrapped = AspectRatioWidget(video_player, result.aspect_ratio)
+            self._present_history_preview(path, (wrapped, player))
+            return
+        if result.media_type == 'image' and result.image is not None and not result.image.isNull():
+            pixmap = QPixmap.fromImage(result.image)
+            label = ScalableLabel()
+            label.setPixmap(pixmap)
+            wrapped = AspectRatioWidget(label, result.aspect_ratio)
+            self._present_history_preview(path, wrapped)
+            return
+        media = self.media_handler.load_media(path)
+        self._present_history_preview(path, media)
+
+    def _present_history_preview(self, path, media):
+        if media is None:
+            return
         media_player = None
         widget = None
 
@@ -205,7 +255,6 @@ class HistoryTab(QWidget):
             elif isinstance(player, QMovie):  # GIF
                 media_player = player
 
-        # Install event filter for video controls
         if widget and media_player:
             widget.installEventFilter(self)
             widget.setProperty('media_player', media_player)
@@ -213,7 +262,8 @@ class HistoryTab(QWidget):
 
         self.preview.show_media(widget if widget else media,
                                 media_path=path,
-                                video_player=media_player)
+                                video_player=media_player if hasattr(media_player, 'play') and not isinstance(media_player, QMovie) else None,
+                                gif_movie=media_player if isinstance(media_player, QMovie) else None)
 
     def release_media_path(self, file_path: str):
         """Close the history preview if it is showing this file."""

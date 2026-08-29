@@ -9,12 +9,17 @@ from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPainterPath
 from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy
 
+from core.thumb_seek import VIDEO_THUMB_SEEK_CAP_MS, video_thumb_seek_ms
+
 logger = logging.getLogger(__name__)
 
 
 def grab_video_frame(file_path):
     """
-    Grab the middle frame of a video with OpenCV.
+    Grab a mid-content frame of a video with OpenCV.
+
+    Seeks by timestamp (keyframe-capable) to min(halfway, 8s) so fade-ins are
+    skipped without decoding to the middle of a long file.
 
     Safe to call from any thread (uses QImage, not QPixmap).
 
@@ -23,6 +28,7 @@ def grab_video_frame(file_path):
         aspect ratio (falls back to 16/9 when it cannot be determined).
     """
     aspect_ratio = 16 / 9
+    cap = None
     try:
         cap = cv2.VideoCapture(file_path)
         if not cap.isOpened():
@@ -34,15 +40,24 @@ def grab_video_frame(file_path):
         if width > 0 and height > 0:
             aspect_ratio = width / height
 
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames <= 0:
-            logger.warning(f"Video {file_path} has no frames")
-            cap.release()
-            return QImage(), aspect_ratio
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 0)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        duration_ms = 0.0
+        if fps > 1e-3 and total_frames > 0:
+            duration_ms = (total_frames / fps) * 1000.0
 
-        cap.set(cv2.CAP_PROP_POS_FRAMES, total_frames // 2)
+        target_ms = video_thumb_seek_ms(duration_ms)
+        cap.set(cv2.CAP_PROP_POS_MSEC, target_ms)
         ret, frame = cap.read()
-        cap.release()
+
+        if not ret and total_frames > 1:
+            # Some backends ignore POS_MSEC; fall back to a capped frame index.
+            target_frame = max(1, total_frames // 2)
+            if fps > 1e-3:
+                capped = int(fps * (VIDEO_THUMB_SEEK_CAP_MS / 1000.0))
+                target_frame = max(1, min(target_frame, capped))
+            cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            ret, frame = cap.read()
 
         if not ret:
             logger.warning(f"Error reading frame from {file_path}")
@@ -59,6 +74,9 @@ def grab_video_frame(file_path):
     except Exception as e:
         logger.error(f"Error grabbing video frame from {file_path}: {str(e)}")
         return QImage(), aspect_ratio
+    finally:
+        if cap is not None:
+            cap.release()
 
 
 def add_play_button_overlay(base_pixmap: QPixmap) -> QPixmap:
