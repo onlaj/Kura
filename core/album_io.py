@@ -36,6 +36,7 @@ def export_album(db, album_id: int, file_path: str):
                 loser_id INTEGER NOT NULL,
                 album_id INTEGER NOT NULL,
                 timestamp DATETIME,
+                weight INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY (winner_id) REFERENCES media (id),
                 FOREIGN KEY (loser_id) REFERENCES media (id),
                 FOREIGN KEY (album_id) REFERENCES albums (id)
@@ -64,12 +65,12 @@ def export_album(db, album_id: int, file_path: str):
 
         # Export votes data
         votes_data = db.cursor.execute(
-            "SELECT * FROM votes WHERE album_id = ?",
+            "SELECT id, winner_id, loser_id, album_id, timestamp, weight FROM votes WHERE album_id = ?",
             (album_id,)
         ).fetchall()
         for vote in votes_data:
             backup_cursor.execute(
-                "INSERT INTO votes VALUES (?, ?, ?, ?, ?)", vote
+                "INSERT INTO votes VALUES (?, ?, ?, ?, ?, ?)", vote
             )
 
         backup_conn.commit()
@@ -125,9 +126,10 @@ def import_album(db, file_path: str, new_name: str = None):
             new_winner = media_id_map.get(vote[1])
             new_loser = media_id_map.get(vote[2])
             if new_winner and new_loser:
+                weight = vote[5] if len(vote) > 5 else 1  # Older backups have no weight
                 db.cursor.execute(
-                    "INSERT INTO votes (winner_id, loser_id, album_id, timestamp) VALUES (?, ?, ?, ?)",
-                    (new_winner, new_loser, new_album_id, vote[4])
+                    "INSERT INTO votes (winner_id, loser_id, album_id, timestamp, weight) VALUES (?, ?, ?, ?, ?)",
+                    (new_winner, new_loser, new_album_id, vote[4], weight)
                 )
 
         db.conn.commit()

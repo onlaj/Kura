@@ -7,6 +7,7 @@ from typing import List, Set, Tuple
 
 import pytest
 
+from core.album_io import export_album, import_album
 from core.glicko2 import Glicko2Rating
 from core.reliability_calculator import ReliabilityCalculator
 from db.database import Database
@@ -205,6 +206,73 @@ class TestPairing:
             "SELECT votes FROM media WHERE id = ?", (left[0],)
         )
         assert database.cursor.fetchone()[0] == 1
+
+
+class TestRecalculation:
+    @pytest.fixture
+    def db(self, tmp_path):
+        database = Database(str(tmp_path / "test.db"))
+        yield database
+        database.close()
+
+    @staticmethod
+    def _album(database, tmp_path, name, rating_system):
+        album_id = database.create_album(name, rating_system)
+        for i in range(4):
+            path = tmp_path / f"{name}_{i}.jpg"
+            path.touch()
+            database.add_media(str(path), "image", album_id)
+        rows = database.cursor.execute(
+            "SELECT id FROM media WHERE album_id = ? ORDER BY id", (album_id,)
+        ).fetchall()
+        return album_id, [row[0] for row in rows]
+
+    @staticmethod
+    def _state(database, album_id):
+        return database.cursor.execute(
+            "SELECT id, rating, glicko_phi, glicko_sigma, votes FROM media "
+            "WHERE album_id = ? ORDER BY id", (album_id,)
+        ).fetchall()
+
+    def test_elo_recalc_leaves_other_albums_alone(self, db, tmp_path):
+        glicko_id, glicko = self._album(db, tmp_path, "glicko", "glicko2")
+        elo_id, elo = self._album(db, tmp_path, "elo", "elo")
+        db.update_ratings(glicko[0], glicko[1], glicko_id)
+        db.update_ratings(elo[0], elo[1], elo_id)
+        before = self._state(db, glicko_id)
+        db._recalculate_ratings()
+        assert self._state(db, glicko_id) == before
+
+    @pytest.mark.parametrize("rating_system", ["glicko2", "elo"])
+    def test_recalc_preserves_weighted_votes(self, db, tmp_path, rating_system):
+        album_id, ids = self._album(db, tmp_path, "album", rating_system)
+        db.update_ratings(ids[0], ids[1], album_id, weight=2)
+        db.update_ratings(ids[2], ids[0], album_id)
+        db.update_ratings(ids[1], ids[3], album_id, weight=2)
+        before = self._state(db, album_id)
+        db._recalculate_ratings()
+        assert self._state(db, album_id) == before
+
+    def test_weight_survives_export_and_import(self, db, tmp_path):
+        album_id, ids = self._album(db, tmp_path, "album", "glicko2")
+        db.update_ratings(ids[0], ids[1], album_id, weight=2)
+        export_album(db, album_id, str(tmp_path / "backup.db"))
+        assert import_album(db, str(tmp_path / "backup.db"), "copy")[0]
+        weights = db.cursor.execute("SELECT weight FROM votes").fetchall()
+        assert weights == [(2,), (2,)]
+
+    def test_existing_votes_are_migrated_with_default_weight(self, tmp_path):
+        path = str(tmp_path / "old.db")
+        database = Database(path)
+        album_id, ids = self._album(database, tmp_path, "album", "glicko2")
+        database.update_ratings(ids[0], ids[1], album_id)
+        database.cursor.execute("ALTER TABLE votes DROP COLUMN weight")
+        database.conn.commit()
+        database.close()
+
+        database = Database(path)
+        assert database.cursor.execute("SELECT weight FROM votes").fetchall() == [(1,)]
+        database.close()
 
 
 class TestPairingEfficiency:

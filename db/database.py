@@ -80,6 +80,12 @@ class Database:
                 self.cursor.execute("ALTER TABLE media ADD COLUMN modified_at DATETIME")
                 self.conn.commit()
 
+            self.cursor.execute("PRAGMA table_info(votes)")
+            if 'weight' not in [info[1] for info in self.cursor.fetchall()]:
+                logger.info("Adding 'weight' column to 'votes' table.")
+                self.cursor.execute("ALTER TABLE votes ADD COLUMN weight INTEGER NOT NULL DEFAULT 1")
+                self.conn.commit()
+
         except sqlite3.Error as e:
             logger.error(f"Error updating schema: {e}")
             # Depending on the severity, you might want to raise the exception
@@ -131,6 +137,7 @@ class Database:
                 loser_id INTEGER NOT NULL,
                 album_id INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                weight INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY (winner_id) REFERENCES media (id),
                 FOREIGN KEY (loser_id) REFERENCES media (id),
                 FOREIGN KEY (album_id) REFERENCES albums (id)
@@ -282,60 +289,57 @@ class Database:
 
         from core.elo import Rating
 
-        # Reset all ratings
-        self.cursor.execute("UPDATE media SET rating = 1200, votes = 0")
-        self.conn.commit()
+        # Reset ratings for this album only
+        self.cursor.execute(
+            "UPDATE media SET rating = 1200, votes = 0 WHERE album_id = ?", (album_id,)
+        )
 
-        # Process votes per album
-        albums = self.get_albums()
-        for album in albums:
-            album_id = album[0]
-            media_count = self.get_total_media_count(album_id)
+        media_count = self.get_total_media_count(album_id)
+
+        self.cursor.execute("""
+            SELECT winner_id, loser_id, weight
+            FROM votes
+            WHERE album_id = ?
+            ORDER BY timestamp ASC, id ASC
+        """, (album_id,))
+        votes = self.cursor.fetchall()
+
+        ratings = {row[0]: 1200 for row in
+                   self.cursor.execute("SELECT id FROM media WHERE album_id = ?", (album_id,))}
+
+        # Process each vote with historical context
+        for idx, (winner_id, loser_id, weight) in enumerate(votes):
+            if winner_id not in ratings or loser_id not in ratings:
+                continue
+
+            v = idx + 1
+            reliability = ReliabilityCalculator.calculate_reliability(
+                media_count, v, rating_system="elo"
+            )
+            k_factor = (32 if reliability < 85 else 16) * weight
+
+            rating = Rating(
+                ratings[winner_id],
+                ratings[loser_id],
+                Rating.WIN,
+                Rating.LOST,
+                k_factor
+            )
+            new_ratings = rating.get_new_ratings()
+            ratings[winner_id] = new_ratings['a']
+            ratings[loser_id] = new_ratings['b']
 
             self.cursor.execute("""
-                        SELECT winner_id, loser_id 
-                        FROM votes 
-                        WHERE album_id = ?
-                        ORDER BY timestamp ASC
-                    """, (album_id,))
-            votes = self.cursor.fetchall()
+                UPDATE media
+                SET votes = votes + 1
+                WHERE id IN (?, ?)
+            """, (winner_id, loser_id))
 
-            ratings = {row[0]: 1200 for row in
-                       self.cursor.execute("SELECT id FROM media WHERE album_id = ?", (album_id,))}
-
-            # Process each vote with historical context
-            for idx, (winner_id, loser_id) in enumerate(votes):
-                if winner_id not in ratings or loser_id not in ratings:
-                    continue
-
-                v = idx + 1
-                reliability = ReliabilityCalculator.calculate_reliability(
-                    media_count, v, rating_system="elo"
-                )
-                k_factor = 32 if reliability < 85 else 16
-
-                rating = Rating(
-                    ratings[winner_id],
-                    ratings[loser_id],
-                    Rating.WIN,
-                    Rating.LOST,
-                    k_factor
-                )
-                new_ratings = rating.get_new_ratings()
-                ratings[winner_id] = new_ratings['a']
-                ratings[loser_id] = new_ratings['b']
-
-                self.cursor.execute("""
-                            UPDATE media 
-                            SET votes = votes + 1 
-                            WHERE id IN (?, ?)
-                        """, (winner_id, loser_id))
-
-            # Update final ratings
-            for media_id, rating in ratings.items():
-                self.cursor.execute("""
-                            UPDATE media SET rating = ? WHERE id = ?
-                        """, (rating, media_id))
+        # Update final ratings
+        for media_id, rating in ratings.items():
+            self.cursor.execute("""
+                UPDATE media SET rating = ? WHERE id = ?
+            """, (rating, media_id))
 
         self.conn.commit()
 
@@ -362,39 +366,41 @@ class Database:
 
         # Process votes in chronological order
         self.cursor.execute("""
-            SELECT winner_id, loser_id 
-            FROM votes 
+            SELECT winner_id, loser_id, weight
+            FROM votes
             WHERE album_id = ?
-            ORDER BY timestamp ASC
+            ORDER BY timestamp ASC, id ASC
         """, (album_id,))
 
-        for winner_id, loser_id in self.cursor.fetchall():
+        for winner_id, loser_id, weight in self.cursor.fetchall():
             if winner_id not in media or loser_id not in media:
                 continue
 
-            # Get current parameters
-            w_mu, w_phi, w_sigma = media[winner_id]
-            l_mu, l_phi, l_sigma = media[loser_id]
+            # A weighted vote repeats the update, matching update_ratings
+            for _ in range(weight):
+                # Get current parameters
+                w_mu, w_phi, w_sigma = media[winner_id]
+                l_mu, l_phi, l_sigma = media[loser_id]
 
-            # Calculate updates
-            gr = Glicko2Rating(
-                w_mu, w_phi, w_sigma,
-                l_mu, l_phi, l_sigma,
-                1.0, 0.0  # Winner gets 1.0, loser 0.0
-            )
-            new_ratings = gr.get_new_ratings()
+                # Calculate updates
+                gr = Glicko2Rating(
+                    w_mu, w_phi, w_sigma,
+                    l_mu, l_phi, l_sigma,
+                    1.0, 0.0  # Winner gets 1.0, loser 0.0
+                )
+                new_ratings = gr.get_new_ratings()
 
-            # Update in-memory state
-            media[winner_id] = (
-                new_ratings['a']['mu'],
-                new_ratings['a']['phi'],
-                new_ratings['a']['sigma']
-            )
-            media[loser_id] = (
-                new_ratings['b']['mu'],
-                new_ratings['b']['phi'],
-                new_ratings['b']['sigma']
-            )
+                # Update in-memory state
+                media[winner_id] = (
+                    new_ratings['a']['mu'],
+                    new_ratings['a']['phi'],
+                    new_ratings['a']['sigma']
+                )
+                media[loser_id] = (
+                    new_ratings['b']['mu'],
+                    new_ratings['b']['phi'],
+                    new_ratings['b']['sigma']
+                )
             vote_counts[winner_id] += 1
             vote_counts[loser_id] += 1
 
@@ -574,9 +580,9 @@ class Database:
 
             # Record a single vote edge (even for weighted/double votes)
             self.cursor.execute("""
-                INSERT INTO votes (winner_id, loser_id, album_id)
-                VALUES (?, ?, ?)
-            """, (winner_id, loser_id, album_id))
+                INSERT INTO votes (winner_id, loser_id, album_id, weight)
+                VALUES (?, ?, ?, ?)
+            """, (winner_id, loser_id, album_id, weight))
 
             self.conn.commit()
 
