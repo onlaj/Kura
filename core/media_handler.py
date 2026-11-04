@@ -75,6 +75,13 @@ class ScalableLabel(QLabel):
     def get_aspect_ratio(self):
         return self._aspect_ratio if self._aspect_ratio else 16 / 9
 
+    def sizeHint(self):
+        # QLabel would report the scaled pixmap, which follows the current
+        # size. Hints must not depend on size (see AspectRatioWidget).
+        if self._original_pixmap:
+            return self._original_pixmap.size()
+        return super().sizeHint()
+
     def minimumSizeHint(self):
         return QSize(100, 100)  # Set a reasonable minimum size
 
@@ -106,8 +113,9 @@ class ScalableMovie(QLabel):
     def _update_scaled_movie(self):
         if self._movie and self._original_size:
             available_size = self.size()
-            # Calculate the scaled size while maintaining aspect ratio
-            scaled_size = self._original_size
+            # Calculate the scaled size while maintaining aspect ratio.
+            # Copy first: QSize.scale() mutates in place.
+            scaled_size = QSize(self._original_size)
             scaled_size.scale(
                 available_size.width(),
                 available_size.height(),
@@ -117,6 +125,12 @@ class ScalableMovie(QLabel):
 
     def get_aspect_ratio(self):
         return self._aspect_ratio
+
+    def sizeHint(self):
+        # Same reason as ScalableLabel: the scaled movie follows the current size.
+        if self._original_size and self._original_size.isValid():
+            return QSize(self._original_size)
+        return super().sizeHint()
 
     def minimumSizeHint(self):
         return QSize(100, 100)  # Set a reasonable minimum size

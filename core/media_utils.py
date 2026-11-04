@@ -149,6 +149,15 @@ class AspectRatioWidget(QWidget):
         widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+    # The margins set in resizeEvent depend on the current size, so they must
+    # stay out of the size hints. Otherwise size -> margins -> hint -> size can
+    # cycle forever inside a QScrollArea and overflow the native stack.
+    def sizeHint(self):
+        return self.layout().itemAt(0).sizeHint()
+
+    def minimumSizeHint(self):
+        return self.layout().itemAt(0).minimumSize()
+
     def resizeEvent(self, event):
         width = self.width()
         height = self.height()
